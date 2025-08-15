@@ -1,0 +1,7 @@
+
+# editor stuff
+/.idea
+
+# mojo stuff
+/.pixi
+/build

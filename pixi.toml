@@ -1,0 +1,20 @@
+
+[workspace]
+name = "cryoluge"
+description = "A library for high-performance analysis of data from Cryo-EM and Cryo-ET"
+version = "0.1.0"
+authors = ["jeff <jeff@cuchazinteractive.com>"]
+platforms = ["linux-64"]
+channels = [
+    "https://conda.modular.com/max-nightly",
+    "conda-forge"
+]
+
+[dependencies]
+mojo = "25.5.*"
+
+[tasks]
+build_dir = "rm -rf build 2> /dev/null; mkdir -p build"
+build_pkg = { cmd = "mojo package -o build/cryoluge.mojopkg src", depends-on = ["build_dir"] }
+test = { cmd = "mojo test -I build test", depends-on = ["build_pkg"] }
+# NOTE: `mojo test` doesn't seem to support `-flag=value` syntax, only `-flag value`
