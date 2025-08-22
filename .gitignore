@@ -5,3 +5,6 @@
 # mojo stuff
 /.pixi
 /build
+
+# other
+/notes.txt
