@@ -17,8 +17,26 @@ struct ByteBuffer:
     fn size(self) -> UInt:
         return self._size
 
-    fn span(self) -> Span[mut=True, Byte, MutableOrigin.cast_from[__origin_of(self)]]:
+    fn span(self,
+        *,
+        start: UInt = 0,
+        length: Optional[Int] = None
+    ) -> Span[mut=True, Byte, MutableOrigin.cast_from[__origin_of(self)]]:
+
+        # safety first
+        debug_assert[assert_mode="safe"](
+            start <= self._size,
+            "Invalid span start: start=", start, ", size=", self._size
+        )
+        if length:
+            debug_assert[assert_mode="safe"](
+                start + length.value() <= self._size,
+                "Invalid span length: start=", start, ", length=", length.value(), ", size=", self._size
+            )
+
+        var length_v = length.or_else(self._size - start)
+        var p: UnsafePointer[Byte] = self._p + start
         return Span(
-            ptr=self._p.origin_cast[mut=True, origin=MutableOrigin.cast_from[__origin_of(self)]](),
-            length=self._size
+            ptr=p.origin_cast[mut=True, origin=MutableOrigin.cast_from[__origin_of(self)]](),
+            length=length_v
         )

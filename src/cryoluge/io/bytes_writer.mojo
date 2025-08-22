@@ -4,7 +4,7 @@ from memory import memcpy
 
 struct BytesWriter[
     origin: Origin[mut=True], //
-]:
+](BinaryWriter):
     var buf: Span[Byte, origin].Mutable
     var _pos: UInt
 
@@ -22,6 +22,9 @@ struct BytesWriter[
             "pos overflowed the buffer (pos=", self._pos, ", capacity=", capacity, ")"
         )
         return capacity - self._pos
+
+    fn reset(mut self):
+        self._pos = 0
 
     fn write_bytes(mut self, bytes: Span[Byte]):
         var size = len(bytes)
