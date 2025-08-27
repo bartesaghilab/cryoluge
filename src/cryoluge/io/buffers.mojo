@@ -1,5 +1,5 @@
 
-from memory import UnsafePointer, stack_allocation
+from memory import UnsafePointer
 
 
 struct ByteBuffer:

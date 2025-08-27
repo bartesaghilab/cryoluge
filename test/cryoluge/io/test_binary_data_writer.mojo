@@ -2,7 +2,7 @@
 from testing import assert_equal
 
 from cryoluge.io import ByteBuffer, BytesWriter, BinaryDataWriter
-from testlib import assert_equal_buffers
+from cryoluge_testlib import assert_equal_buffers
 
 
 def test_write_int():

@@ -30,18 +30,24 @@ so currently the only IDE with decent support for Mojo is VS Code.
 
 To get the Mojo extension's language server to recognize this library,
 you'll need to add the absolute path of the `src` folder to the LSP include folders.
+And if you want to develop the test suite for the library, you'll want the `test` folder too.
 
 Find the `Mojo › Lsp: Include Dirs` setting in VS Code and add the absolute path to the `src` folder.
 On your computer, the path may look something like this:
 ```
 /home/me/projects/cryoluge/src
 ```
+And test `test` folder path may look something like this:
+```
+/home/me/projects/cryoluge/test
+```
 
 Alternatively, you can add the following JSON config to your `~/.Config/Code/User/settings.json` file to configure the setting in JSON:
 ```json
 {
     "mojo.lsp.includeDirs": [
-        "/home/jeff/cryoluge/src"
+        "/home/jeff/cryoluge/src", 
+        "/home/jeff/cryoluge/test"
     ]
 }
 ```
