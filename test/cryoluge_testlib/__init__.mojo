@@ -12,6 +12,6 @@ def assert_equal_buffers(
     )
     for i in range(len(exp)):
         assert_equal(
-            exp[i], obs[i],
+            obs[i], exp[i],
             msg=String("Arrays differ at i=", i)
         )

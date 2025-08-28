@@ -1,4 +1,6 @@
 
+from sys.info import is_big_endian, is_little_endian
+
 
 struct Endian(
     Copyable,
@@ -6,8 +8,20 @@ struct Endian(
 ):
     var value: Int
 
+    alias Unknown=Endian(-1)
     alias Big=Endian(0)
     alias Little=Endian(1)
+
+    @staticmethod
+    fn native() -> Self:
+        @parameter
+        if is_big_endian():
+            return Self.Big
+        elif is_little_endian():
+            return Self.Little
+        else:
+            constrained[False, "Target architecture is neither big nor little endian"]()
+            return Self.Unknown
 
     fn __init__(out self, value: Int):
         self.value = value
