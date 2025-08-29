@@ -26,7 +26,7 @@ struct BytesWriter[
     fn reset(mut self):
         self._pos = 0
 
-    fn write_bytes(mut self, bytes: Span[Byte]):
+    fn write_bytes(mut self, bytes: ByteSpan):
         var size = len(bytes)
         debug_assert[assert_mode="safe"](
             size <= self.bytes_remaining(),

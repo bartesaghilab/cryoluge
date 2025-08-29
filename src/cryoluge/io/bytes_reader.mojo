@@ -24,7 +24,7 @@ struct BytesReader[
     fn reset(mut self):
         self._pos = 0
         
-    fn read_bytes(mut self, bytes: Span[mut=True, Byte, alignment=alignof[Byte]()]) raises -> UInt:
+    fn read_bytes(mut self, bytes: MutByteSpan) raises -> UInt:
         var size = len(bytes)
         if size > self.bytes_remaining():
             raise Error("Buffer underflow: read=", size, ", remaining=", self.bytes_remaining())

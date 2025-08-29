@@ -1,68 +1,18 @@
 
-from memory.maybe_uninitialized import UnsafeMaybeUninitialized
 from sys.info import alignof, sizeof
-from bit import byte_swap
 
 
 trait BinaryReader:
-    fn read_bytes(mut self, buf: Span[mut=True, Byte, alignment=alignof[Byte]()]) raises -> UInt: ...
+    fn read_bytes(mut self, buf: MutByteSpan) raises -> UInt: ...
     # For some reason, we need to explicitly specify Byte alignment
     # even though the default alignment is supposed to be `alignof[T]()`.
     # Tragically, this means the explicit alignment must infect all implementors of this trait.
-
-
-fn _as_mut_byte_span[
-    dtype: DType,
-    origin: Origin[mut=True]
-](ref [origin] v: Scalar[dtype]) -> Span[
-    mut=True,
-    Byte,
-    origin,
-    alignment=alignof[Byte]()
-]:
-    return Span(
-        UnsafePointer(to=v)
-            .bitcast[Byte]()
-            .static_alignment_cast[alignof[Byte]()](),
-        dtype.sizeof()
-    )
 
 
 fn _check_read[T: AnyType](bytes_read: UInt) raises:
     var size = sizeof[T]()
     if bytes_read != size:
         raise Error("Underflow: read ", bytes_read, ", of ", size, " byte(s)")
-
-
-# NOTE: can't use stdlib's swap() for this because of aliasing rules =(
-fn _swap_in_span(s: Span[mut=True, Byte, alignment=alignof[Byte]()], i1: UInt, i2: UInt):
-    debug_assert(i1 < len(s))
-    debug_assert(i2 < len(s))
-    var swap = s[i1]
-    s[i1] = s[i2]
-    s[i2] = swap
-
-
-fn _swap_bytes_if_needed[dtype: DType, endian: Endian](mut v: Scalar[dtype]):
-    @parameter
-    if endian != Endian.native():
-        @parameter
-        if dtype.is_integral():
-            v = byte_swap(v)
-        else:
-            # no fancy intrinsic fn for non-int types, so just do it the hard way
-            var s = _as_mut_byte_span(v)
-            @parameter
-            if dtype.sizeof() == 4:
-                _swap_in_span(s, 0, 3)
-                _swap_in_span(s, 1, 2)
-            elif dtype.sizeof() == 8:
-                _swap_in_span(s, 0, 7)
-                _swap_in_span(s, 1, 6)
-                _swap_in_span(s, 2, 5)
-                _swap_in_span(s, 3, 4)
-            else:
-                constrained[False, String("Can't byte swap scalar type of size ", dtype.sizeof())]()
 
 
 # NOTE: Mojo doesn't (yet) have default trait function implementations,
@@ -85,12 +35,12 @@ struct BinaryDataReader[
             "For multi-byte scalars, use the function overload with an endian parameter"
         ]()
         v = 0
-        _check_read[Scalar[dtype]](self.reader[].read_bytes(_as_mut_byte_span(v)))
+        _check_read[Scalar[dtype]](self.reader[].read_bytes(as_byte_span(v)))
 
     fn read_scalar[dtype: DType, endian: Endian](self, out v: Scalar[dtype]) raises:
         v = 0
-        _check_read[Scalar[dtype]](self.reader[].read_bytes(_as_mut_byte_span(v)))
-        _swap_bytes_if_needed[dtype, endian](v)
+        _check_read[Scalar[dtype]](self.reader[].read_bytes(as_byte_span(v)))
+        swap_bytes_if_needed[dtype, endian](v)
 
     fn read_u8(self, out v: UInt8) raises:
         v = self.read_scalar[DType.uint8]()
