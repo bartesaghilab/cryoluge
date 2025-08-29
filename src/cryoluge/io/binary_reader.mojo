@@ -16,8 +16,8 @@ trait BinaryReader:
 #       need to define a new struct to hold the functions,
 #       and then instantiate that struct on a reference when we want to call them.
 struct BinaryDataReader[
-    origin: Origin[mut=True],
-    R: BinaryReader
+    R: BinaryReader,
+    origin: Origin[mut=True]
 ]:
     var reader: Pointer[R, origin]
 
