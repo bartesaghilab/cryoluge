@@ -1,14 +1,20 @@
 
 from io import FileDescriptor
+from os import SEEK_CUR
 
 
-struct FileReader(BinaryReader):
+struct FileReader[
+    mut: Bool, //,
+    origin: Origin[mut]
+](BinaryReader):
+    var _fh: Pointer[FileHandle, origin]
     var _fd: FileDescriptor
     var _buf: ByteBuffer
     var _pos: UInt
     var _limit: UInt
 
-    def __init__(out self, fh: FileHandle, *, buf_size: UInt = 16*1024):
+    def __init__(out self, ref [origin] fh: FileHandle, *, buf_size: UInt = 16*1024):
+        self._fh = Pointer(to=fh)
         self._fd = FileDescriptor(fh._get_raw_fd())
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
         self._buf = ByteBuffer(buf_size)
@@ -114,3 +120,22 @@ struct FileReader(BinaryReader):
         var reader = BytesReader(self._buf.span(start=self._pos, length=size), 0)
         v = reader.read_scalar[dtype]()
         self._pos += reader._pos
+
+    fn skip_bytes(mut self, size: UInt) raises:
+
+        # if we've already buffered the skip size, just advance the buffer position
+        var size_buf_remaining = self._limit - self._pos
+        if size <= size_buf_remaining:
+            self._pos += size
+            return
+
+        # otherwise, ignore the buffer
+        self._pos = self._limit
+
+        # and seek ahead, if needed
+        var size_seek = size - size_buf_remaining
+        if size_seek > 0:
+            _ = self._fh[].seek(size_seek, SEEK_CUR)
+
+    fn skip_scalar[dtype: DType](mut self) raises:
+        self.skip_bytes(dtype.sizeof())

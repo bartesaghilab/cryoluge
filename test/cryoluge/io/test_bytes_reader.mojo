@@ -82,3 +82,55 @@ def test_read_from_buffer():
     assert_equal(reader.bytes_remaining(), 1)
 
     assert_equal_buffers(buf.span(), InlineArray[Byte, 3](1, 2, 3))
+
+
+def test_skip_bytes():
+
+    var buf = InlineArray[Byte, 3](fill=0)
+    var reader = BytesReader(buf)
+
+    reader.skip_bytes(1)
+    assert_equal(reader.bytes_read(), 1)
+    assert_equal(reader.bytes_remaining(), 2)
+
+    with assert_raises():
+        reader.skip_bytes(3)
+    assert_equal(reader.bytes_read(), 1)
+    assert_equal(reader.bytes_remaining(), 2)
+
+    reader.skip_bytes(2)
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)
+
+    reader.skip_bytes(0)
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)
+
+    with assert_raises():
+        reader.skip_bytes(1)
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)
+    
+
+def test_skip_scalar():
+
+    var buf = InlineArray[Byte, 3](fill=0)
+    var reader = BytesReader(buf)
+
+    reader.skip_scalar[DType.int8]()
+    assert_equal(reader.bytes_read(), 1)
+    assert_equal(reader.bytes_remaining(), 2)
+
+    with assert_raises():
+        reader.skip_scalar[DType.int32]()
+    assert_equal(reader.bytes_read(), 1)
+    assert_equal(reader.bytes_remaining(), 2)
+
+    reader.skip_scalar[DType.int16]()
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)
+
+    with assert_raises():
+        reader.skip_scalar[DType.int8]()
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)

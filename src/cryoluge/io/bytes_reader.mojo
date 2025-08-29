@@ -45,3 +45,11 @@ struct BytesReader[
             .bitcast[Scalar[dtype]]()
         v = src[]
         self._pos += size
+
+    fn skip_bytes(mut self, size: UInt) raises:
+        if size > self.bytes_remaining():
+            raise Error(String("Buffer underflow: skip=", size, ", remaining=", self.bytes_remaining()))
+        self._pos += size
+
+    fn skip_scalar[dtype: DType](mut self) raises:
+        self.skip_bytes(dtype.sizeof())

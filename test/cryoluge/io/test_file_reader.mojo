@@ -140,3 +140,79 @@ def test_read_scalars_leftover_copy():
         assert_equal(reader.read_scalar[DType.uint8](), UInt8(5))
         assert_equal(reader.read_scalar[DType.uint16](), UInt16(42))
         assert_equal(reader.read_scalar[DType.uint8](), UInt8(7))
+
+
+def test_skip_bytes():
+    with NamedTemporaryFile(mode="rw") as f:
+        f.write_bytes(InlineArray[Byte, 4](1, 2, 3, 4))
+        var reader = FileReader(file_handle(f))
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(1)
+        assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(2)
+        assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(3)
+        assert_equal(reader.read_scalar[DType.uint8](), 4)
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(4)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(5)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+
+def test_skip_bytes_offset():
+    with NamedTemporaryFile(mode="rw") as f:
+        f.write_bytes(InlineArray[Byte, 4](1, 2, 3, 4))
+        var reader = FileReader(file_handle(f))
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(1)
+        reader.skip_bytes(1)
+        assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(1)
+        reader.skip_bytes(2)
+        assert_equal(reader.read_scalar[DType.uint8](), 4)
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(1)
+        reader.skip_bytes(3)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f), buf_size=2)
+        reader.skip_bytes(1)
+        reader.skip_bytes(4)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+
+def test_skip_scalar():
+    with NamedTemporaryFile(mode="rw") as f:
+        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        var reader = FileReader(file_handle(f))
+
+        _ = f.seek(0)
+        reader = FileReader(file_handle(f))
+        reader.skip_scalar[DType.int8]()
+        assert_equal(reader.read_scalar[DType.uint8](), 2)
