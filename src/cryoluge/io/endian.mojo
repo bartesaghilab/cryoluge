@@ -1,5 +1,6 @@
 
 from sys.info import is_big_endian, is_little_endian
+from os import abort
 
 
 struct Endian(
@@ -8,7 +9,6 @@ struct Endian(
 ):
     var value: Int
 
-    alias Unknown=Endian(-1)
     alias Big=Endian(0)
     alias Little=Endian(1)
 
@@ -21,7 +21,7 @@ struct Endian(
             return Self.Little
         else:
             constrained[False, "Target architecture is neither big nor little endian"]()
-            return Self.Unknown
+            return abort[Self]()
 
     fn __init__(out self, value: Int):
         self.value = value
