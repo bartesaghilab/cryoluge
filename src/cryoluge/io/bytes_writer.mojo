@@ -36,3 +36,13 @@ struct BytesWriter[
         var src: UnsafePointer[Byte] = bytes.unsafe_ptr()
         memcpy(dst, src, size)
         self._pos += size
+
+    fn write_scalar[dtype: DType](mut self, v: Scalar[dtype]):
+        var size = dtype.sizeof()
+        debug_assert[assert_mode="safe"](
+            size <= self.bytes_remaining(),
+            "Buffer overflow: write=", size, ", remaining=", self.bytes_remaining()
+        )
+        var dst = (self.buf.unsafe_ptr() + self._pos)
+            .bitcast[Scalar[dtype]]()
+        dst[] = v

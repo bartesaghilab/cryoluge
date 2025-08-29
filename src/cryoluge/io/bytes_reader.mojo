@@ -25,6 +25,10 @@ struct BytesReader[
         self._pos = 0
         
     fn read_bytes(mut self, bytes: MutByteSpan) raises -> UInt:
+        self.read_bytes_exact(bytes)
+        return len(bytes)
+
+    fn read_bytes_exact(mut self, bytes: MutByteSpan) raises:
         var size = len(bytes)
         if size > self.bytes_remaining():
             raise Error("Buffer underflow: read=", size, ", remaining=", self.bytes_remaining())
@@ -32,4 +36,12 @@ struct BytesReader[
         var src: UnsafePointer[Byte] = self.buf.unsafe_ptr() + self._pos
         memcpy(dst, src, size)
         self._pos += size
-        return size
+
+    fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
+        var size = dtype.sizeof()
+        if size > self.bytes_remaining():
+            raise Error("Buffer underflow: read=", size, ", remaining=", self.bytes_remaining())
+        var src = (self.buf.unsafe_ptr() + self._pos)
+            .bitcast[Scalar[dtype]]()
+        v = src[]
+        self._pos += size

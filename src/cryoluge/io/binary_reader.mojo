@@ -4,15 +4,8 @@ from sys.info import alignof, sizeof
 
 trait BinaryReader:
     fn read_bytes(mut self, buf: MutByteSpan) raises -> UInt: ...
-    # For some reason, we need to explicitly specify Byte alignment
-    # even though the default alignment is supposed to be `alignof[T]()`.
-    # Tragically, this means the explicit alignment must infect all implementors of this trait.
-
-
-fn _check_read[T: AnyType](bytes_read: UInt) raises:
-    var size = sizeof[T]()
-    if bytes_read != size:
-        raise Error("Underflow: read ", bytes_read, ", of ", size, " byte(s)")
+    fn read_bytes_exact(mut self, but: MutByteSpan) raises: ...
+    fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises: ...
 
 
 # NOTE: Mojo doesn't (yet) have default trait function implementations,
@@ -34,12 +27,10 @@ struct BinaryDataReader[
             dtype.sizeof() == 1,
             "For multi-byte scalars, use the function overload with an endian parameter"
         ]()
-        v = 0
-        _check_read[Scalar[dtype]](self.reader[].read_bytes(as_byte_span(v)))
+        v = self.reader[].read_scalar[dtype]()
 
     fn read_scalar[dtype: DType, endian: Endian](self, out v: Scalar[dtype]) raises:
-        v = 0
-        _check_read[Scalar[dtype]](self.reader[].read_bytes(as_byte_span(v)))
+        v = self.reader[].read_scalar[dtype]()
         swap_bytes_if_needed[dtype, endian](v)
 
     fn read_u8(self, out v: UInt8) raises:

@@ -4,6 +4,7 @@ from sys.info import alignof
 
 trait BinaryWriter:
     fn write_bytes(mut self, bytes: ByteSpan): ...
+    fn write_scalar[dtype: DType](mut self, v: Scalar[dtype]): ...
 
 
 # NOTE: Mojo doesn't (yet) have default trait function implementations,
@@ -25,11 +26,11 @@ struct BinaryDataWriter[
             dtype.sizeof() == 1,
             "For multi-byte scalars, use the function overload with an endian parameter"
         ]()
-        self.writer[].write_bytes(as_byte_span(v))
+        self.writer[].write_scalar(v)
 
     fn write_scalar[dtype: DType, endian: Endian](mut self, var v: Scalar[dtype]):
         swap_bytes_if_needed[dtype, endian](v)
-        self.writer[].write_bytes(as_byte_span(v))
+        self.writer[].write_scalar(v)
 
     fn write_u8(mut self, var v: UInt8):
         self.write_scalar[DType.uint8](v)
