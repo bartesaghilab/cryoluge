@@ -5,39 +5,24 @@ from .binary_writer import *
 from .binary_reader import *
 from .bytes_writer import *
 from .bytes_reader import *
-
-
-alias ByteSpan[
-    mut: Bool, //,
-    origin: Origin[mut]
-] = Span[
-    Byte,
-    origin,
-    alignment=alignof[Byte]()
-]
-# For some reason, we need to explicitly specify Byte alignment
-# even though the default alignment is supposed to be `alignof[T]()`.
-# Somehow, mojoc isn't inferring it correctly
-
-alias MutByteSpan[origin: Origin[True]] = ByteSpan[origin]
+from .file_writer import *
 
 
 fn as_byte_span[
-    mut: Bool,
+    mut: Bool, //,
     dtype: DType,
     origin: Origin[mut]
-](ref [origin] v: Scalar[dtype]) -> ByteSpan[origin]:
-    return Span(
-        UnsafePointer(to=v)
-            .bitcast[Byte]()
-            .static_alignment_cast[alignof[Byte]()](),
-        dtype.sizeof()
-    )
+](ref [origin] v: Scalar[dtype]) -> Span[Byte, origin]:
+    var p: UnsafePointer[Byte, mut=mut, origin=origin] =
+        UnsafePointer(to=v).bitcast[Byte]()
+    # NOTE: mojoc seems to struggle with the type inference here,
+    #       so we need to explicitly write out the pointer type to help it along
+    return Span(p, dtype.sizeof())
 
 
 # Can't use stdlib's swap() in spans because of aliasing rules (right?)
 # So just implement a basic swap() instead
-fn swap_in_span(s: MutByteSpan, i1: UInt, i2: UInt):
+fn swap_in_span(s: Span[mut=True, Byte], i1: UInt, i2: UInt):
     debug_assert(i1 < len(s))
     debug_assert(i2 < len(s))
     var swap = s[i1]

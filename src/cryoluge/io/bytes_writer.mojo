@@ -3,14 +3,14 @@ from memory import memcpy
 
 
 struct BytesWriter[
-    origin: Origin[mut=True], //
+    origin: Origin[mut=True]
 ](BinaryWriter):
     var buf: Span[Byte, origin].Mutable
     var _pos: UInt
 
-    fn __init__(out self, buf: Span[Byte, origin].Mutable):
+    fn __init__(out self, buf: Span[Byte, origin].Mutable, pos: UInt = 0):
         self.buf = buf
-        self._pos = 0
+        self._pos = pos
 
     fn bytes_written(self) -> UInt:
         return self._pos
@@ -22,11 +22,17 @@ struct BytesWriter[
             "pos overflowed the buffer (pos=", self._pos, ", capacity=", capacity, ")"
         )
         return capacity - self._pos
+        
+    fn span_written(self) -> Span[Byte, origin]:
+        return Span[Byte, origin](
+            self.buf.unsafe_ptr(),
+            self._pos
+        )
 
     fn reset(mut self):
         self._pos = 0
 
-    fn write_bytes(mut self, bytes: ByteSpan):
+    fn write_bytes(mut self, bytes: Span[Byte]):
         var size = len(bytes)
         debug_assert[assert_mode="safe"](
             size <= self.bytes_remaining(),
@@ -46,3 +52,4 @@ struct BytesWriter[
         var dst = (self.buf.unsafe_ptr() + self._pos)
             .bitcast[Scalar[dtype]]()
         dst[] = v
+        self._pos += size

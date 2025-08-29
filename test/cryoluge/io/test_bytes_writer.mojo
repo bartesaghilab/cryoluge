@@ -38,3 +38,15 @@ def test_write_to_buffer():
     var writer = BytesWriter(buf.span())
     writer.write_bytes(InlineArray[Byte, 2](1, 2))
     assert_equal_buffers(buf.span(length=2), InlineArray[Byte, 2](1, 2))
+
+
+def test_write_scalar():
+    var buf = InlineArray[Byte, 4](fill=0)
+    var writer = BytesWriter(buf)
+    writer.write_scalar(UInt16(5))
+    assert_equal(writer.bytes_written(), 2)
+    assert_equal(writer.bytes_remaining(), 2)
+    writer.write_scalar(UInt16(42))
+    assert_equal(writer.bytes_written(), 4)
+    assert_equal(writer.bytes_remaining(), 0)
+    assert_equal_buffers(buf, InlineArray[Byte, 4](5, 0, 42, 0))
