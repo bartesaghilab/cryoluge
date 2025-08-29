@@ -1,5 +1,13 @@
 
+from io import FileHandle
+from tempfile import NamedTemporaryFile
+
 from testing import assert_equal
+
+
+def file_handle(tempfile: NamedTemporaryFile) -> ref [tempfile._file_handle] FileHandle:
+    return tempfile._file_handle
+    # NOTE: _file_handle is internal, and therefore probably unstable?
 
 
 def assert_equal_buffers(

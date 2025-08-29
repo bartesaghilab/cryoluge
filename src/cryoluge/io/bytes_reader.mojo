@@ -6,9 +6,9 @@ struct BytesReader[
     var buf: Span[Byte, origin]
     var _pos: UInt
 
-    fn __init__(out self, buf: Span[Byte, origin]):
+    fn __init__(out self, buf: Span[Byte, origin], pos: UInt = 0):
         self.buf = buf
-        self._pos = 0
+        self._pos = pos
 
     fn bytes_read(self) -> UInt:
         return self._pos

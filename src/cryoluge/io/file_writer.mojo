@@ -10,7 +10,7 @@ struct FileWriter(BinaryWriter):
     # until we figure that out, just keep the pos in this struct
     var _pos: UInt
 
-    def __init__(out self, fh: FileHandle, buf_size: UInt = 16*1024):
+    def __init__(out self, fh: FileHandle, *, buf_size: UInt = 16*1024):
         self._fd = FileDescriptor(fh._get_raw_fd())
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
         self._buf = ByteBuffer(buf_size)

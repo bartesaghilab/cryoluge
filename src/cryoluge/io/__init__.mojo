@@ -6,6 +6,7 @@ from .binary_reader import *
 from .bytes_writer import *
 from .bytes_reader import *
 from .file_writer import *
+from .file_reader import *
 
 
 fn as_byte_span[
