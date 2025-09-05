@@ -10,16 +10,18 @@ struct BytesReader[
         self.buf = buf
         self._pos = pos
 
+    fn capacity(self) -> UInt:
+        return len(self.buf)
+
     fn bytes_read(self) -> UInt:
         return self._pos
 
     fn bytes_remaining(self) -> UInt:
-        var capacity = len(self.buf)
         debug_assert(
-            self._pos <= capacity,
-            "pos overflowed the buffer (pos=", self._pos, ", capacity=", capacity, ")"
+            self._pos <= self.capacity(),
+            "pos overflowed the buffer (pos=", self._pos, ", capacity=", self.capacity(), ")"
         )
-        return capacity - self._pos
+        return self.capacity() - self._pos
 
     fn reset(mut self):
         self._pos = 0
@@ -53,3 +55,18 @@ struct BytesReader[
 
     fn skip_scalar[dtype: DType](mut self) raises:
         self.skip_bytes(dtype.size_of())
+
+    fn offset(self) -> UInt64:
+        return UInt64(self._pos)
+
+    fn seek_to(mut self, offset: UInt64) raises:
+        if offset > self.capacity():
+            raise Error(String("Seek overflow: seek=", offset, ", capacity=", self.capacity()))
+        self._pos = UInt(offset)
+
+    fn seek_by(mut self, offset: Int64) raises:
+        var pos = Int(self._pos) + Int(offset)
+        if pos < 0 or pos > self.capacity():
+            raise Error(String("Seek overflow: offset_before=", self._pos, ", seek=", offset, ", offset_after=", pos))
+        self._pos = UInt(pos)
+    

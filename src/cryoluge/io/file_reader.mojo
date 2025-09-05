@@ -1,6 +1,6 @@
 
 from io import FileDescriptor
-from os import SEEK_CUR
+from os import SEEK_CUR, SEEK_SET
 
 
 struct FileReader[
@@ -12,6 +12,7 @@ struct FileReader[
     var _buf: ByteBuffer
     var _pos: UInt
     var _limit: UInt
+    var _offset: UInt64
 
     def __init__(out self, ref [origin] fh: FileHandle, *, buf_size: UInt = 16*1024):
         self._fh = Pointer(to=fh)
@@ -20,6 +21,7 @@ struct FileReader[
         self._buf = ByteBuffer(buf_size)
         self._pos = 0
         self._limit = 0
+        self._offset = 0
 
     fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> UInt:
 
@@ -38,6 +40,7 @@ struct FileReader[
                     count=size
                 )
                 self._pos += size
+                self._offset += size
                 return size
 
             # otherwise, read what we can from the buffer
@@ -51,6 +54,7 @@ struct FileReader[
         # need more: read from the fd into the buffer
         var size_read = self._fd.read_bytes(self._buf.span())
         if size_read == 0:
+            self._offset += size_buf_remaining
             return size_buf_remaining
         self._pos = 0
         self._limit = size_read
@@ -63,6 +67,7 @@ struct FileReader[
             count=size_copy
         )
         self._pos += size_copy
+        self._offset += size_buf_remaining + size_copy
         return size_buf_remaining + size_copy
 
     fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
@@ -82,6 +87,8 @@ struct FileReader[
             size_out_read == size,
             "Failed to read exact buffer size: read=", size_out_read, ", buf=", size
         )
+
+        self._offset += size
 
     fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
         
@@ -120,6 +127,7 @@ struct FileReader[
         var reader = BytesReader(self._buf.span(start=self._pos, length=size), 0)
         v = reader.read_scalar[dtype]()
         self._pos += reader._pos
+        self._offset += reader._pos
 
     fn skip_bytes(mut self, size: UInt) raises:
 
@@ -127,6 +135,7 @@ struct FileReader[
         var size_buf_remaining = self._limit - self._pos
         if size <= size_buf_remaining:
             self._pos += size
+            self._offset += size
             return
 
         # otherwise, ignore the buffer
@@ -137,5 +146,37 @@ struct FileReader[
         if size_seek > 0:
             _ = self._fh[].seek(size_seek, SEEK_CUR)
 
+        self._offset += size
+
     fn skip_scalar[dtype: DType](mut self) raises:
         self.skip_bytes(dtype.size_of())
+
+    fn offset(self) -> UInt64:
+        return self._offset
+        
+    fn seek_to(mut self, offset: UInt64) raises:
+
+        # ignore the current buffer
+        self._pos = self._limit
+
+        # seek the file
+        _ = self._fh[].seek(offset, SEEK_SET)
+
+        self._offset = offset
+
+    fn seek_by(mut self, offset: Int64) raises:
+
+        var new_offset = Int64(self._offset) + offset
+        if new_offset < 0:
+            raise Error(String("Seek underflow: offset_before=", self._offset, ", seek=", offset, ", offset_after=", new_offset))
+
+        # ignore the current buffer
+        self._pos = self._limit
+
+        # seek the file
+        _ = self._fh[].seek(UInt64(offset), SEEK_CUR)
+        # NOTE: The UInt64 cast won't actually destroy negative offsets,
+        #       since the stdlib is probably just passing those bits to libc.
+        #       Probably the stdlib should be accepting a signed int here?
+
+        self._offset = UInt64(new_offset)

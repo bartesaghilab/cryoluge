@@ -216,3 +216,99 @@ def test_skip_scalar():
         reader = FileReader(file_handle(f))
         reader.skip_scalar[DType.int8]()
         assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+
+def test_seek_to():
+    with NamedTemporaryFile(mode="rw") as f:
+        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        var reader = FileReader(file_handle(f))
+
+        reader.seek_to(0)
+        assert_equal(reader.read_scalar[DType.uint8](), 1)
+
+        reader.seek_to(1)
+        assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+        reader.seek_to(2)
+        assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+        reader.seek_to(3)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+        reader.seek_to(4)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+
+def test_seek_by():
+    with NamedTemporaryFile(mode="rw") as f:
+        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        var reader = FileReader(file_handle(f))
+
+        reader.seek_to(0)
+        reader.seek_by(0)
+        assert_equal(reader.read_scalar[DType.uint8](), 1)
+
+        reader.seek_to(0)
+        reader.seek_by(1)
+        assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+        reader.seek_to(0)
+        reader.seek_by(2)
+        assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+        reader.seek_to(0)
+        reader.seek_by(3)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+        reader.seek_to(0)
+        reader.seek_by(4)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+        reader.seek_to(2)
+        reader.seek_by(0)
+        assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+        reader.seek_to(2)
+        reader.seek_by(1)
+        with assert_raises():
+            _ = reader.read_scalar[DType.uint8]()
+
+        reader.seek_to(2)
+        reader.seek_by(-1)
+        assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+        reader.seek_to(2)
+        reader.seek_by(-2)
+        assert_equal(reader.read_scalar[DType.uint8](), 1)
+
+        reader.seek_to(2)
+        with assert_raises():
+            reader.seek_by(-3)
+
+
+def test_offset():
+
+    with NamedTemporaryFile(mode="rw") as f:
+        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        var reader = FileReader(file_handle(f))
+        _ = f.seek(0)
+    
+        assert_equal(reader.offset(), 0)
+
+        reader.seek_to(0)
+        assert_equal(reader.offset(), 0)
+
+        reader.seek_to(3)
+        assert_equal(reader.offset(), 3)
+
+        reader.seek_by(-2)
+        assert_equal(reader.offset(), 1)
+
+        assert_equal(reader.read_scalar[DType.uint8](), 2)
+        assert_equal(reader.offset(), 2)
+
+        # TODO: test more code paths in read_bytes() ?

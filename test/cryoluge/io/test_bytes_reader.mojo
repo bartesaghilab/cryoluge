@@ -134,3 +134,115 @@ def test_skip_scalar():
         reader.skip_scalar[DType.int8]()
     assert_equal(reader.bytes_read(), 3)
     assert_equal(reader.bytes_remaining(), 0)
+
+
+def test_seek_to():
+
+    var buf = InlineArray[Byte, 3](1, 2, 3)
+    var reader = BytesReader(buf)
+
+    reader.seek_to(0)
+    assert_equal(reader.bytes_read(), 0)
+    assert_equal(reader.bytes_remaining(), 3)
+    assert_equal(reader.read_scalar[DType.uint8](), 1)
+
+    reader.seek_to(1)
+    assert_equal(reader.bytes_read(), 1)
+    assert_equal(reader.bytes_remaining(), 2)
+    assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+    reader.seek_to(2)
+    assert_equal(reader.bytes_read(), 2)
+    assert_equal(reader.bytes_remaining(), 1)
+    assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+    reader.seek_to(3)
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)
+
+    with assert_raises():
+        reader.seek_to(4)
+
+
+def test_seek_by():
+
+    var buf = InlineArray[Byte, 3](1, 2, 3)
+    var reader = BytesReader(buf)
+
+    reader.seek_to(0)
+    reader.seek_by(0)
+    assert_equal(reader.bytes_read(), 0)
+    assert_equal(reader.bytes_remaining(), 3)
+    assert_equal(reader.read_scalar[DType.uint8](), 1)
+
+    reader.seek_to(0)
+    reader.seek_by(1)
+    assert_equal(reader.bytes_read(), 1)
+    assert_equal(reader.bytes_remaining(), 2)
+    assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+    reader.seek_to(0)
+    reader.seek_by(2)
+    assert_equal(reader.bytes_read(), 2)
+    assert_equal(reader.bytes_remaining(), 1)
+    assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+    reader.seek_to(0)
+    reader.seek_by(3)
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)
+    with assert_raises():
+        _ = reader.read_scalar[DType.uint8]()
+
+    reader.seek_to(0)
+    with assert_raises():
+        reader.seek_by(4)
+
+    reader.seek_to(2)
+    reader.seek_by(0)
+    assert_equal(reader.bytes_read(), 2)
+    assert_equal(reader.bytes_remaining(), 1)
+    assert_equal(reader.read_scalar[DType.uint8](), 3)
+
+    reader.seek_to(2)
+    reader.seek_by(1)
+    assert_equal(reader.bytes_read(), 3)
+    assert_equal(reader.bytes_remaining(), 0)
+    with assert_raises():
+        _ = reader.read_scalar[DType.uint8]()
+
+    reader.seek_to(2)
+    reader.seek_by(-1)
+    assert_equal(reader.bytes_read(), 1)
+    assert_equal(reader.bytes_remaining(), 2)
+    assert_equal(reader.read_scalar[DType.uint8](), 2)
+
+    reader.seek_to(2)
+    reader.seek_by(-2)
+    assert_equal(reader.bytes_read(), 0)
+    assert_equal(reader.bytes_remaining(), 3)
+    assert_equal(reader.read_scalar[DType.uint8](), 1)
+
+    reader.seek_to(2)
+    with assert_raises():
+        reader.seek_by(-3)
+
+
+def test_offset():
+
+    var buf = InlineArray[Byte, 3](1, 2, 3)
+    var reader = BytesReader(buf)
+
+    assert_equal(reader.offset(), 0)
+
+    reader.seek_to(0)
+    assert_equal(reader.offset(), 0)
+
+    reader.seek_to(3)
+    assert_equal(reader.offset(), 3)
+
+    reader.seek_by(-2)
+    assert_equal(reader.offset(), 1)
+
+    assert_equal(reader.read_scalar[DType.uint8](), 2)
+    assert_equal(reader.offset(), 2)
