@@ -6,31 +6,9 @@ trait BinaryWriter:
     fn write_bytes(mut self, bytes: Span[Byte]): ...
     fn write_scalar[dtype: DType](mut self, v: Scalar[dtype]): ...
 
-
-# NOTE: Mojo doesn't (yet) have default trait function implementations,
-#       or extension functions, so to implement functions that work on all
-#       structs that implement the BinaryWriter trait, we (apparently)
-#       need to define a new struct to hold the functions,
-#       and then instantiate that struct on a reference when we want to call them.
-struct BinaryDataWriter[
-    W: BinaryWriter,
-    origin: Origin[mut=True]
-]:
-    var writer: Pointer[W, origin]
-
-    fn __init__(out self, ref [origin] writer: W):
-        self.writer = Pointer(to=writer)
-
-    fn write_scalar[dtype: DType](mut self, v: Scalar[dtype]):
-        constrained[
-            dtype.size_of() == 1,
-            "For multi-byte scalars, use the function overload with an endian parameter"
-        ]()
-        self.writer[].write_scalar(v)
-
     fn write_scalar[dtype: DType, endian: Endian](mut self, var v: Scalar[dtype]):
         swap_bytes_if_needed[dtype, endian](v)
-        self.writer[].write_scalar(v)
+        self.write_scalar(v)
 
     fn write_u8(mut self, var v: UInt8):
         self.write_scalar[DType.uint8](v)
