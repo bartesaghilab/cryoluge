@@ -18,7 +18,7 @@ fn as_byte_span[
         UnsafePointer(to=v).bitcast[Byte]()
     # NOTE: mojoc seems to struggle with the type inference here,
     #       so we need to explicitly write out the pointer type to help it along
-    return Span(p, dtype.sizeof())
+    return Span(p, dtype.size_of())
 
 
 # Can't use stdlib's swap() in spans because of aliasing rules (right?)
@@ -42,13 +42,13 @@ fn swap_bytes_if_needed[dtype: DType, endian: Endian](mut v: Scalar[dtype]):
             # no fancy intrinsic fn for non-int types, so just do it the hard way
             var s = as_byte_span(v)
             @parameter
-            if dtype.sizeof() == 4:
+            if dtype.size_of() == 4:
                 swap_in_span(s, 0, 3)
                 swap_in_span(s, 1, 2)
-            elif dtype.sizeof() == 8:
+            elif dtype.size_of() == 8:
                 swap_in_span(s, 0, 7)
                 swap_in_span(s, 1, 6)
                 swap_in_span(s, 2, 5)
                 swap_in_span(s, 3, 4)
             else:
-                constrained[False, String("Can't byte swap scalar type of size ", dtype.sizeof())]()
+                constrained[False, String("Can't byte swap scalar type of size ", dtype.size_of())]()

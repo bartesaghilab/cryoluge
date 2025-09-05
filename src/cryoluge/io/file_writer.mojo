@@ -47,7 +47,7 @@ struct FileWriter(BinaryWriter):
         var writer = BytesWriter(self._buf.span(), self._pos)
         
         # make sure the scalar can fit in the buffer, even when empty
-        var size = dtype.sizeof()
+        var size = dtype.size_of()
         debug_assert[assert_mode="safe"](
              size <= self._buf.size(),
              "Buffer too small (", self._buf.size(), " bytes) to write scalar of ", size, " bytes"

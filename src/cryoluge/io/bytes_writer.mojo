@@ -44,7 +44,7 @@ struct BytesWriter[
         self._pos += size
 
     fn write_scalar[dtype: DType](mut self, v: Scalar[dtype]):
-        var size = dtype.sizeof()
+        var size = dtype.size_of()
         debug_assert[assert_mode="safe"](
             size <= self.bytes_remaining(),
             "Buffer overflow: write=", size, ", remaining=", self.bytes_remaining()

@@ -23,7 +23,7 @@ struct BinaryDataWriter[
 
     fn write_scalar[dtype: DType](mut self, v: Scalar[dtype]):
         constrained[
-            dtype.sizeof() == 1,
+            dtype.size_of() == 1,
             "For multi-byte scalars, use the function overload with an endian parameter"
         ]()
         self.writer[].write_scalar(v)

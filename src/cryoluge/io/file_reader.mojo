@@ -86,7 +86,7 @@ struct FileReader[
     fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
         
         # make sure the scalar can fit in the buffer, even when empty
-        var size = dtype.sizeof()
+        var size = dtype.size_of()
         debug_assert[assert_mode="safe"](
              size <= self._buf.size(),
              "Buffer too small (", self._buf.size(), " bytes) to read scalar of ", size, " bytes"
@@ -138,4 +138,4 @@ struct FileReader[
             _ = self._fh[].seek(size_seek, SEEK_CUR)
 
     fn skip_scalar[dtype: DType](mut self) raises:
-        self.skip_bytes(dtype.sizeof())
+        self.skip_bytes(dtype.size_of())

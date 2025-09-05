@@ -11,7 +11,7 @@ struct ByteBuffer:
         self._p = UnsafePointer[Byte].alloc(Int(size))
         self._size = size
 
-    fn __del__(var self):
+    fn __del__(deinit self):
         self._p.free()
 
     fn size(self) -> UInt:

@@ -38,7 +38,7 @@ struct BytesReader[
         self._pos += size
 
     fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
-        var size = dtype.sizeof()
+        var size = dtype.size_of()
         if size > self.bytes_remaining():
             raise Error("Buffer underflow: read=", size, ", remaining=", self.bytes_remaining())
         var src = (self.buf.unsafe_ptr() + self._pos)
@@ -52,4 +52,4 @@ struct BytesReader[
         self._pos += size
 
     fn skip_scalar[dtype: DType](mut self) raises:
-        self.skip_bytes(dtype.sizeof())
+        self.skip_bytes(dtype.size_of())

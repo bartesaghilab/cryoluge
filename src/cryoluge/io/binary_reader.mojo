@@ -26,7 +26,7 @@ struct BinaryDataReader[
 
     fn read_scalar[dtype: DType](self, out v: Scalar[dtype]) raises:
         constrained[
-            dtype.sizeof() == 1,
+            dtype.size_of() == 1,
             "For multi-byte scalars, use the function overload with an endian parameter"
         ]()
         v = self.reader[].read_scalar[dtype]()
