@@ -4,7 +4,7 @@ from os import abort
 
 
 struct Endian(
-    Copyable,
+    ImplicitlyCopyable,
     EqualityComparable
 ):
     var value: Int

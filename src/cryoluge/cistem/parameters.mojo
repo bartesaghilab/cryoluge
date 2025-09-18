@@ -1,8 +1,8 @@
 
 @fieldwise_init
-struct Parameter(Copyable, Movable, Writable):
+struct Parameter(ImplicitlyCopyable, Movable, Writable):
     var id: Int64
-    var name: String
+    var name: StaticString
 
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(self.name, "(", self.id, ")")
@@ -71,7 +71,7 @@ struct CistemParameters:
     alias original_x_position = Parameter(1 << 33, "original_x_position")
     alias original_y_position = Parameter(1 << 34, "original_y_position")
 
-    alias all = List[Parameter](
+    alias _all = List[Parameter](
         Self.position_in_stack,
         Self.image_is_active,
         Self.psi,
@@ -108,3 +108,7 @@ struct CistemParameters:
         Self.original_x_position,
         Self.original_y_position
     )
+
+    @staticmethod
+    fn all() -> List[Parameter]:
+        return materialize[Self._all]()

@@ -12,7 +12,8 @@ channels = [
 
 [dependencies]
 # TEMP: use nightly for now, since many things aren't working correctly in the 25.5 stable release
-mojo = ">=25.6.0.dev2025090305,<26"
+#       see releases here: https://prefix.dev/channels/max-nightly/packages/mojo
+mojo = "==0.25.6.0.dev2025091805"
 #mojo = "25.5.*"
 
 [tasks]

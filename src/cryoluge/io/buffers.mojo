@@ -37,6 +37,6 @@ struct ByteBuffer:
         var length_v = length.or_else(self._size - start)
         var p: UnsafePointer[Byte] = self._p + start
         return Span(
-            ptr=p.origin_cast[mut=True, origin=MutableOrigin.cast_from[__origin_of(self)]](),
+            ptr=p.origin_cast[True, MutableOrigin.cast_from[__origin_of(self)]](),
             length=length_v
         )

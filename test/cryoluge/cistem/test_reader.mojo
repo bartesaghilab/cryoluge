@@ -10,8 +10,5 @@ def test_reader():
         var file_reader = FileReader(f)
         var cistem_reader = Reader(file_reader)
         print('cols: ', ', '.join(cistem_reader.cols()))
-        if cistem_reader._line_size:
-            print('line size: ', cistem_reader._line_size.value())
-        else:
-            print('variable line size')
+        print('line size: ', cistem_reader._line_size)
         raise Error("NOPE")  # TEMP
