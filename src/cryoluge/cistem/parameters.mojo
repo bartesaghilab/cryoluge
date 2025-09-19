@@ -76,6 +76,15 @@ struct ParameterSet(Copyable, Movable):
         for param in params:
             self._add(param)
 
+    # TODO: Iterable in fn arg pos not stable yet
+    #       see: https://forum.modular.com/t/iterable-trait-as-function-argument/2284/2
+    # fn __init__[I: Iterable](out self, params: I) raises:
+    #     self._dict = {}
+    #     for param in params:
+    #         # can't express bounds on trait associated aliases, yet, so need to rebind iterator value
+    #         ref p = rebind[Parameter](param)
+    #         self._add(p)
+
     fn __init__(out self, *params: Parameter) raises:
         self._dict = {}
         for param in params:
