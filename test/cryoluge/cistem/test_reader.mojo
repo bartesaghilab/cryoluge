@@ -167,14 +167,23 @@ def test_read_a_few_lines():
         var file_reader = FileReader(f)
         var cistem_reader = Reader(file_reader)
 
+        assert_equal(cistem_reader.next_line(), 0)
+        assert_equal(cistem_reader.eof(), False)
+
         cistem_reader.read_line()
         assert_equal(cistem_reader.get_parameter[CistemParameters.position_in_stack](), 1)
+        assert_equal(cistem_reader.next_line(), 1)
+        assert_equal(cistem_reader.eof(), False)
 
         cistem_reader.read_line()
         assert_equal(cistem_reader.get_parameter[CistemParameters.position_in_stack](), 2)
+        assert_equal(cistem_reader.next_line(), 2)
+        assert_equal(cistem_reader.eof(), False)
 
         cistem_reader.read_line()
         assert_equal(cistem_reader.get_parameter[CistemParameters.position_in_stack](), 3)
+        assert_equal(cistem_reader.next_line(), 3)
+        assert_equal(cistem_reader.eof(), False)
 
 
 def test_seek():
@@ -183,5 +192,17 @@ def test_seek():
         var cistem_reader = Reader(file_reader)
 
         cistem_reader.seek(2)
+        assert_equal(cistem_reader.next_line(), 2)
+        assert_equal(cistem_reader.eof(), False)
+
         cistem_reader.read_line()
         assert_equal(cistem_reader.get_parameter[CistemParameters.position_in_stack](), 3)
+
+        cistem_reader.seek(cistem_reader.num_lines() - 1)
+        assert_equal(cistem_reader.next_line(), cistem_reader.num_lines() - 1)
+        assert_equal(cistem_reader.eof(), False)
+
+        cistem_reader.read_line()
+        assert_equal(cistem_reader.get_parameter[CistemParameters.position_in_stack](), 29)
+        assert_equal(cistem_reader.next_line(), cistem_reader.num_lines())
+        assert_equal(cistem_reader.eof(), True)

@@ -11,11 +11,12 @@ struct Reader[
 ]:
     var reader: Pointer[R, origin]
     var parameters: ParameterSet
-    var _num_lines: Int32
+    var _num_lines: UInt
     var _cols: List[Parameter]
     var _first_line_offset: UInt64
     var _col_offsets: Dict[Int64,UInt]
     var _line_buf: ByteBuffer
+    var _next_line: UInt
 
     fn __init__(
         out self,
@@ -43,7 +44,10 @@ struct Reader[
 
         # read the number of columns and lines
         var num_cols = self.reader[].read_i32[endian]()
-        self._num_lines = self.reader[].read_i32[endian]()
+        var num_lines = self.reader[].read_i32[endian]()
+        if num_lines < 0:
+            raise Error(String("Invalid number of lines: ", num_lines))
+        self._num_lines = UInt(num_lines)
 
         # read the column definitions
         self._cols = List[Parameter](capacity=Int(num_cols))
@@ -71,6 +75,7 @@ struct Reader[
 
         # record the current file offset, for later line seeking
         self._first_line_offset = self.reader[].offset()
+        self._next_line = 0
 
         # compute the line size and column offsets
         var line_size = UInt(0)
@@ -80,7 +85,7 @@ struct Reader[
             line_size += col.type.dtype.value().size_of()
         self._line_buf = ByteBuffer(line_size)
 
-    fn num_lines(self) -> Int32:
+    fn num_lines(self) -> UInt:
         return self._num_lines
 
     fn cols(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._cols)]] List[Parameter]:
@@ -89,13 +94,21 @@ struct Reader[
     fn has_parameter[param: Parameter](self) -> Bool:
         return self._col_offsets.get(param.id) is not None
 
-    fn seek(self, linei: UInt) raises:
-        self.reader[].seek_to(self._first_line_offset + linei*self._line_buf.size())
+    fn seek(mut self, linei: UInt) raises:
+        self.reader[].seek_to(self._first_line_offset + UInt64(linei*self._line_buf.size()))
+        self._next_line = linei
+
+    fn next_line(self) -> UInt:
+        return self._next_line
+
+    fn eof(self) -> Bool:
+        return self._next_line >= self._num_lines
 
     fn read_line(mut self) raises:
         self.reader[].read_bytes_exact(self._line_buf.span())
         # TODO: can we get rid of this copy? ^^
         #       need some kind of window function on the BytesReader
+        self._next_line += 1
    
     fn get_parameter[param: Parameter](self, out v: Scalar[param.type.dtype.value()]) raises:
 
