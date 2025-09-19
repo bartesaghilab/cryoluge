@@ -50,12 +50,12 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equality
     )
 
     @staticmethod
-    fn get(id: UInt8) raises -> Self:
+    fn get(id: UInt8) -> Optional[Self]:
         @parameter
         for t in Self.all:
             if t.id == id:
                 return t
-        raise Error(String("Unrecognized column type id: ", id)) 
+        return None
 
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(self.name)

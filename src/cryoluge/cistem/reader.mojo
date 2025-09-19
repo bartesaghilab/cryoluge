@@ -51,9 +51,19 @@ struct Reader[
 
         # read the column definitions
         self._cols = List[Parameter](capacity=Int(num_cols))
-        for _ in range(num_cols):
+        for coli in range(num_cols):
+
+            # read the raw ids
             var id = self.reader[].read_i64[endian]()
-            var type = ParameterType.get(self.reader[].read_u8())
+            var type_id = self.reader[].read_u8()
+
+            # try to lookup the type
+            var _type = ParameterType.get(type_id)
+            if _type is None:
+                raise Error(String("Column index=", coli, ",id=", id, " has unrecognized type_id=", type_id)) 
+            var type = _type.value()
+
+            # try to look up the parameter
             param = self.parameters[id]
             if param is not None:
                 var p = param.value()[]

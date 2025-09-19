@@ -2,7 +2,7 @@
 from testing import assert_equal
 
 from cryoluge.io import FileReader
-from cryoluge.cistem import Reader, CistemParameters, Parameter, ParameterType, ParameterSet
+from cryoluge.cistem import Reader, CistemParameters, Parameter, ParameterType
 
 
 struct ExtraParameters:
