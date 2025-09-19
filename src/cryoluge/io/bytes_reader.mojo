@@ -1,6 +1,6 @@
 
 struct BytesReader[
-    origin: Origin[mut=False], //
+    origin: Origin[mut=False]
 ](BinaryReader):
 
     var buf: Span[Byte, origin]
