@@ -1,12 +1,16 @@
 
-struct MovableList[T: Movable]:
+import os
+from collections._index_normalization import normalize_index
+
+
+struct MovableList[T: Movable](Sized):
     """
     A collection type for elements that are Movable, but not Copyable.
     """
 
     var _data: UnsafePointer[T]
-    var _capacity: Int
-    var _len: Int
+    var _capacity: UInt
+    var _len: UInt
 
     alias DEFAULT_CAPACITY = 4
 
@@ -14,6 +18,9 @@ struct MovableList[T: Movable]:
         self._data = UnsafePointer[T]().alloc(capacity)
         self._capacity = capacity
         self._len = 0
+
+    fn capacity(self) -> Int:
+        return self._capacity
 
     fn _expand(mut self):
 
@@ -33,7 +40,7 @@ struct MovableList[T: Movable]:
         self._data = data
         self._capacity = capacity
 
-    fn add(mut self, var elem: T):
+    fn append(mut self, var elem: T):
 
         # make more room, if needed
         if self._len >= self._capacity:
@@ -42,8 +49,31 @@ struct MovableList[T: Movable]:
         # add the new element at the end
         (self._data + self._len).init_pointee_move(elem^)
         self._len += 1
-    
-    # fn remove(mut self, elem: T) -> T:
-    #     # TODO: implement me!
-    #     pass
-    
+
+    # TODO: insert?
+
+    fn __len__(self) -> Int:
+        return Int(self._len)
+
+    fn __getitem__[I: Indexer, //](ref self, idx: I) -> ref [self] T:
+        var normalized_idx = normalize_index["MovableList", assert_always=False](idx, self._len)
+        return (self._data + normalized_idx)[]
+
+    fn remove[I: Indexer, //](mut self, idx: I, out item: T):
+        var normalized_idx = normalize_index["MovableList", assert_always=False](idx, self._len)
+        item = (self._data + normalized_idx).take_pointee()
+        for i in range(normalized_idx, self._len - 1):
+            (self._data + i).init_pointee_move_from(self._data + i + 1)
+        self._len -= 1
+
+    fn find(self, item: T) -> Optional[UInt]:
+        for i in range(self._len):
+            if (self._data + i) == UnsafePointer(to=item):
+                return i
+        return None
+
+    fn first[predicate: fn (T) -> Bool](self) -> Optional[UInt]:
+        for i in range(self._len):
+            if predicate(self[i]):
+                return i
+        return None
