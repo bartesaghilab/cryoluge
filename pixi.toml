@@ -13,8 +13,8 @@ channels = [
 [dependencies]
 # TEMP: use nightly for now, since many things aren't working correctly in the 25.5 stable release
 #       see releases here: https://prefix.dev/channels/max-nightly/packages/mojo
-mojo = "==0.25.6.0.dev2025091805"
-#mojo = "25.5.*"
+#mojo = "==0.25.6.0.dev2025091805"
+mojo = "==0.25.6.0"
 
 [tasks]
 build_dir = "rm -rf build 2> /dev/null; mkdir -p build"
