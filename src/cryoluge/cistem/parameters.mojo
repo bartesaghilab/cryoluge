@@ -25,6 +25,9 @@ struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComp
     fn key(self) -> Int64:
         return self.id
 
+    fn dtype(self) -> DType:
+        return self.type.dtype.value()
+
 
 @fieldwise_init
 struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComparable):

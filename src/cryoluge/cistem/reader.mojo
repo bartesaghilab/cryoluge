@@ -1,4 +1,5 @@
 
+from cryoluge.lang import rebind_scalar
 from cryoluge.collections import KeyableSet
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian
 
@@ -93,7 +94,7 @@ struct Reader[
         self._col_offsets = Dict[Int64,UInt]()
         for col in self._cols:
             self._col_offsets[col.id] = line_size
-            line_size += col.type.dtype.value().size_of()
+            line_size += col.dtype().size_of()
         self._line_buf = ByteBuffer(line_size)
 
     fn num_lines(self) -> UInt:
@@ -124,7 +125,10 @@ struct Reader[
         #       need some kind of window function on the BytesReader
         self._next_line += 1
    
-    fn get_parameter[param: Parameter](self, out v: Scalar[param.type.dtype.value()]) raises:
+    fn get_parameter[
+        param: Parameter,
+        dtype: DType=param.dtype()
+    ](self, out v: Scalar[dtype]) raises:
 
         # lookup the parameter offset, if any
         var offset = self._col_offsets.get(param.id)
@@ -135,9 +139,60 @@ struct Reader[
         # TODO: any way to store the reader in the struct?
         #       how does self-referential struct syntax work?
         #       is that even faster than this? can the compiler optimize enough? need to profile
-        v = reader.read_scalar[param.type.dtype.value(), endian]()
 
-    fn get_parameter_string(self, param: Parameter) raises -> String:
+        # mojo's compiler does type checking *before* function instantiation,
+        # which means it's not "smart enough" to know that the parameter's dtype
+        # matches the given dtype at type-checking time,
+        # so explicitly check that the types match during function instantiation
+        constrained[
+            param.dtype() == dtype,
+            String(
+                "Expected parameter type with dtype=", dtype,
+                ", but ", param.type.name, " has dtype=", param.dtype()
+            )
+        ]()
+        v = reader.read_scalar[dtype, endian]()
+
+    fn _get_parameter[
+        param: Parameter,
+        type: ParameterType,
+        dtype: DType
+    ](self, out v: Scalar[dtype]) raises:
+        constrained[
+            param.type == type,
+            String("Expected parameter with ", type.name, " type, but ", param.name, " has ", param.type.name, " type")
+        ]()
+        var param_value = self.get_parameter[param, dtype]()
+        v = rebind_scalar[dtype](param_value)
+
+    # tragically, mojo's compiler isn't "smart enough" to use parametric return types
+    # with the ergonomics you'd expect
+    # when the return type parameter is the result of a compile-time expression,
+    # so we still need to make type-specific wrapper functions,
+    # but at least they can be very simple wrappers =)
+
+    fn get_parameter_bool[param: Parameter](self, out v: Bool) raises:
+        v = self._get_parameter[param, ParameterType.bool, DType.bool]()
+
+    fn get_parameter_byte[param: Parameter](self, out v: Byte) raises:
+        v = self._get_parameter[param, ParameterType.byte, DType.uint8]()
+
+    fn get_parameter_int[param: Parameter](self, out v: Int32) raises:
+        v = self._get_parameter[param, ParameterType.int, DType.int32]()
+
+    fn get_parameter_uint[param: Parameter](self, out v: UInt32) raises:
+        v = self._get_parameter[param, ParameterType.uint, DType.uint32]()
+
+    fn get_parameter_long[param: Parameter](self, out v: Int64) raises:
+        v = self._get_parameter[param, ParameterType.long, DType.int64]()
+
+    fn get_parameter_float[param: Parameter](self, out v: Float32) raises:
+        v = self._get_parameter[param, ParameterType.float, DType.float32]()
+
+    fn get_parameter_double[param: Parameter](self, out v: Float64) raises:
+        v = self._get_parameter[param, ParameterType.double, DType.float64]()
+
+    fn get_parameter_into_string(self, param: Parameter) raises -> String:
 
         # lookup the parameter offset, if any
         var offset = self._col_offsets.get(param.id)
@@ -155,11 +210,11 @@ struct Reader[
                     var v = reader.read_scalar[type.dtype.value(), endian]()
                     return String(v)
 
-        # shouldn't be possible to get here, but just in case
+        # parameter doesn't have a dtype
         raise Error(String("Failed to match scalar type to parameter: ", param))
 
     fn line_string(self) raises -> String:
         var out = List[String]()
         for col in self._cols:
-            out.append(String(col, '=', self.get_parameter_string(col)))
+            out.append(String(col, '=', self.get_parameter_into_string(col)))
         return ', '.join(out)

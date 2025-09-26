@@ -1,6 +1,7 @@
 
 from testing import assert_equal
 
+from cryoluge.lang import rebind_scalar
 from cryoluge.io import FileReader
 from cryoluge.cistem import Reader, CistemParameters, Parameter, ParameterType
 
@@ -151,15 +152,15 @@ def test_get_parameter_first_line():
         assert_equal(cistem_reader.get_parameter[CistemParameters.original_y_position](), 260.0)
 
 
-def test_get_parameter_string():
+def test_get_parameter_into_string():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = Reader(file_reader)
         cistem_reader.read_line()
 
         # spot-check a few values
-        assert_equal(cistem_reader.get_parameter_string(CistemParameters.position_in_stack), '1')
-        assert_equal(cistem_reader.get_parameter_string(CistemParameters.psi), '89.76255')
+        assert_equal(cistem_reader.get_parameter_into_string(CistemParameters.position_in_stack), '1')
+        assert_equal(cistem_reader.get_parameter_into_string(CistemParameters.psi), '89.76255')
 
 
 def test_read_a_few_lines():
@@ -206,3 +207,36 @@ def test_seek():
         assert_equal(cistem_reader.get_parameter[CistemParameters.position_in_stack](), 29)
         assert_equal(cistem_reader.next_line(), cistem_reader.num_lines())
         assert_equal(cistem_reader.eof(), True)
+
+
+def test_get_parameter_types():
+    with open(TEST_FILE, "r") as f:
+        var file_reader = FileReader(f)
+        var cistem_reader = Reader(file_reader)
+
+        cistem_reader.read_line()
+
+        # you can use the full parameter type expression if you want,
+        # but it's not type-compatible with plain ol' UInt32 =(
+        var p1: Scalar[CistemParameters.position_in_stack.dtype()] = cistem_reader.get_parameter[CistemParameters.position_in_stack]()
+        assert_equal(p1, 1)
+
+        # but you can explicitly rebind it
+        var u1: UInt32 = rebind_scalar[DType.uint32](p1)
+        assert_equal(u1, 1)
+
+        # or you can supply the concrete dtype
+        # and the API will do the rebind for you automatically
+        var p2: UInt32 = cistem_reader.get_parameter[CistemParameters.position_in_stack, DType.uint32]()
+        assert_equal(p2, 1)
+
+        # or you can use one of the typed functions for easy-mode
+        var p3: UInt32 = cistem_reader.get_parameter_uint[CistemParameters.position_in_stack]()
+        assert_equal(p3, 1)
+
+        # check some of the other typed functions too
+        # (at leas the ones present in the test file)
+        var p4: Int32 = cistem_reader.get_parameter_int[CistemParameters.image_is_active]()
+        assert_equal(p4, 0)
+        var p5: Float32 = cistem_reader.get_parameter_float[CistemParameters.pixel_size]()
+        assert_equal(p5, 8.4)
