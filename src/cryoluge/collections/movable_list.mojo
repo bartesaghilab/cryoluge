@@ -3,7 +3,7 @@ import os
 from collections._index_normalization import normalize_index
 
 
-struct MovableList[T: Movable](Sized):
+struct MovableList[T: Movable](Sized, Movable):
     """
     A collection type for elements that are Movable, but not Copyable.
     """

@@ -2,7 +2,7 @@
 from io import FileDescriptor
 
 
-struct FileWriter(BinaryWriter):
+struct FileWriter(BinaryWriter, Movable):
     var _fd: FileDescriptor
     var _buf: ByteBuffer
     # TODO: how to write a self-referential struct?

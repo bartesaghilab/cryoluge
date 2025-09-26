@@ -6,7 +6,7 @@ from os import SEEK_CUR, SEEK_SET
 struct FileReader[
     mut: Bool, //,
     origin: Origin[mut]
-](BinaryReader):
+](BinaryReader, Movable):
     var _fh: Pointer[FileHandle, origin]
     var _fd: FileDescriptor
     var _buf: ByteBuffer

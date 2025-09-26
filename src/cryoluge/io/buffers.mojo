@@ -2,7 +2,7 @@
 from memory import UnsafePointer
 
 
-struct ByteBuffer:
+struct ByteBuffer(Movable):
     var _p: UnsafePointer[Byte]
     var _size: UInt
 

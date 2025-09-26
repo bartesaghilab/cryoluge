@@ -1,7 +1,7 @@
 
 struct BytesReader[
     origin: Origin[mut=False]
-](BinaryReader):
+](BinaryReader, Movable):
 
     var buf: Span[Byte, origin]
     var _pos: UInt

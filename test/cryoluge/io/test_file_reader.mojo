@@ -75,10 +75,9 @@ def test_read_bytes_leftovers_eof():
 def test_read_bytes_exact():
     with NamedTemporaryFile(mode="rw") as f:
         f.write_bytes(InlineArray[Byte, 5](1, 2, 3, 4, 5))
-        var reader = FileReader(file_handle(f), buf_size=2)
 
         _ = f.seek(0)
-        reader = FileReader(file_handle(f), buf_size=2)
+        var reader = FileReader(file_handle(f), buf_size=2)
         var buf1 = InlineArray[Byte, 1](fill=0)
         reader.read_bytes_exact(buf1)
         assert_equal_buffers(buf1, InlineArray[Byte, 1](1))
@@ -145,10 +144,9 @@ def test_read_scalars_leftover_copy():
 def test_skip_bytes():
     with NamedTemporaryFile(mode="rw") as f:
         f.write_bytes(InlineArray[Byte, 4](1, 2, 3, 4))
-        var reader = FileReader(file_handle(f))
 
         _ = f.seek(0)
-        reader = FileReader(file_handle(f), buf_size=2)
+        var reader = FileReader(file_handle(f), buf_size=2)
         reader.skip_bytes(1)
         assert_equal(reader.read_scalar[DType.uint8](), 2)
 
@@ -178,10 +176,9 @@ def test_skip_bytes():
 def test_skip_bytes_offset():
     with NamedTemporaryFile(mode="rw") as f:
         f.write_bytes(InlineArray[Byte, 4](1, 2, 3, 4))
-        var reader = FileReader(file_handle(f))
 
         _ = f.seek(0)
-        reader = FileReader(file_handle(f), buf_size=2)
+        var reader = FileReader(file_handle(f), buf_size=2)
         reader.skip_bytes(1)
         reader.skip_bytes(1)
         assert_equal(reader.read_scalar[DType.uint8](), 3)
@@ -210,10 +207,9 @@ def test_skip_bytes_offset():
 def test_skip_scalar():
     with NamedTemporaryFile(mode="rw") as f:
         f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
-        var reader = FileReader(file_handle(f))
 
         _ = f.seek(0)
-        reader = FileReader(file_handle(f))
+        var reader = FileReader(file_handle(f))
         reader.skip_scalar[DType.int8]()
         assert_equal(reader.read_scalar[DType.uint8](), 2)
 

@@ -1,4 +1,5 @@
 
+from cryoluge.collections import KeyableSet
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian
 
 
@@ -8,9 +9,9 @@ alias endian = Endian.Little
 struct Reader[
     R: BinaryReader,
     origin: Origin[mut=True]
-]:
+](Movable):
     var reader: Pointer[R, origin]
-    var parameters: ParameterSet
+    var parameters: KeyableSet[Parameter]
     var _num_lines: UInt
     var _cols: List[Parameter]
     var _first_line_offset: UInt64
@@ -25,19 +26,19 @@ struct Reader[
         self = Self(reader, parameters=CistemParameters.all())
 
 
-    # TODO: can we use Iterator trait here?
+    # TODO: can we use Iterable trait here?
     fn __init__(
         out self,
         ref [origin] reader: R,
         *,
         parameters: List[Parameter]
     ) raises:
-        self = Self(reader, ParameterSet(parameters))
+        self = Self(reader, KeyableSet[Parameter](parameters))
 
     fn __init__(
         out self,
         ref [origin] reader: R,
-        var parameters: ParameterSet
+        var parameters: KeyableSet[Parameter]
     ) raises:
         self.reader = Pointer(to=reader)
         self.parameters = parameters^
@@ -97,6 +98,9 @@ struct Reader[
 
     fn num_lines(self) -> UInt:
         return self._num_lines
+
+    fn line_size(self) -> UInt:
+        return self._line_buf.size()
 
     fn cols(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._cols)]] List[Parameter]:
         return self._cols

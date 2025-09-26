@@ -1,6 +1,9 @@
 
+from cryoluge.collections import Keyable
+
+
 @fieldwise_init
-struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComparable):
+struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComparable, Keyable):
     var id: Int64
     var name: StaticString
     var type: ParameterType
@@ -17,8 +20,10 @@ struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComp
 
     fn __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
-            and self.name == other.name
-            and self.type == other.type
+
+    alias Key = Int64
+    fn key(self) -> Int64:
+        return self.id
 
 
 @fieldwise_init
@@ -65,41 +70,6 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equality
 
     fn __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
-
-
-struct ParameterSet(Copyable, Movable):
-    var _dict: Dict[Int64,Parameter]
-
-    # TODO: can we use Iterator trait here?
-    fn __init__(out self, params: List[Parameter]) raises:
-        self._dict = {}
-        for param in params:
-            self._add(param)
-
-    # TODO: Iterable in fn arg pos not stable yet
-    #       see: https://forum.modular.com/t/iterable-trait-as-function-argument/2284/2
-    # fn __init__[I: Iterable](out self, params: I) raises:
-    #     self._dict = {}
-    #     for param in params:
-    #         # can't express bounds on trait associated aliases, yet, so need to rebind iterator value
-    #         ref p = rebind[Parameter](param)
-    #         self._add(p)
-
-    fn __init__(out self, *params: Parameter) raises:
-        self._dict = {}
-        for param in params:
-            self._add(param)
-
-    fn _add(mut self, param: Parameter) raises:
-        if param.id in self._dict:
-            raise Error("Duplicate parameter in set: ", param)
-        self._dict[param.id] = param
-
-    fn __getitem__(self, id: Int64) -> Optional[Pointer[Parameter, origin=ImmutableOrigin.cast_from[__origin_of(self._dict.__getitem__(id))]]]:
-        try:
-            return Pointer(to=self._dict[id])
-        except:
-            return None
 
 
 struct CistemParameters:

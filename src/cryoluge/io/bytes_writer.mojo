@@ -4,7 +4,7 @@ from memory import memcpy
 
 struct BytesWriter[
     origin: Origin[mut=True]
-](BinaryWriter):
+](BinaryWriter, Movable):
     var buf: Span[Byte, origin].Mutable
     var _pos: UInt
 
