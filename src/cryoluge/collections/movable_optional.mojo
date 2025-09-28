@@ -7,6 +7,8 @@ struct MovableOptional[T: Movable](Movable):
     var _has: Bool
     var _v: UnsafeMaybeUninitialized[T]
 
+    alias default_abort_msg = "MovableOptional was None"
+
     fn __init__(out self):
         self._has = False
         self._v = UnsafeMaybeUninitialized[T]()
@@ -42,19 +44,21 @@ struct MovableOptional[T: Movable](Movable):
     fn __isnot__(self, other: NoneType) -> Bool:
         return self._has
 
-    fn value(ref self) -> ref [self._v] T:
+    fn has_or_abort(self, msg: String = Self.default_abort_msg):
         if not self._has:
-            abort("MovableOptional was None")
+            abort(msg)
+
+    fn value(ref self, *, msg: String = Self.default_abort_msg) -> ref [self._v] T:
+        self.has_or_abort(msg)
         return self._v.assume_initialized()
 
-    fn take(mut self, out v: T):
-        if not self._has:
-            abort("MovableOptional was None")
+    fn take(mut self, out v: T, *, msg: String = Self.default_abort_msg):
+        self.has_or_abort(msg)
         self._has = False
         v = self._v.unsafe_ptr().take_pointee()
 
-    fn unwrap(var self, out v: T):
-        v = self.take()
+    fn unwrap(var self, out v: T, *, msg: String = Self.default_abort_msg):
+        v = self.take(msg=msg)
 
     fn or_else[func: fn () capturing -> T](mut self, out v: T):
         if self._has:
