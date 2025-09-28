@@ -26,6 +26,16 @@ struct MovableOptional[T: Movable](Movable):
         self._has = True
         self._v = UnsafeMaybeUninitialized[T](v^)
 
+    fn __del__(deinit self):
+        if self._has:
+            self._v.assume_initialized_destroy()
+
+    fn __moveinit__(out self, deinit other: Self):
+        self._has = other._has
+        self._v = UnsafeMaybeUninitialized[T]()
+        if self._has:
+            self._v.move_from(other._v)
+
     fn __is__(self, other: NoneType) -> Bool:
         return not self._has
 

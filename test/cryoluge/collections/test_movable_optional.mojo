@@ -75,3 +75,12 @@ def test_implicit():
         var opt: MovableOptional[Thing] = Thing(5)
         assert_true(opt is not None)
         assert_equal(opt.value().i, 5)
+
+
+@fieldwise_init
+struct Crasher:
+    var thing: MovableOptional[Thing]
+
+def test_crash():
+    var crasher = Crasher(None)
+    var _ = crasher^
