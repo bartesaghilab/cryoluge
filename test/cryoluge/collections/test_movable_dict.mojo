@@ -30,6 +30,13 @@ def test_pop():
     assert_equal(dict.pop(5).value().i, 42)
 
 
+def test_contains():
+    var dict = MovableDict[Int,Thing]()
+    dict[5] = Thing(42)
+    assert_true(5 in dict)
+    assert_true(42 not in dict)
+
+
 struct Factory:
     var num: Int
     var count: Int
@@ -55,3 +62,23 @@ def test_get_or_insert():
     assert_equal(count, 1)
     assert_equal(dict.get_or_insert[factory](5).i, 42)
     assert_equal(count, 1)
+
+
+def test_keys():
+    var dict = MovableDict[Int,Thing]()
+    dict[5] = Thing(42)
+    dict[7] = Thing(9)
+    var iter = dict.keys()
+    assert_true(iter.__has_next__())
+    assert_equal(iter.__next__(), 5)
+    assert_true(iter.__has_next__())
+    assert_equal(iter.__next__(), 7)
+    assert_true(not iter.__has_next__())
+
+
+def test_key_list():
+    var dict = MovableDict[Int,Thing]()
+    dict[5] = Thing(42)
+    dict[7] = Thing(9)
+    var keys = dict.key_list()
+    assert_equal(keys, [5, 7])

@@ -1,6 +1,7 @@
 
 from hashlib import Hasher, default_hasher
 from bit import next_power_of_two
+from collections.dict import _DictKeyIter
 
 
 struct MovableDict[
@@ -69,3 +70,19 @@ struct MovableDict[
         if not key in self:
             self[key.copy()] = func()
         return self._dict.get(key).value()[]
+
+    fn keys(self) -> _DictKeyIter[K,UnsafePointer[V],H,__origin_of(self._dict)]:
+        return self._dict.keys()
+
+    fn key_list(self) -> List[K]:
+        """
+        Returns all the keys in an owned list.
+        Useful for when you want to destructively iterate over the dict.
+        """
+        var out = List[K](capacity=len(self._dict))
+        for k in self._dict.keys():
+            out.append(k.copy())
+        return out^
+
+    # NOTE: can't implement any iterators over values,
+    #       since the Iterator trait requires values to be Copyable =(
