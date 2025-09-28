@@ -53,6 +53,9 @@ struct MovableOptional[T: Movable](Movable):
         self._has = False
         v = self._v.unsafe_ptr().take_pointee()
 
+    fn unwrap(var self, out v: T):
+        v = self.take()
+
     fn or_else[func: fn () capturing -> T](mut self, out v: T):
         if self._has:
             v = self.take()

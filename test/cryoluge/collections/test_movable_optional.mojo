@@ -84,3 +84,9 @@ struct Crasher:
 def test_crash():
     var crasher = Crasher(None)
     var _ = crasher^
+
+
+def test_unwrap():
+    var opt = MovableOptional[Thing](Thing(5))
+    var thing = opt^.unwrap()
+    assert_equal(thing.i, 5)
