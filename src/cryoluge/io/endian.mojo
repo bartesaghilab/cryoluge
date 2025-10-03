@@ -5,7 +5,10 @@ from os import abort
 
 struct Endian(
     ImplicitlyCopyable,
-    EqualityComparable
+    Movable,
+    EqualityComparable,
+    Writable,
+    Stringable
 ):
     var value: Int
 
@@ -31,3 +34,14 @@ struct Endian(
 
     fn __ne__(self, rhs: Endian) -> Bool:
         return self.value != rhs.value
+
+    fn write_to[W: Writer](self, mut writer: W):
+        if self.value == Self.Big.value:
+            writer.write("Big")
+        elif self.value == Self.Little.value:
+            writer.write("Little")
+        else:
+            writer.write("(unknown)")
+
+    fn __str__(self) -> String:
+        return String.write(self)
