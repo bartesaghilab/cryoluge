@@ -1,8 +1,8 @@
 
-from memory import UnsafePointer
+from memory import UnsafePointer, memcpy
 
 
-struct ByteBuffer(Movable):
+struct ByteBuffer(Copyable, Movable):
     var _p: UnsafePointer[Byte]
     var _size: UInt
 
@@ -14,6 +14,11 @@ struct ByteBuffer(Movable):
     fn __del__(deinit self):
         self._p.free()
 
+    fn __copyinit__(out self, other: Self):
+        self._size = other._size
+        self._p = UnsafePointer[Byte]().alloc(self._size)
+        memcpy[Byte](self._p, other._p, self._size)
+
     fn size(self) -> UInt:
         return self._size
 
@@ -21,7 +26,7 @@ struct ByteBuffer(Movable):
         *,
         start: UInt = 0,
         length: Optional[Int] = None
-    ) -> Span[mut=True, Byte, MutableOrigin.cast_from[__origin_of(self)]]:
+    ) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self)]]:
 
         # safety first
         debug_assert[assert_mode="safe"](
