@@ -1,2 +1,4 @@
 
-from .image import Image
+from .dimension import *
+from .image import *
+from .complex_image import *
