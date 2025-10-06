@@ -1,5 +1,5 @@
 
-from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian
+from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian, require_endian
 from cryoluge.image import Image
 
 
@@ -12,12 +12,13 @@ from cryoluge.image import Image
 
 alias _header_size = 1024
 
+# only support little endian MRC files, for now
+alias _endian = Endian.Little
+
 
 struct Reader[
     R: BinaryReader,
-    origin: Origin[mut=True],
-    *,
-    endian: Endian = Endian.Little
+    origin: Origin[mut=True]
 ](Movable):
     var _reader: Pointer[R, origin]
     var _header: ByteBuffer
@@ -28,28 +29,33 @@ struct Reader[
     ) raises:
         self._reader = Pointer(to=reader)
 
+        # the pixel read functions currently assume the native byte order matches the file byte order,
+        # and we're only supporting little endian (for now),
+        # so make sure the target architecture matches the code
+        require_endian[_endian]()
+
         # read the MRC header into a buffer
         self._header = ByteBuffer(_header_size)
         self._reader[].read_bytes_exact(self._header.span())
 
         # read the machine stamp (at word 54)
         var r = BytesReader(self._header.span(), pos=_word_offset(54))
-        var machine_stamp = MachineStamp(r.read_u8(), r.read_u8())
-        if machine_stamp.endian() != endian:
-            raise Error("Reader created with endian ", endian, ", but file has endian ", Endian.Little)
+        var endian = MachineStamp(r.read_u8(), r.read_u8()).endian()
+        if endian != _endian:
+            raise Error("Reader supports only endian ", _endian, ", but file has endian ", endian)
 
     fn mode(self) raises -> Mode:
 
         # read the mode (at word 4)
         var r = BytesReader(self._header.span(), pos=_word_offset(4))
-        var mode_value = r.read_u32[endian]()
+        var mode_value = r.read_u32[_endian]()
         return Mode.find(mode_value)
 
     fn size(self) raises -> (UInt32, UInt32, UInt32):
         var r = BytesReader(self._header.span(), pos=_word_offset(1))
-        var nx = r.read_u32[endian]()
-        var ny = r.read_u32[endian]()
-        var nz = r.read_u32[endian]()
+        var nx = r.read_u32[_endian]()
+        var ny = r.read_u32[_endian]()
+        var nz = r.read_u32[_endian]()
         return (nx, ny, nz)
 
     fn _check_dtype[dtype: DType](self) raises:
@@ -63,7 +69,7 @@ struct Reader[
 
         # read the extended header size (at word 24)
         var r = BytesReader(self._header.span(), pos=_word_offset(24))
-        var extended_header_size = r.read_u32[endian]()
+        var extended_header_size = r.read_u32[_endian]()
 
         # seek to after the header and the extended header to get to the pixels
         self._reader[].seek_to(_header_size + UInt64(extended_header_size))

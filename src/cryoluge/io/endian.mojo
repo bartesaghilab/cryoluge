@@ -45,3 +45,12 @@ struct Endian(
 
     fn __str__(self) -> String:
         return String.write(self)
+
+
+fn require_endian[endian: Endian]():
+    # for, essentially, memcpy of file data into RAM to be correct,
+    # the endian-ness of the file should match the endian-ness of the target architecture
+    constrained[
+        endian == Endian.native(),
+        String("Target architecture expected to be endian ", endian, ", but instead was ", Endian.native())
+    ]()
