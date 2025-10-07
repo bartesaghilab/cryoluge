@@ -32,9 +32,6 @@ struct Endian(
     fn __eq__(self, rhs: Endian) -> Bool:
         return self.value == rhs.value
 
-    fn __ne__(self, rhs: Endian) -> Bool:
-        return self.value != rhs.value
-
     fn write_to[W: Writer](self, mut writer: W):
         if self.value == Self.Big.value:
             writer.write("Big")

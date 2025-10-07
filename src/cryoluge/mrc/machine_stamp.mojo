@@ -18,10 +18,6 @@ struct MachineStamp(
         return self.value[0] == rhs.value[0]
             and self.value[1] == rhs.value[1]
 
-    fn __ne__(self, rhs: Self) -> Bool:
-        return self.value[0] != rhs.value[0]
-            or self.value[1] != rhs.value[1]
-
     fn write_to[W: Writer](self, mut writer: W):
         writer.write("[")
         writer.write(hex(self.value[0]))

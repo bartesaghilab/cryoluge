@@ -3,6 +3,7 @@ from os import abort
 from sys.info import size_of
 
 
+@fieldwise_init
 struct ImageDimension(
     ImplicitlyCopyable,
     Movable,
@@ -17,21 +18,15 @@ struct ImageDimension(
     alias D2 = Self(2)
     alias D3 = Self(3)
 
-    fn __init__(out self, rank: UInt):
-        self.rank = rank
-
     fn __eq__(self, rhs: Self) -> Bool:
         return self.rank == rhs.rank
 
-    fn __ne__(self, rhs: Self) -> Bool:
-        return self.rank != rhs.rank
-
     fn write_to[W: Writer](self, mut writer: W):
-        if self.rank == Self.D1.rank:
+        if self == Self.D1:
             writer.write("D1")
-        elif self.rank == Self.D2.rank:
+        elif self == Self.D2:
             writer.write("D2")
-        elif self.rank == Self.D3.rank:
+        elif self == Self.D3:
             writer.write("D3")
         else:
             writer.write("Unknown(", self.rank, ")")
@@ -40,14 +35,22 @@ struct ImageDimension(
         return String.write(self)
 
 
-fn _unrecognized_dimensionality[dim: ImageDimension, T: AnyType]() -> T:
+fn unrecognized_dimensionality[dim: ImageDimension, T: AnyType]() -> T:
     constrained[False, String("Unrecognized dimensionality: ", dim)]()
     return abort[T]()
 
-fn _expect_at_least_rank[dim: ImageDimension, rank: UInt]():
+
+fn expect_at_least_rank[dim: ImageDimension, rank: UInt]():
     constrained[
         dim.rank >= rank,
         String("Expected dimension of at least rank ", rank, " but got ", dim)
+    ]()
+
+
+fn expect_num_arguments[dim: ImageDimension, count: UInt]():
+    constrained[
+        dim.rank == count,
+        String(dim, " expects ", dim.rank, " argument(s), but got ", count, " instead")
     ]()
 
 
@@ -58,54 +61,47 @@ struct DimensionalBuffer[
     Copyable,
     Movable
 ):
-    var _sizes: InlineArray[UInt,dim.rank]
-    var _strides: InlineArray[UInt,dim.rank]
+    var _sizes: Self.VecD[UInt]
+    var _strides: Self.VecD[UInt]
     """the element strides, not the byte strides"""
     var _buf: ByteBuffer
 
+    alias VecD = VecD[_,dim]
     alias _elem_size = size_of[T]()
 
-    fn __init__(out self, *, sx: UInt=1, sy: UInt=1, sz: UInt=1):
+    fn __init__(out self, sizes: Self.VecD[UInt]):
+        self._sizes = sizes.copy()
         @parameter
         if dim == ImageDimension.D1:
-            debug_assert(sy == 1, "ComplexImage.D1 expects sy=1")
-            debug_assert(sz == 1, "ComplexImage.D1 expects sz=1")
-            self._sizes = InlineArray[UInt,dim.rank](sx)
-            self._strides = InlineArray[UInt,dim.rank](1)
+            var sx = self._sizes.x()
+            self._strides = Self.VecD[UInt](x=1)
             self._buf = ByteBuffer(sx*Self._elem_size)
         elif dim == ImageDimension.D2:
-            debug_assert(sz == 1, "ComplexImage.D2 expects sz=1")
-            self._sizes = InlineArray[UInt,dim.rank](sx, sy)
-            self._strides = InlineArray[UInt,dim.rank](1, sx)
+            var sx = self._sizes.x()
+            var sy = self._sizes.y()
+            self._strides = Self.VecD[UInt](x=1, y=sx)
             self._buf = ByteBuffer(sx*sy*Self._elem_size)
         elif dim == ImageDimension.D3:
-            self._sizes = InlineArray[UInt,dim.rank](sx, sy, sz)
-            self._strides = InlineArray[UInt,dim.rank](1, sx, sx*sy)
+            var sx = self._sizes.x()
+            var sy = self._sizes.y()
+            var sz = self._sizes.z()
+            self._strides = Self.VecD[UInt](x=1, y=sx, z=sx*sy)
             self._buf = ByteBuffer(sx*sy*sz*Self._elem_size)
         else:
-            return _unrecognized_dimensionality[dim,Self]()
+            return unrecognized_dimensionality[dim,Self]()
 
     fn rank(self) -> UInt:
         return dim.rank
 
     fn num_elements(self) -> UInt:
-        var count: UInt = 0
+        var count: UInt = 1
         @parameter
         for d in range(dim.rank):
             count *= self._sizes[d]
         return count
 
-    fn size_x(self) -> UInt:
-        _expect_at_least_rank[dim, 1]()
-        return self._sizes[0]
-
-    fn size_y(self) -> UInt:
-        _expect_at_least_rank[dim, 2]()
-        return self._sizes[1]
-
-    fn size_z(self) -> UInt:
-        _expect_at_least_rank[dim, 3]()
-        return self._sizes[2]
+    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._sizes)]] Self.VecD[UInt]:
+        return self._sizes
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf)]]:
         return self._buf.span()
@@ -113,46 +109,45 @@ struct DimensionalBuffer[
     fn _start(self) -> UnsafePointer[T]:
         return self._buf._p.bitcast[T]()
 
-    fn _offset(self, *i: UInt) -> UInt:
-        """the element offset, not the byte offset"""
-
-        debug_assert(
-            len(i) == dim.rank,
-            "Image.", dim, " expects ", dim.rank, " indice(s), but got ", len(i), " indices instead"
-        )
-
-        var offset: UInt = 0
-
+    fn _offset(self, i: Self.VecD[UInt], out offset: UInt):
+        
         alias d_names = InlineArray[String, 3]("x", "y", "z")
+
+        offset = 0
+
         @parameter
         for d in range(dim.rank):
             var coord = i[d]
             var size = self._sizes[d]
             debug_assert(coord < size, d_names[d], "=", coord, " out of range [0,", size, ")")
             offset += coord*self._strides[d]
-        
-        return offset
+
+    fn __getitem__(self, i: Self.VecD[UInt], out v: T):
+        v = (self._start() + self._offset(i))[].copy()
 
     fn __getitem__(self, *, x: UInt, out v: T):
-        _expect_at_least_rank[dim, 1]()
-        return (self._start() + self._offset(x))[].copy()
+        expect_at_least_rank[dim, 1]()
+        v = self[Self.VecD[UInt](x=x)]
 
     fn __getitem__(self, *, x: UInt, y: UInt, out v: T):
-        _expect_at_least_rank[dim, 2]()
-        return (self._start() + self._offset(x, y))[].copy()
+        expect_at_least_rank[dim, 2]()
+        v = self[Self.VecD[UInt](x=x, y=y)]
 
     fn __getitem__(self, *, x: UInt, y: UInt, z: UInt, out v: T):
-        _expect_at_least_rank[dim, 3]()
-        return (self._start() + self._offset(x, y, z))[].copy()
+        expect_at_least_rank[dim, 3]()
+        v = self[Self.VecD[UInt](x=x, y=y, z=z)]
 
-    fn __setitem__(self, *, x: UInt, value: T):
-        _expect_at_least_rank[dim, 1]()
-        (self._start() + self._offset(x))[] = value.copy()
+    fn __setitem__(mut self, i: Self.VecD[UInt], v: T):
+        (self._start() + self._offset(i))[] = v.copy()
 
-    fn __setitem__(self, *, x: UInt, y: UInt, value: T):
-        _expect_at_least_rank[dim, 2]()
-        (self._start() + self._offset(x, y))[] = value.copy()
+    fn __setitem__(mut self, *, x: UInt, v: T):
+        expect_at_least_rank[dim, 1]()
+        self[Self.VecD[UInt](x=x)] = v
 
-    fn __setitem__(self, *, x: UInt, y: UInt, z: UInt, value: T):
-        _expect_at_least_rank[dim, 3]()
-        (self._start() + self._offset(x, y, z))[] = value.copy()
+    fn __setitem__(mut self, *, x: UInt, y: UInt, v: T):
+        expect_at_least_rank[dim, 2]()
+        self[Self.VecD[UInt](x=x, y=y)] = v
+
+    fn __setitem__(mut self, *, x: UInt, y: UInt, z: UInt, v: T):
+        expect_at_least_rank[dim, 3]()
+        self[Self.VecD[UInt](x=x, y=y, z=z)] = v

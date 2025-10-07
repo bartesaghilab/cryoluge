@@ -48,9 +48,6 @@ struct Mode(
     fn __eq__(self, rhs: Self) -> Bool:
         return self.value == rhs.value
 
-    fn __ne__(self, rhs: Self) -> Bool:
-        return self.value != rhs.value
-
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(self.name, "(", self.value, ")")
         

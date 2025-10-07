@@ -26,9 +26,9 @@ def test_read_3d_int8():
 
         var img = mrc_reader.read_3d_int8()
         assert_equal(img.rank(), 3)
-        assert_equal(img.size_x(), 16)
-        assert_equal(img.size_y(), 16)
-        assert_equal(img.size_z(), 16)
+        assert_equal(img.sizes().x(), 16)
+        assert_equal(img.sizes().y(), 16)
+        assert_equal(img.sizes().z(), 16)
 
         # spot-check a few pixels
         assert_equal(img[x=0, y=0, z=0], 103)
@@ -50,8 +50,8 @@ def test_read_2d_int8():
 
         var img = mrc_reader.read_2d_int8()
         assert_equal(img.rank(), 2)
-        assert_equal(img.size_x(), 16)
-        assert_equal(img.size_y(), 16)
+        assert_equal(img.sizes().x(), 16)
+        assert_equal(img.sizes().y(), 16)
 
         # spot-check a few pixels
         assert_equal(img[x=0, y=0], 103)
