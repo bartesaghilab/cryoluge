@@ -109,6 +109,13 @@ struct DimensionalBuffer[
     fn _start(self) -> UnsafePointer[T]:
         return self._buf._p.bitcast[T]()
 
+    fn unsafe_ptr(self, *, offset: Int = 0) -> UnsafePointer[T]:
+        debug_assert(
+            offset >= 0 and offset < self.num_elements(),
+            String("Offset ", offset, " out of range [0,", self.num_elements(), ")")
+        )
+        return self._start() + offset
+
     fn _offset(self, i: Self.VecD[UInt], out offset: UInt):
         
         alias d_names = InlineArray[String, 3]("x", "y", "z")

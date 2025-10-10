@@ -1,5 +1,7 @@
 
 from complex import ComplexSIMD
+from algorithm import vectorize
+from sys import simd_width_of
 
 from cryoluge.io import ByteBuffer
 
@@ -19,6 +21,10 @@ struct ComplexImage[
     alias D3 = ComplexImage[ImageDimension.D3,_]
     alias VecD = VecD[_,dim]
     alias PixelType = ComplexScalar[dtype]
+    alias PixelVec = ComplexSIMD[dtype,_]
+    alias ScalarType = Scalar[dtype]
+    alias ScalarVec = SIMD[dtype,_]
+    alias pixel_vec_max_width = simd_width_of[dtype]()
 
     fn __init__(out self, sizes: Self.VecD[UInt]):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes)
@@ -88,3 +94,110 @@ struct ComplexImage[
 
     fn __setitem__(mut self, *, x: UInt, y: UInt, z: UInt, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
+
+    fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
+
+        # get the address of the pixel at the offset
+        var p = self._buf.unsafe_ptr(offset=offset)
+            .bitcast[Self.ScalarType]()
+
+        @parameter
+        if width == Self.pixel_vec_max_width:
+            # need two different loads to fill two max-size vector registers
+
+            # load the interleaved data
+            var v1 = p.load[width=width]()
+            p += width
+            var v2 = p.load[width=width]()
+            
+            # de-interleave
+            var (v1real, v1imag) = v1.deinterleave()
+            var (v2real, v2imag) = v2.deinterleave()
+
+            # build the complex vector
+            v = Self.PixelVec[width](
+                re = rebind[Self.ScalarVec[width]](v1real.join(v2real)),
+                im = rebind[Self.ScalarVec[width]](v1imag.join(v2imag))
+            )
+
+        else:
+            # otherwise, we just need one load
+
+            # load the interleaved data
+            var interleaved = p.load[width=width*2]()
+
+            # de-interleave
+            var (real, imag) = interleaved.deinterleave()
+
+            # build the complex vector
+            v = Self.PixelVec[width](
+                re = rebind[Self.ScalarVec[width]](real),
+                im = rebind[Self.ScalarVec[width]](imag)
+            )
+
+    fn _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
+
+        # get the address of the pixel at the offset
+        var p = self._buf.unsafe_ptr(offset=offset)
+            .bitcast[Self.ScalarType]()
+
+        @parameter
+        if width == Self.pixel_vec_max_width:
+            # need two different stores to write two max-size vector registers
+
+            # break apart the components
+            var (v1real, v2real) = v.re.split()
+            var (v1imag, v2imag) = v.im.split()
+
+            # interleave
+            var v1 = v1real.interleave(v1imag)
+            var v2 = v2real.interleave(v2imag)
+
+            # store the interleaved data
+            p.store[width=width](rebind[Self.ScalarVec[width]](v1))
+            p += width
+            p.store[width=width](rebind[Self.ScalarVec[width]](v2))
+
+        else:
+            # otherwise, we just need one store
+
+            # interleave
+            var interleaved = v.re.interleave(v.im)
+
+            # store the interleaved data
+            p.store[width=width*2](rebind[Self.ScalarVec[width*2]](interleaved))
+        
+    fn pixels_read[
+        func: fn[width: Int](Self.PixelVec[width]) capturing,
+        width: Int = Self.pixel_vec_max_width
+    ](ref self):
+
+        @parameter
+        fn loader[width: Int](offset: Int):
+            var v = self._load[width](offset)
+            func[width](v)
+
+        vectorize[loader, width](self.num_pixels())
+
+    fn pixels_read_write[
+        func: fn[width: Int](mut p: Self.PixelVec[width]) capturing,
+        width: Int = Self.pixel_vec_max_width
+    ](mut self):
+
+        @parameter
+        fn loader[width: Int](offset: Int):
+            var v = self._load[width](offset)
+            func[width](v)
+            self._store[width](offset, v)
+
+        vectorize[loader, width](self.num_pixels())
+
+    fn multiply[
+        width: Int = Self.pixel_vec_max_width
+    ](mut self, factor: Self.ScalarType):
+
+        @parameter
+        fn func[width: Int](mut p: Self.PixelVec[width]):
+            p *= factor
+
+        self.pixels_read_write[func, width]()

@@ -185,12 +185,10 @@ struct FFTPlan[
                 fourier.span().unsafe_ptr()
             )
 
-            # rescale in the fourier domain, if needed
+            # rescale in the fourier domain, if desired
             if rescale:
                 var factor = 1/Scalar[dtype](real.num_pixels())
-                # TODO: make a pixel iterator
-                for p in range(real.num_pixels()):
-                    (fourier._buf._start() + p)[] *= factor
+                fourier.multiply(factor)
 
         elif direction == FFTDirection.C2R:
             var execute = self._fftw.get_function[
