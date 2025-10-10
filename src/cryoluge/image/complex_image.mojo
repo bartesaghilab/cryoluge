@@ -101,39 +101,19 @@ struct ComplexImage[
         var p = self._buf.unsafe_ptr(offset=offset)
             .bitcast[Self.ScalarType]()
 
-        @parameter
-        if width == Self.pixel_vec_max_width:
-            # need two different loads to fill two max-size vector registers
+        # load the interleaved data
+        # NOTE: mojo's compiler is smart enough to handle vector operations
+        #       on sizes larger than the machine limits, as long as it's a power of 2
+        var interleaved = p.load[width=width*2]()
 
-            # load the interleaved data
-            var v1 = p.load[width=width]()
-            p += width
-            var v2 = p.load[width=width]()
-            
-            # de-interleave
-            var (v1real, v1imag) = v1.deinterleave()
-            var (v2real, v2imag) = v2.deinterleave()
+        # de-interleave
+        var (real, imag) = interleaved.deinterleave()
 
-            # build the complex vector
-            v = Self.PixelVec[width](
-                re = rebind[Self.ScalarVec[width]](v1real.join(v2real)),
-                im = rebind[Self.ScalarVec[width]](v1imag.join(v2imag))
-            )
-
-        else:
-            # otherwise, we just need one load
-
-            # load the interleaved data
-            var interleaved = p.load[width=width*2]()
-
-            # de-interleave
-            var (real, imag) = interleaved.deinterleave()
-
-            # build the complex vector
-            v = Self.PixelVec[width](
-                re = rebind[Self.ScalarVec[width]](real),
-                im = rebind[Self.ScalarVec[width]](imag)
-            )
+        # build the complex vector
+        v = Self.PixelVec[width](
+            re = rebind[Self.ScalarVec[width]](real),
+            im = rebind[Self.ScalarVec[width]](imag)
+        )
 
     fn _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
 
@@ -141,31 +121,11 @@ struct ComplexImage[
         var p = self._buf.unsafe_ptr(offset=offset)
             .bitcast[Self.ScalarType]()
 
-        @parameter
-        if width == Self.pixel_vec_max_width:
-            # need two different stores to write two max-size vector registers
+        # interleave
+        var interleaved = v.re.interleave(v.im)
 
-            # break apart the components
-            var (v1real, v2real) = v.re.split()
-            var (v1imag, v2imag) = v.im.split()
-
-            # interleave
-            var v1 = v1real.interleave(v1imag)
-            var v2 = v2real.interleave(v2imag)
-
-            # store the interleaved data
-            p.store[width=width](rebind[Self.ScalarVec[width]](v1))
-            p += width
-            p.store[width=width](rebind[Self.ScalarVec[width]](v2))
-
-        else:
-            # otherwise, we just need one store
-
-            # interleave
-            var interleaved = v.re.interleave(v.im)
-
-            # store the interleaved data
-            p.store[width=width*2](rebind[Self.ScalarVec[width*2]](interleaved))
+        # store the interleaved data
+        p.store[width=width*2](rebind[Self.ScalarVec[width*2]](interleaved))
         
     fn pixels_read[
         func: fn[width: Int](Self.PixelVec[width]) capturing,
