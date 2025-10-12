@@ -61,3 +61,42 @@ struct Image[
 
     fn __setitem__(mut self, *, x: UInt, y: UInt, z: UInt, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
+
+    fn get(self, i: Self.VecD[Int]) -> Optional[Self.PixelType]:
+        return self._buf.get(i)
+
+    fn iterate[
+        func: fn (i: Self.VecD[UInt]) capturing
+    ](self):
+
+        @parameter
+        if dim == ImageDimension.D1:
+            
+            for x in range(self.sizes().x()):
+                func(Self.VecD[UInt](x=x))
+
+        elif dim == ImageDimension.D2:
+            
+            for y in range(self.sizes().y()):
+                for x in range(self.sizes().x()):
+                    func(Self.VecD[UInt](x=x, y=y))
+
+        elif dim == ImageDimension.D3:
+
+            for z in range(self.sizes().z()):
+                for y in range(self.sizes().y()):
+                    for x in range(self.sizes().x()):
+                        func(Self.VecD[UInt](x=x, y=y, z=z))
+
+        else:
+            unrecognized_dimension[dim]()
+
+    fn copy(self, *, center: Self.VecD[Int], padding: Self.PixelType, mut to: Self):
+
+        var to_center = (to.sizes()//2).cast_int()
+
+        @parameter
+        fn func(i: Self.VecD[UInt]):
+            to[i] = self.get(i.cast_int() + center - to_center).or_else(padding)
+
+        to.iterate[func]()

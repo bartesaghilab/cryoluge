@@ -35,8 +35,13 @@ struct ImageDimension(
         return String.write(self)
 
 
-fn unrecognized_dimensionality[dim: ImageDimension, T: AnyType]() -> T:
+fn unrecognized_dimension[dim: ImageDimension, T: AnyType = NoneType._mlir_type]() -> T:
     constrained[False, String("Unrecognized dimensionality: ", dim)]()
+    return abort[T]()
+
+
+fn unimplemented_dimension[dim: ImageDimension, T: AnyType = NoneType._mlir_type]() -> T:
+    constrained[False, String("Dimension not implemented yet: ", dim)]()
     return abort[T]()
 
 
@@ -56,7 +61,7 @@ fn expect_num_arguments[dim: ImageDimension, count: UInt]():
 
 struct DimensionalBuffer[
     dim: ImageDimension,
-    T: Copyable
+    T: Copyable & Movable
 ](
     Copyable,
     Movable
@@ -88,7 +93,7 @@ struct DimensionalBuffer[
             self._strides = Self.VecD[UInt](x=1, y=sx, z=sx*sy)
             self._buf = ByteBuffer(sx*sy*sz*Self._elem_size)
         else:
-            return unrecognized_dimensionality[dim,Self]()
+            return unrecognized_dimension[dim,Self]()
 
     fn rank(self) -> UInt:
         return dim.rank
@@ -129,6 +134,21 @@ struct DimensionalBuffer[
             debug_assert(coord < size, d_names[d], "=", coord, " out of range [0,", size, ")")
             offset += coord*self._strides[d]
 
+    fn _maybe_offset(self, i: Self.VecD[Int]) -> Optional[UInt]:
+
+        var offset: UInt = 0
+
+        @parameter
+        for d in range(dim.rank):
+            var coord = i[d]
+            var size = self._sizes[d]
+            if coord < Int(size):
+                offset += coord*self._strides[d]
+            else:
+                return None
+        
+        return offset
+
     fn __getitem__(self, i: Self.VecD[UInt], out v: T):
         v = (self._start() + self._offset(i))[].copy()
 
@@ -158,3 +178,9 @@ struct DimensionalBuffer[
     fn __setitem__(mut self, *, x: UInt, y: UInt, z: UInt, v: T):
         expect_at_least_rank[dim, 3]()
         self[Self.VecD[UInt](x=x, y=y, z=z)] = v
+
+    fn get(self, i: Self.VecD[Int]) -> Optional[T]:
+        var offset = self._maybe_offset(i)
+        if offset is None:
+            return None
+        return (self._start() + offset.value())[].copy()

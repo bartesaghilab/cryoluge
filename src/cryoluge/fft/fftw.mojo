@@ -3,7 +3,7 @@ from sys.ffi import DLHandle
 from os import abort
 from complex import ComplexFloat32
 
-from cryoluge.image import ImageDimension, VecD, Image, ComplexImage, unrecognized_dimensionality
+from cryoluge.image import ImageDimension, VecD, Image, ComplexImage, unrecognized_dimension
 
 
 # NOTE: fftw is perhaps not fully thread-safe?
@@ -164,7 +164,7 @@ struct FFTPlan[
                 return _unrecognized_direction[direction,Self]()
 
         else:
-            return unrecognized_dimensionality[dim,Self]()
+            return unrecognized_dimension[dim,Self]()
         
     fn __del__(deinit self):
         var destroy_plan = self._fftw.get_function[

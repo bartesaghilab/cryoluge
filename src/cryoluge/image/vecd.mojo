@@ -1,6 +1,9 @@
 
+alias _TBounds = Copyable & Movable & EqualityComparable & Writable & Stringable
+
+
 struct VecD[
-    T: Copyable & Movable & EqualityComparable & Writable & Stringable,
+    T: _TBounds,
     dim: ImageDimension
 ](
     Copyable,
@@ -26,6 +29,12 @@ struct VecD[
     fn __init__(out self, *, x: T, y: T, z: T):
         expect_num_arguments[dim, 3]()
         self._values = InlineArray[T,dim.rank](x.copy(), y.copy(), z.copy())
+
+    fn __init__(out self, *, fill: T):
+        self._values = InlineArray[T,dim.rank](fill=fill)
+
+    fn __init__(out self, *, unsafe_uninitialized: Bool):
+        self._values = InlineArray[T,dim.rank](uninitialized=unsafe_uninitialized)
 
     fn x(ref self) -> ref [self._values] T:
         expect_at_least_rank[dim, 1]()
@@ -64,3 +73,40 @@ struct VecD[
 
     fn __str__(self) -> String:
         return String.write(self)
+
+    # casting methods
+    # TODO: can we parameterize this more nicely somehow?
+
+    fn cast_int(self: VecD[UInt,dim], out result: VecD[Int,dim]):
+        result = VecD[Int,dim](unsafe_uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = Int(self[d])
+
+    # math things
+    # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int,UInt),
+    #       since mojo doesn't seem to have traits for their math dunder methods =(
+
+    fn __floordiv__(self: VecD[UInt,dim], dividend: Int, out result: VecD[UInt,dim]):
+        result = VecD[UInt,dim](unsafe_uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]//dividend
+
+    fn __floordiv__(self: VecD[Int,dim], dividend: Int, out result: VecD[Int,dim]):
+        result = VecD[Int,dim](unsafe_uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]//dividend
+
+    fn __add__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
+        result = VecD[Int,dim](unsafe_uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] + other[d]
+
+    fn __sub__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
+        result = VecD[Int,dim](unsafe_uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] - other[d]
