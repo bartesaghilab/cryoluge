@@ -14,65 +14,65 @@ struct Image[
     alias VecD = VecD[_,dim]
     alias PixelType = Scalar[dtype]
 
-    fn __init__(out self, sizes: Self.VecD[UInt]):
+    fn __init__(out self, sizes: Self.VecD[Int]):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes)
 
-    fn __init__(out self, *, sx: UInt):
-        self = Self(Self.VecD[UInt](x=sx))
+    fn __init__(out self, *, sx: Int):
+        self = Self(Self.VecD(x=sx))
 
-    fn __init__(out self, *, sx: UInt, sy: UInt):
-        self = Self(Self.VecD[UInt](x=sx, y=sy))
+    fn __init__(out self, *, sx: Int, sy: Int):
+        self = Self(Self.VecD(x=sx, y=sy))
 
-    fn __init__(out self, *, sx: UInt, sy: UInt, sz: UInt):
-        self = Self(Self.VecD[UInt](x=sx, y=sy, z=sz))
+    fn __init__(out self, *, sx: Int, sy: Int, sz: Int):
+        self = Self(Self.VecD(x=sx, y=sy, z=sz))
 
-    fn rank(self) -> UInt:
+    fn rank(self) -> Int:
         return self._buf.rank()
 
-    fn num_pixels(self) -> UInt:
+    fn num_pixels(self) -> Int:
         return self._buf.num_elements()
 
-    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.VecD[UInt]:
+    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.VecD[Int]:
         return self._buf.sizes()
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
         return self._buf.span()
 
-    fn __getitem__(self, *, i: UInt, out v: Self.PixelType):
+    fn __getitem__(self, *, i: Int, out v: Self.PixelType):
         v = self._buf[i=i]
 
-    fn __getitem__(self, i: Self.VecD[UInt], out v: Self.PixelType):
+    fn __getitem__(self, i: Self.VecD[Int], out v: Self.PixelType):
         v = self._buf[i]
 
-    fn __getitem__(self, *, x: UInt, out v: Self.PixelType):
+    fn __getitem__(self, *, x: Int, out v: Self.PixelType):
         v = self._buf[x=x]
 
-    fn __getitem__(self, *, x: UInt, y: UInt, out v: Self.PixelType):
+    fn __getitem__(self, *, x: Int, y: Int, out v: Self.PixelType):
         v = self._buf[x=x, y=y]
 
-    fn __getitem__(self, *, x: UInt, y: UInt, z: UInt, out v: Self.PixelType):
+    fn __getitem__(self, *, x: Int, y: Int, z: Int, out v: Self.PixelType):
         v = self._buf[x=x, y=y, z=z]
 
-    fn __setitem__(mut self, *, i: UInt, v: Self.PixelType):
+    fn __setitem__(mut self, *, i: Int, v: Self.PixelType):
         self._buf[i=i] = v
 
-    fn __setitem__(mut self, i: Self.VecD[UInt], v: Self.PixelType):
+    fn __setitem__(mut self, i: Self.VecD[Int], v: Self.PixelType):
         self._buf[i] = v
 
-    fn __setitem__(mut self, *, x: UInt, v: Self.PixelType):
+    fn __setitem__(mut self, *, x: Int, v: Self.PixelType):
         self._buf[x=x] = v
 
-    fn __setitem__(mut self, *, x: UInt, y: UInt, v: Self.PixelType):
+    fn __setitem__(mut self, *, x: Int, y: Int, v: Self.PixelType):
         self._buf[x=x, y=y] = v
 
-    fn __setitem__(mut self, *, x: UInt, y: UInt, z: UInt, v: Self.PixelType):
+    fn __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
 
     fn get(self, i: Self.VecD[Int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
 
     fn iterate[
-        func: fn (i: Self.VecD[UInt]) capturing
+        func: fn (i: Self.VecD[Int]) capturing
     ](self):
         self._buf.iterate[func]()
 
@@ -80,7 +80,7 @@ struct Image[
     fn assert_info[samples: Int](
         self: Image[dim,DType.float32],
         msg: String,
-        sizes: Self.VecD[UInt],
+        sizes: Self.VecD[Int],
         head: InlineArray[Float32, samples],
         tail: InlineArray[Float32, samples],
         hash: UInt64,
@@ -91,10 +91,11 @@ struct Image[
 
     fn copy(self, *, center: Self.VecD[Int], padding: Self.PixelType, mut to: Self):
 
-        var to_center = (to.sizes()//2).cast_int()
-
+        var to_center = to.sizes()//2
+        # NOTE: the compiler says the above variable is unsused, but it think it's wrong?
+        #       the variable gets captured by the closure below, right?
         @parameter
-        fn func(i: Self.VecD[UInt]):
-            to[i] = self.get(i.cast_int() + center - to_center).or_else(padding)
+        fn func(i: Self.VecD[Int]):
+            to[i] = self.get(i + center - to_center).or_else(padding)
 
         to.iterate[func]()

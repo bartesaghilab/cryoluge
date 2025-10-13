@@ -1,6 +1,6 @@
 
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian, require_endian
-from cryoluge.image import Image
+from cryoluge.image import Image, VecD
 
 
 # MRC file (from the Medical Research Council, in the UK)
@@ -58,6 +58,10 @@ struct Reader[
         var nz = r.read_u32[_endian]()
         return (nx, ny, nz)
 
+    fn size_d(self) raises -> VecD.D3[Int]:
+        var (sx, sy, sz) = self.size()
+        return VecD.D3(x=Int(sx), y=Int(sy), z=Int(sz))
+
     fn _check_dtype[dtype: DType](self) raises:
         var mode = self.mode()
         if mode.dtype is None:
@@ -76,8 +80,7 @@ struct Reader[
 
     fn read_3d[dtype: DType](self, out img: Image.D3[dtype]) raises:
         self._check_dtype[dtype]()
-        var (nx, ny, nz) = self.size()
-        img = Image.D3[dtype](sx=UInt(nx), sy=UInt(ny), sz=UInt(nz))
+        img = Image.D3[dtype](self.size_d())
         self._seek_pixels()
         self._reader[].read_bytes_exact(img.span())
 
@@ -91,15 +94,15 @@ struct Reader[
 
     fn read_2d[dtype: DType](self, z: UInt32, out img: Image.D2[dtype]) raises:
         self._check_dtype[dtype]()
-        var (nx, ny, nz) = self.size()
+        var size = self.size_d()
 
         # check z
-        if z >= nz:
-            raise Error("z=", z, " is out of range [0,", nz, ")")
+        if z >= size.z():
+            raise Error("z=", z, " is out of range [0,", size.z(), ")")
 
-        img = Image.D2[dtype](sx=UInt(nx), sy=UInt(ny))
+        img = Image.D2[dtype](sx=size.x(), sy=size.y())
         self._seek_pixels()
-        self._reader[].seek_by(Int64(nx)*Int64(ny)*Int64(z)*dtype.size_of())
+        self._reader[].seek_by(Int64(size.x())*Int64(size.y())*Int64(z)*dtype.size_of())
         self._reader[].read_bytes_exact(img.span())
 
     fn read_2d_int8(self, *, z: UInt32=0, out img: Image.D2[DType.int8]) raises:

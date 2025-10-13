@@ -37,7 +37,7 @@ struct FFTDirection(
     Writable,
     Stringable
 ):
-    var value: UInt
+    var value: Int
     
     alias R2C = Self(0)
     alias C2R = Self(1)

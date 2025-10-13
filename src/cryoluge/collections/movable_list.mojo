@@ -9,8 +9,8 @@ struct MovableList[T: Movable](Sized, Movable):
     """
 
     var _data: UnsafePointer[T]
-    var _capacity: UInt
-    var _len: UInt
+    var _capacity: Int
+    var _len: Int
 
     alias DEFAULT_CAPACITY = 4
 
@@ -53,7 +53,7 @@ struct MovableList[T: Movable](Sized, Movable):
     # TODO: insert?
 
     fn __len__(self) -> Int:
-        return Int(self._len)
+        return self._len
 
     fn __getitem__[I: Indexer, //](ref self, idx: I) -> ref [self] T:
         var normalized_idx = normalize_index["MovableList", assert_always=False](idx, self._len)
@@ -66,13 +66,13 @@ struct MovableList[T: Movable](Sized, Movable):
             (self._data + i).init_pointee_move_from(self._data + i + 1)
         self._len -= 1
 
-    fn find(self, item: T) -> Optional[UInt]:
+    fn find(self, item: T) -> Optional[Int]:
         for i in range(self._len):
             if (self._data + i) == UnsafePointer(to=item):
                 return i
         return None
 
-    fn first[predicate: fn (T) -> Bool](self) -> Optional[UInt]:
+    fn first[predicate: fn (T) -> Bool](self) -> Optional[Int]:
         for i in range(self._len):
             if predicate(self[i]):
                 return i

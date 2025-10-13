@@ -48,10 +48,10 @@ struct VecD[
         expect_at_least_rank[dim, 3]()
         return self._values[2]
 
-    fn __getitem__(self, d: UInt, out v: T):
+    fn __getitem__(self, d: Int, out v: T):
         v = self._values[d].copy()
 
-    fn __setitem__(mut self, d: UInt, v: T):
+    fn __setitem__(mut self, d: Int, v: T):
         self._values[d] = v.copy()
 
     fn __eq__(self, other: Self) -> Bool:
@@ -74,39 +74,24 @@ struct VecD[
     fn __str__(self) -> String:
         return String.write(self)
 
-    # casting methods
-    # TODO: can we parameterize this more nicely somehow?
-
-    fn cast_int(self: VecD[UInt,dim], out result: VecD[Int,dim]):
-        result = VecD[Int,dim](unsafe_uninitialized=True)
-        @parameter
-        for d in range(dim.rank):
-            result[d] = Int(self[d])
-
     # math things
-    # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int,UInt),
+    # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
     #       since mojo doesn't seem to have traits for their math dunder methods =(
 
-    fn __floordiv__(self: VecD[UInt,dim], dividend: Int, out result: VecD[UInt,dim]):
-        result = VecD[UInt,dim](unsafe_uninitialized=True)
-        @parameter
-        for d in range(dim.rank):
-            result[d] = self[d]//dividend
-
     fn __floordiv__(self: VecD[Int,dim], dividend: Int, out result: VecD[Int,dim]):
-        result = VecD[Int,dim](unsafe_uninitialized=True)
+        result = VecD[Int,dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             result[d] = self[d]//dividend
 
     fn __add__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
-        result = VecD[Int,dim](unsafe_uninitialized=True)
+        result = VecD[Int,dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             result[d] = self[d] + other[d]
 
     fn __sub__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
-        result = VecD[Int,dim](unsafe_uninitialized=True)
+        result = VecD[Int,dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             result[d] = self[d] - other[d]

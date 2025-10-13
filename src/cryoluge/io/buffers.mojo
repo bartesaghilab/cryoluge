@@ -4,11 +4,11 @@ from memory import UnsafePointer, memcpy
 
 struct ByteBuffer(Copyable, Movable):
     var _p: UnsafePointer[Byte]
-    var _size: UInt
+    var _size: Int
 
-    fn __init__(out self, size: UInt):
-        debug_assert(size <= Int.MAX, "Size overflows Int", size)
-        self._p = UnsafePointer[Byte].alloc(Int(size))
+    fn __init__(out self, size: Int):
+        debug_assert(size >= 0, "Size can't be negative: ", size)
+        self._p = UnsafePointer[Byte].alloc(size)
         self._size = size
 
     fn __del__(deinit self):
@@ -19,12 +19,12 @@ struct ByteBuffer(Copyable, Movable):
         self._p = UnsafePointer[Byte]().alloc(self._size)
         memcpy[Byte](self._p, other._p, self._size)
 
-    fn size(self) -> UInt:
+    fn size(self) -> Int:
         return self._size
 
     fn span(self,
         *,
-        start: UInt = 0,
+        start: Int = 0,
         length: Optional[Int] = None
     ) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self)]]:
 

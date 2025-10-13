@@ -21,7 +21,7 @@ struct MovableDict[
     fn __init__(out self):
         self = Self(capacity=Self.initial_capacity)
     
-    fn __init__(out self, *, capacity: UInt):
+    fn __init__(out self, *, capacity: Int):
 
         # clamp the capacity
         var cap = capacity
