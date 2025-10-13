@@ -71,9 +71,9 @@ struct FFTPlan[
     fn __init__(out self, real: Image[dim,dtype], fourier: ComplexImage[dim,dtype]) raises:
 
         # validate the fourier sizes
-        var sizes_fourier = sizes_real_to_fourier(real.sizes())
-        if fourier.sizes() != sizes_fourier:
-            raise Error("Expected fourier image to have sizes ", sizes_fourier, ", but it has sizes ", fourier.sizes(), " instead")
+        var coords = FourierCoords(real.sizes())
+        if fourier.sizes() != coords.sizes_fourier():
+            raise Error("Expected fourier image to have sizes ", coords.sizes_fourier(), ", but it has sizes ", fourier.sizes(), " instead")
 
         self._fftw = _load_fftw[dtype]()
 
@@ -232,9 +232,3 @@ fn _fftw_prefix[dtype: DType]() -> StaticString:
         return "fftw"
     else:
         return _unsupported_data_type[dtype,StaticString]()
-
-
-fn sizes_real_to_fourier[dim: ImageDimension](sizes: VecD[UInt,dim]) -> VecD[UInt,dim]:
-    var sizes_fourier = sizes.copy()
-    sizes_fourier.x() = sizes.x()//2 + 1
-    return sizes_fourier^
