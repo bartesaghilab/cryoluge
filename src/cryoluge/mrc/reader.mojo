@@ -99,7 +99,7 @@ struct Reader[
 
         img = Image.D2[dtype](sx=UInt(nx), sy=UInt(ny))
         self._seek_pixels()
-        self._reader[].seek_by(Int64(nx)*Int64(ny)*Int64(z))
+        self._reader[].seek_by(Int64(nx)*Int64(ny)*Int64(z)*dtype.size_of())
         self._reader[].read_bytes_exact(img.span())
 
     fn read_2d_int8(self, *, z: UInt32=0, out img: Image.D2[DType.int8]) raises:
