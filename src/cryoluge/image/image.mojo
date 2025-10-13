@@ -38,6 +38,9 @@ struct Image[
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
         return self._buf.span()
 
+    fn __getitem__(self, *, i: UInt, out v: Self.PixelType):
+        v = self._buf[i=i]
+
     fn __getitem__(self, i: Self.VecD[UInt], out v: Self.PixelType):
         v = self._buf[i]
 
@@ -49,6 +52,9 @@ struct Image[
 
     fn __getitem__(self, *, x: UInt, y: UInt, z: UInt, out v: Self.PixelType):
         v = self._buf[x=x, y=y, z=z]
+
+    fn __setitem__(mut self, *, i: UInt, v: Self.PixelType):
+        self._buf[i=i] = v
 
     fn __setitem__(mut self, i: Self.VecD[UInt], v: Self.PixelType):
         self._buf[i] = v
@@ -68,28 +74,20 @@ struct Image[
     fn iterate[
         func: fn (i: Self.VecD[UInt]) capturing
     ](self):
+        self._buf.iterate[func]()
 
-        @parameter
-        if dim == ImageDimension.D1:
-            
-            for x in range(self.sizes().x()):
-                func(Self.VecD[UInt](x=x))
-
-        elif dim == ImageDimension.D2:
-            
-            for y in range(self.sizes().y()):
-                for x in range(self.sizes().x()):
-                    func(Self.VecD[UInt](x=x, y=y))
-
-        elif dim == ImageDimension.D3:
-
-            for z in range(self.sizes().z()):
-                for y in range(self.sizes().y()):
-                    for x in range(self.sizes().x()):
-                        func(Self.VecD[UInt](x=x, y=y, z=z))
-
-        else:
-            unrecognized_dimension[dim]()
+    # TEMP: for comparing to images in other programs
+    fn assert_info[samples: Int](
+        self: Image[dim,DType.float32],
+        msg: String,
+        sizes: Self.VecD[UInt],
+        head: InlineArray[Float32, samples],
+        tail: InlineArray[Float32, samples],
+        hash: UInt64,
+        *,
+        verbose: Bool = False
+    ):
+        self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose)
 
     fn copy(self, *, center: Self.VecD[Int], padding: Self.PixelType, mut to: Self):
 

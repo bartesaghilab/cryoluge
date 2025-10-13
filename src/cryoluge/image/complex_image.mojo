@@ -71,6 +71,9 @@ struct ComplexImage[
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
         return self._buf.span()
 
+    fn __getitem__(self, *, i: UInt, out v: Self.PixelType):
+        v = self._buf[i=i]
+
     fn __getitem__(self, i: Self.VecD[UInt], out v: Self.PixelType):
         v = self._buf[i]
 
@@ -83,6 +86,9 @@ struct ComplexImage[
     fn __getitem__(self, *, x: UInt, y: UInt, z: UInt, out v: Self.PixelType):
         v = self._buf[x=x, y=y, z=z]
 
+    fn __setitem__(mut self, *, i: UInt, v: Self.PixelType):
+        self._buf[i=i] = v
+
     fn __setitem__(mut self, i: Self.VecD[UInt], v: Self.PixelType):
         self._buf[i] = v
 
@@ -94,6 +100,27 @@ struct ComplexImage[
 
     fn __setitem__(mut self, *, x: UInt, y: UInt, z: UInt, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
+
+    fn get(self, i: Self.VecD[Int]) -> Optional[Self.PixelType]:
+        return self._buf.get(i)
+    
+    fn iterate[
+        func: fn (i: Self.VecD[UInt]) capturing
+    ](self):
+        self._buf.iterate[func]()
+
+    # TEMP: for comparing to images in other programs
+    fn assert_info[samples: Int](
+        self: ComplexImage[dim,DType.float32],
+        msg: String,
+        sizes: Self.VecD[UInt],
+        head: InlineArray[ComplexFloat32, samples],
+        tail: InlineArray[ComplexFloat32, samples],
+        hash: UInt64,
+        *,
+        verbose: Bool = False
+    ):
+        self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose)
 
     fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
 

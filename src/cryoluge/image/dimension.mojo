@@ -1,6 +1,7 @@
 
 from os import abort
 from sys.info import size_of
+from complex import ComplexFloat32
 
 
 @fieldwise_init
@@ -149,8 +150,15 @@ struct DimensionalBuffer[
         
         return offset
 
+    fn _check_offset(self, i: UInt):
+        debug_assert(i < self.num_elements(), "i=", i, " out of range [0,", self.num_elements(), ")")
+
+    fn __getitem__(self, *, i: UInt, out v: T):
+        self._check_offset(i)
+        v = (self._start() + i)[].copy()
+
     fn __getitem__(self, i: Self.VecD[UInt], out v: T):
-        v = (self._start() + self._offset(i))[].copy()
+        v = self[i=self._offset(i)]
 
     fn __getitem__(self, *, x: UInt, out v: T):
         expect_at_least_rank[dim, 1]()
@@ -164,8 +172,12 @@ struct DimensionalBuffer[
         expect_at_least_rank[dim, 3]()
         v = self[Self.VecD[UInt](x=x, y=y, z=z)]
 
+    fn __setitem__(mut self, *, i: UInt, v: T):
+        self._check_offset(i)
+        (self._start() + i)[] = v.copy()
+
     fn __setitem__(mut self, i: Self.VecD[UInt], v: T):
-        (self._start() + self._offset(i))[] = v.copy()
+        self[i=self._offset(i)] = v
 
     fn __setitem__(mut self, *, x: UInt, v: T):
         expect_at_least_rank[dim, 1]()
@@ -183,4 +195,146 @@ struct DimensionalBuffer[
         var offset = self._maybe_offset(i)
         if offset is None:
             return None
-        return (self._start() + offset.value())[].copy()
+        return self[i=offset.value()]
+
+    fn iterate[
+        func: fn (i: Self.VecD[UInt]) capturing
+    ](self):
+
+        @parameter
+        if dim == ImageDimension.D1:
+            
+            for x in range(self.sizes().x()):
+                func(Self.VecD[UInt](x=x))
+
+        elif dim == ImageDimension.D2:
+            
+            for y in range(self.sizes().y()):
+                for x in range(self.sizes().x()):
+                    func(Self.VecD[UInt](x=x, y=y))
+
+        elif dim == ImageDimension.D3:
+
+            for z in range(self.sizes().z()):
+                for y in range(self.sizes().y()):
+                    for x in range(self.sizes().x()):
+                        func(Self.VecD[UInt](x=x, y=y, z=z))
+
+        else:
+            unrecognized_dimension[dim]()
+
+    # TEMP
+    fn assert_info[samples: Int](
+        self: DimensionalBuffer[dim,Float32],
+        msg: String,
+        sizes: Self.VecD[UInt],
+        head: InlineArray[Float32, samples],
+        tail: InlineArray[Float32, samples],
+        hash: UInt64,
+        *,
+        verbose: Bool = False
+    ):
+
+        # check the sizes
+        debug_assert(
+            self.sizes() == sizes,
+            "expected sizes=", sizes, ", but got sizes=", self.sizes()
+        )
+
+        # check the samples
+        debug_assert(
+            self.num_elements() >= 3,
+            msg, ": buffer too small for ", samples, " samples"
+        )
+        @parameter
+        for s in range(samples):
+            assert_sample(String(msg, ": head[", s, "]"), self[i=s], head[s])
+        @parameter
+        for s in range(samples):
+            s2 = self.num_elements() - samples + s
+            assert_sample(String(msg, ": tail[", s, "]"), self[i=s2], tail[s])
+
+        # check the hash
+        var obs_hash: UInt64 = 0
+        for i in range(self.num_elements()):
+            obs_hash *= 37
+            obs_hash += UInt64(UnsafePointer(to=self[i=i]).bitcast[UInt32]()[])
+        debug_assert(
+            obs_hash == hash,
+            "Hash mismatch: obs=", obs_hash, ", exp=", hash
+        )
+
+        if verbose:
+            print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
+
+    # TEMP
+    fn assert_info[samples: Int](
+        self: DimensionalBuffer[dim,ComplexFloat32],
+        msg: String,
+        sizes: Self.VecD[UInt],
+        head: InlineArray[ComplexFloat32, samples],
+        tail: InlineArray[ComplexFloat32, samples],
+        hash: UInt64,
+        *,
+        verbose: Bool = False
+    ):
+
+        # check the sizes
+        debug_assert(
+            self.sizes() == sizes,
+            "expected sizes=", sizes, ", but got sizes=", self.sizes()
+        )
+
+        # check the samples
+        debug_assert(
+            self.num_elements() >= 3,
+            msg, ": buffer too small for ", samples, " samples"
+        )
+        @parameter
+        for s in range(samples):
+            assert_sample(String(msg, ": head[", s, "]"), self[i=s], head[s])
+        @parameter
+        for s in range(samples):
+            s2 = self.num_elements() - samples + s
+            assert_sample(String(msg, ": tail[", s, "]"), self[i=s2], tail[s])
+
+        # check the hash
+        var obs_hash: UInt64 = 0
+        for i in range(self.num_elements()*2):
+            var p = UnsafePointer(to=self[i=i]).bitcast[UInt32]()
+            obs_hash *= 37
+            obs_hash += UInt64(p[])
+            p += 1
+            obs_hash *= 37
+            obs_hash += UInt64(p[])
+        debug_assert(
+            obs_hash == hash,
+            "Hash mismatch: obs=", obs_hash, ", exp=", hash
+        )
+
+        if verbose:
+            print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
+
+# TEMP
+fn assert_sample(
+    msg: String,
+    obs: Float32,
+    exp: Float32,
+    eps: Float32 = 1e-5   
+):
+    debug_assert(
+        abs(obs - exp) <= eps,
+        msg, ": obs=", obs, "  exp=", exp
+    )
+
+# TEMP
+fn assert_sample(
+    msg: String,
+    obs: ComplexFloat32,
+    exp: ComplexFloat32,
+    eps: Float32 = 1e-5   
+):
+    debug_assert(
+        abs(obs.re - exp.re) <= eps and abs(obs.im - exp.im) <= eps,
+        msg, ": obs=", obs, "  exp=", exp
+    )
