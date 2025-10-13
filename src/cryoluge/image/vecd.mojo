@@ -33,8 +33,8 @@ struct VecD[
     fn __init__(out self, *, fill: T):
         self._values = InlineArray[T,dim.rank](fill=fill)
 
-    fn __init__(out self, *, unsafe_uninitialized: Bool):
-        self._values = InlineArray[T,dim.rank](uninitialized=unsafe_uninitialized)
+    fn __init__(out self, *, uninitialized: Bool):
+        self._values = InlineArray[T,dim.rank](uninitialized=uninitialized)
 
     fn x(ref self) -> ref [self._values] T:
         expect_at_least_rank[dim, 1]()
