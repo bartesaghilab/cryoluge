@@ -74,6 +74,22 @@ struct VecD[
     fn __str__(self) -> String:
         return String.write(self)
 
+    fn project[pdim: ImageDimension](self, out result: VecD[T,pdim]):
+        constrained[
+            pdim.rank <= dim.rank,
+            String("Projected rank ", pdim.rank, " must be lesser or equal to vec rank ", dim.rank)
+        ]()
+        result = VecD[T,pdim](uninitialized=True)
+        @parameter
+        for d in range(pdim.rank):
+            result[d] = self[d]
+
+    fn project_2(self, out result: Self.D2[T]):
+        return self.project[ImageDimension.D2]()
+
+    fn project_1(self, out result: Self.D1[T]):
+        return self.project[ImageDimension.D1]()
+
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
     #       since mojo doesn't seem to have traits for their math dunder methods =(

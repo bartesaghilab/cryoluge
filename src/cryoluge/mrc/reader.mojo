@@ -58,9 +58,13 @@ struct Reader[
         var nz = r.read_u32[_endian]()
         return (nx, ny, nz)
 
-    fn size_d(self) raises -> VecD.D3[Int]:
+    fn size_3(self) raises -> VecD.D3[Int]:
         var (sx, sy, sz) = self.size()
         return VecD.D3(x=Int(sx), y=Int(sy), z=Int(sz))
+
+    fn size_2(self) raises -> VecD.D2[Int]:
+        var (sx, sy, _) = self.size()
+        return VecD.D2(x=Int(sx), y=Int(sy))
 
     fn _check_dtype[dtype: DType](self) raises:
         var mode = self.mode()
@@ -78,38 +82,42 @@ struct Reader[
         # seek to after the header and the extended header to get to the pixels
         self._reader[].seek_to(_header_size + UInt64(extended_header_size))
 
-    fn read_3d[dtype: DType](self, out img: Image.D3[dtype]) raises:
+    fn read_3d[dtype: DType](self, mut img: Image.D3[dtype]) raises:
         self._check_dtype[dtype]()
-        img = Image.D3[dtype](self.size_d())
+        var size = self.size_3()
+        if img.sizes() != size:
+            raise Error("Image should have size ", size, ", but instead it has size ", img.sizes())
         self._seek_pixels()
         self._reader[].read_bytes_exact(img.span())
 
-    fn read_3d_int8(self, out img: Image.D3[DType.int8]) raises:
-        img = self.read_3d[DType.int8]()
+    fn read_3d_int8(self, mut img: Image.D3[DType.int8]) raises:
+        self.read_3d[DType.int8](img)
 
-    fn read_3d_float32(self, out img: Image.D3[DType.float32]) raises:
-        img = self.read_3d[DType.float32]()
+    fn read_3d_float32(self, mut img: Image.D3[DType.float32]) raises:
+        self.read_3d[DType.float32](img)
 
     # TODO: other supported dtypes
 
-    fn read_2d[dtype: DType](self, z: UInt32, out img: Image.D2[dtype]) raises:
+    fn read_2d[dtype: DType](self, mut img: Image.D2[dtype], *, z: UInt32) raises:
         self._check_dtype[dtype]()
-        var size = self.size_d()
+        var (_, _, sz) = self.size()
+        var size = self.size_2()
+        if img.sizes() != size:
+            raise Error("Image should have size ", size, ", but instead it has size ", img.sizes())
 
         # check z
-        if z >= size.z():
-            raise Error("z=", z, " is out of range [0,", size.z(), ")")
+        if z >= sz:
+            raise Error("z=", z, " is out of range [0,", sz, ")")
 
-        img = Image.D2[dtype](sx=size.x(), sy=size.y())
         self._seek_pixels()
         self._reader[].seek_by(Int64(size.x())*Int64(size.y())*Int64(z)*dtype.size_of())
         self._reader[].read_bytes_exact(img.span())
 
-    fn read_2d_int8(self, *, z: UInt32=0, out img: Image.D2[DType.int8]) raises:
-        img = self.read_2d[DType.int8](z)
+    fn read_2d_int8(self, mut img: Image.D2[DType.int8], *, z: UInt32=0) raises:
+        self.read_2d[DType.int8](img, z=z)
 
-    fn read_2d_float32(self, *, z: UInt32=0, out img: Image.D2[DType.float32]) raises:
-        img = self.read_2d[DType.float32](z)
+    fn read_2d_float32(self, mut img: Image.D2[DType.float32], *, z: UInt32=0) raises:
+        self.read_2d[DType.float32](img, z=z)
 
     # TODO: other supported dtypes
 

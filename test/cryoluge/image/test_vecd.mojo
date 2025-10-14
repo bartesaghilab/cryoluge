@@ -2,7 +2,7 @@
 from testing import assert_equal, assert_true, assert_false
 
 from cryoluge.lang import LexicalScope
-from cryoluge.image import VecD
+from cryoluge.image import VecD, ImageDimension
 
 
 def test_ctor_accessors():
@@ -54,3 +54,20 @@ def test_str():
     assert_equal(String(VecD.D1(x=5)), "(5)")
     assert_equal(String(VecD.D2(x=5, y=42)), "(5, 42)")
     assert_equal(String(VecD.D3(x=5, y=42, z=7)), "(5, 42, 7)")
+
+
+def test_project():
+
+    assert_equal(VecD.D1(x=5).project[ImageDimension.D1](), VecD.D1(x=5))
+    assert_equal(VecD.D1(x=5).project_1(), VecD.D1(x=5))
+
+    assert_equal(VecD.D2(x=5, y=42).project[ImageDimension.D2](), VecD.D2(x=5, y=42))
+    assert_equal(VecD.D2(x=5, y=42).project_2(), VecD.D2(x=5, y=42))
+    assert_equal(VecD.D2(x=5, y=42).project[ImageDimension.D1](), VecD.D1(x=5))
+    assert_equal(VecD.D2(x=5, y=42).project_1(), VecD.D1(x=5))
+
+    assert_equal(VecD.D3(x=5, y=42, z=7).project[ImageDimension.D3](), VecD.D3(x=5, y=42, z=7))
+    assert_equal(VecD.D3(x=5, y=42, z=7).project[ImageDimension.D2](), VecD.D2(x=5, y=42))
+    assert_equal(VecD.D3(x=5, y=42, z=7).project_2(), VecD.D2(x=5, y=42))
+    assert_equal(VecD.D3(x=5, y=42, z=7).project[ImageDimension.D1](), VecD.D1(x=5))
+    assert_equal(VecD.D3(x=5, y=42, z=7).project_1(), VecD.D1(x=5))

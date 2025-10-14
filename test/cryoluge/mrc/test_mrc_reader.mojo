@@ -2,6 +2,7 @@
 from testing import assert_equal
 
 from cryoluge.io import FileReader
+from cryoluge.image import Image
 from cryoluge.mrc import Reader, Mode
 
 
@@ -24,7 +25,8 @@ def test_read_3d_int8():
         var file_reader = FileReader(f)
         var mrc_reader = Reader(file_reader)
 
-        var img = mrc_reader.read_3d_int8()
+        var img = Image.D3[DType.int8](mrc_reader.size_3())
+        mrc_reader.read_3d_int8(img)
         assert_equal(img.rank(), 3)
         assert_equal(img.sizes().x(), 16)
         assert_equal(img.sizes().y(), 16)
@@ -48,7 +50,8 @@ def test_read_2d_int8():
         var file_reader = FileReader(f)
         var mrc_reader = Reader(file_reader)
 
-        var img = mrc_reader.read_2d_int8()
+        var img = Image.D2[DType.int8](mrc_reader.size_2())
+        mrc_reader.read_2d_int8(img)
         assert_equal(img.rank(), 2)
         assert_equal(img.sizes().x(), 16)
         assert_equal(img.sizes().y(), 16)
@@ -58,10 +61,10 @@ def test_read_2d_int8():
         assert_equal(img[x=1, y=0], 100)
 
         # try another slice
-        img = mrc_reader.read_2d_int8(z=1)
+        mrc_reader.read_2d_int8(img, z=1)
         assert_equal(img[x=0, y=0], 105)
         assert_equal(img[x=1, y=0], 103)
 
         # try the last slice
-        img = mrc_reader.read_2d_int8(z=15)
+        mrc_reader.read_2d_int8(img, z=15)
         assert_equal(img[x=15, y=15], 31)
