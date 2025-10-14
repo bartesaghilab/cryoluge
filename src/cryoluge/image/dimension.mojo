@@ -2,6 +2,7 @@
 from os import abort
 from sys.info import size_of
 from complex import ComplexFloat32
+from memory import bitcast
 
 
 @fieldwise_init
@@ -75,24 +76,24 @@ struct DimensionalBuffer[
     alias VecD = VecD[_,dim]
     alias _elem_size = size_of[T]()
 
-    fn __init__(out self, sizes: Self.VecD[Int]):
+    fn __init__(out self, sizes: Self.VecD[Int], *, alignment: Optional[Int] = None):
         self._sizes = sizes.copy()
         @parameter
         if dim == ImageDimension.D1:
             var sx = self._sizes.x()
             self._strides = Self.VecD[Int](x=1)
-            self._buf = ByteBuffer(sx*Self._elem_size)
+            self._buf = ByteBuffer(sx*Self._elem_size, alignment=alignment)
         elif dim == ImageDimension.D2:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
             self._strides = Self.VecD[Int](x=1, y=sx)
-            self._buf = ByteBuffer(sx*sy*Self._elem_size)
+            self._buf = ByteBuffer(sx*sy*Self._elem_size, alignment=alignment)
         elif dim == ImageDimension.D3:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
             var sz = self._sizes.z()
             self._strides = Self.VecD[Int](x=1, y=sx, z=sx*sy)
-            self._buf = ByteBuffer(sx*sy*sz*Self._elem_size)
+            self._buf = ByteBuffer(sx*sy*sz*Self._elem_size, alignment=alignment)
         else:
             return unrecognized_dimension[dim,Self]()
 
@@ -111,6 +112,9 @@ struct DimensionalBuffer[
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf)]]:
         return self._buf.span()
+
+    fn alignment(self) -> Int:
+        return self._buf.alignment()
 
     fn _start(self) -> UnsafePointer[T]:
         return self._buf._p.bitcast[T]()
@@ -238,30 +242,28 @@ struct DimensionalBuffer[
         # check the sizes
         debug_assert(
             self.sizes() == sizes,
-            "expected sizes=", sizes, ", but got sizes=", self.sizes()
+            msg, ": expected sizes=", sizes, ", but got sizes=", self.sizes()
         )
 
         # check the samples
-        debug_assert(
-            self.num_elements() >= 3,
-            msg, ": buffer too small for ", samples, " samples"
-        )
+        var samples_match = True
         @parameter
         for s in range(samples):
-            assert_sample(String(msg, ": head[", s, "]"), self[i=s], head[s])
+            samples_match = samples_match and sample_eq(self[i=s], head[s])
         @parameter
         for s in range(samples):
             s2 = self.num_elements() - samples + s
-            assert_sample(String(msg, ": tail[", s, "]"), self[i=s2], tail[s])
+            samples_match = samples_match and sample_eq(self[i=s2], tail[s])
+        debug_assert(samples_match, msg, ": ", self.dump_samples(head, tail))
 
         # check the hash
         var obs_hash: UInt64 = 0
         for i in range(self.num_elements()):
             obs_hash *= 37
-            obs_hash += UInt64(UnsafePointer(to=self[i=i]).bitcast[UInt32]()[])
+            obs_hash += UInt64(bitcast[DType.uint32](self[i=i]))
         debug_assert(
             obs_hash == hash,
-            "Hash mismatch: obs=", obs_hash, ", exp=", hash
+            msg, ": Hash mismatch: obs=", obs_hash, ", exp=", hash
         )
 
         if verbose:
@@ -282,7 +284,7 @@ struct DimensionalBuffer[
         # check the sizes
         debug_assert(
             self.sizes() == sizes,
-            "expected sizes=", sizes, ", but got sizes=", self.sizes()
+            msg, ": expected sizes=", sizes, ", but got sizes=", self.sizes()
         )
 
         # check the samples
@@ -290,51 +292,91 @@ struct DimensionalBuffer[
             self.num_elements() >= 3,
             msg, ": buffer too small for ", samples, " samples"
         )
+        var samples_match = True
         @parameter
         for s in range(samples):
-            assert_sample(String(msg, ": head[", s, "]"), self[i=s], head[s])
+            samples_match = samples_match and sample_eq(self[i=s], head[s])
         @parameter
         for s in range(samples):
             s2 = self.num_elements() - samples + s
-            assert_sample(String(msg, ": tail[", s, "]"), self[i=s2], tail[s])
+            samples_match = samples_match and sample_eq(self[i=s2], tail[s])
+        debug_assert(samples_match, msg, ": ", self.dump_samples(head, tail))
 
         # check the hash
         var obs_hash: UInt64 = 0
-        for i in range(self.num_elements()*2):
-            var p = UnsafePointer(to=self[i=i]).bitcast[UInt32]()
+        for i in range(self.num_elements()):
+            var v = self[i=i]
             obs_hash *= 37
-            obs_hash += UInt64(p[])
-            p += 1
+            obs_hash += UInt64(bitcast[DType.uint32](v.re))
             obs_hash *= 37
-            obs_hash += UInt64(p[])
+            obs_hash += UInt64(bitcast[DType.uint32](v.im))
         debug_assert(
             obs_hash == hash,
-            "Hash mismatch: obs=", obs_hash, ", exp=", hash
+            msg, ": Hash mismatch: obs=", obs_hash, ", exp=", hash
         )
 
         if verbose:
             print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
 
-# TEMP
-fn assert_sample(
-    msg: String,
-    obs: Float32,
-    exp: Float32,
-    eps: Float32 = 1e-5   
-):
-    debug_assert(
-        abs(obs - exp) <= eps,
-        msg, ": obs=", obs, "  exp=", exp
-    )
+
+    fn dump_samples[samples: Int, T: Stringable & Copyable & Movable](
+        self: DimensionalBuffer[dim,T],
+        head: InlineArray[T,samples],
+        tail: InlineArray[T,samples]
+    ) -> String:
+        var msg = "Samples don't match!:\n"
+
+        msg += "\thead obs = [ "
+        @parameter
+        for s in range(samples):
+            @parameter
+            if s > 0:
+                msg += ",  "
+            msg += String(self[i=s])
+        msg += " ]\n"
+
+        msg += "\thead exp = [ "
+        @parameter
+        for s in range(samples):
+            @parameter
+            if s > 0:
+                msg += ",  "
+            msg += String(head[s])
+        msg += " ]\n"
+
+        msg += "\ttail obs = [ "
+        @parameter
+        for s in range(samples):
+            @parameter
+            if s > 0:
+                msg += ",  "
+            s2 = self.num_elements() - samples + s
+            msg += String(self[i=s2])
+        msg += " ]\n"
+
+        msg += "\ttail exp = [ "
+        @parameter
+        for s in range(samples):
+            @parameter
+            if s > 0:
+                msg += ",   "
+            msg += String(tail[s])
+        msg += " ]"
+
+        return msg
+
+
+fn err_rel(obs: Float32, exp: Float32) -> Float32:
+    if exp == 0:
+        return abs(obs - exp)
+    else:
+        return abs(obs - exp)/abs(exp)
 
 # TEMP
-fn assert_sample(
-    msg: String,
-    obs: ComplexFloat32,
-    exp: ComplexFloat32,
-    eps: Float32 = 1e-5   
-):
-    debug_assert(
-        abs(obs.re - exp.re) <= eps and abs(obs.im - exp.im) <= eps,
-        msg, ": obs=", obs, "  exp=", exp
-    )
+fn sample_eq(obs: Float32, exp: Float32, eps: Float32 = 1e-5   
+) -> Bool:
+    return err_rel(obs, exp) <= eps
+
+# TEMP
+fn sample_eq(obs: ComplexFloat32, exp: ComplexFloat32, eps: Float32 = 1e-5) -> Bool:
+    return err_rel(obs.re, exp.re) <= eps and err_rel(obs.im, exp.im) <= eps

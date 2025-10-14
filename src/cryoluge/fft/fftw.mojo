@@ -1,4 +1,5 @@
 
+from sys import simd_width_of, align_of
 from sys.ffi import DLHandle
 from os import abort
 from complex import ComplexFloat32
@@ -15,18 +16,23 @@ from cryoluge.image import ImageDimension, VecD, Image, ComplexImage, unrecogniz
 # https://fftw.org/fftw3_doc/Using-Plans.html
 # https://fftw.org/fftw3_doc/Real_002ddata-DFT-Array-Format.html
 # https://fftw.org/fftw3_doc/Multi_002ddimensional-Transforms.html
+# https://fftw.org/fftw3_doc/New_002darray-Execute-Functions.html
+# https://fftw.org/fftw3_doc/SIMD-alignment-and-fftw_005fmalloc.html
 
 
-alias FFTW_ESTIMATE = 1 << 6
+alias _FFTW_ESTIMATE = 1 << 6
 # https://github.com/FFTW/fftw3/blob/master/api/fftw3.h#L502
 
 
 # pick flags for fftw
-alias _fftw_flags = FFTW_ESTIMATE
+alias _fftw_flags = _FFTW_ESTIMATE
 
 
 alias CPtr = UnsafePointer[Byte]
 # for C FFI, the type of pointer doesn't matter
+
+
+alias best_alignment[dtype: DType] = align_of[SIMD[dtype, simd_width_of[dtype]()]]()
 
 
 @fieldwise_init
@@ -64,9 +70,16 @@ struct FFTPlan[
 ]:
     var _fftw: DLHandle
     var _plan: CPtr
+    var _info_real: _ImageInfo[dim]
+    var _info_fourier: _ImageInfo[dim]
 
     alias R2C = FFTPlan[_,_,FFTDirection.R2C]
     alias C2R = FFTPlan[_,_,FFTDirection.C2R]
+    """
+    WARNING: C2R transforms will destroy the complex input!!
+             This is a "feature" of fftw, and it can't be turned off. =(
+             fftw will reject FFTW_PRESERVE_INPUT flags on multi-dimensional transforms!
+    """
     
     fn __init__(out self, real: Image[dim,dtype], fourier: ComplexImage[dim,dtype]) raises:
 
@@ -74,6 +87,10 @@ struct FFTPlan[
         var coords = FourierCoords(real.sizes())
         if fourier.sizes() != coords.sizes_fourier():
             raise Error("Expected fourier image to have sizes ", coords.sizes_fourier(), ", but it has sizes ", fourier.sizes(), " instead")
+
+        # save the image info so we can validate it later
+        self._info_real = _ImageInfo(real.sizes().copy(), real.alignment())
+        self._info_fourier = _ImageInfo(fourier.sizes().copy(), fourier.alignment())
 
         self._fftw = _load_fftw[dtype]()
 
@@ -165,6 +182,10 @@ struct FFTPlan[
 
         else:
             return unrecognized_dimension[dim,Self]()
+
+        # make sure we got a plan
+        if not self._plan:
+            raise Error("fftw did not return a plan for this transformation")
         
     fn __del__(deinit self):
         var destroy_plan = self._fftw.get_function[
@@ -173,6 +194,19 @@ struct FFTPlan[
         destroy_plan(self._plan)
 
     fn __call__(self, real: Image[dim,dtype], mut fourier: ComplexImage[dim,dtype], *, rescale: Bool = True):
+
+        # check image info, so fftw won't segfault
+        var info_real = _ImageInfo(real.sizes().copy(), real.alignment())
+        debug_assert(
+            info_real == self._info_real,
+            "Can't run FFT, real image (", info_real, ") doesn't match planned real image (", self._info_real, ")"
+        )
+        var info_fourier = _ImageInfo(fourier.sizes().copy(), fourier.alignment())
+        debug_assert(
+            info_fourier == self._info_fourier,
+            "Can't run FFT, fourier image (", info_fourier, ") doesn't match planned fourier image (", self._info_fourier, ")"
+        )
+        
         @parameter
         if direction == FFTDirection.R2C:
 
@@ -232,3 +266,30 @@ fn _fftw_prefix[dtype: DType]() -> StaticString:
         return "fftw"
     else:
         return _unsupported_data_type[dtype,StaticString]()
+
+
+@fieldwise_init
+struct _ImageInfo[
+    dim: ImageDimension
+](
+    Copyable,
+    Movable,
+    EqualityComparable,
+    Writable,
+    Stringable
+):
+    var size: VecD[Int,dim]
+    var alignment: Int
+
+    fn __eq__(self, other: Self) -> Bool:
+        return self.size == other.size
+            and self.alignment == other.alignment
+
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write("size=")
+        writer.write(self.size)
+        writer.write(", alignment=")
+        writer.write(self.alignment)
+
+    fn __str__(self) -> String:
+        return String.write(self)

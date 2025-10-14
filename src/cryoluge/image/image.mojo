@@ -14,17 +14,17 @@ struct Image[
     alias VecD = VecD[_,dim]
     alias PixelType = Scalar[dtype]
 
-    fn __init__(out self, sizes: Self.VecD[Int]):
-        self._buf = DimensionalBuffer[dim,Self.PixelType](sizes)
+    fn __init__(out self, sizes: Self.VecD[Int], *, alignment: Optional[Int] = None):
+        self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
 
-    fn __init__(out self, *, sx: Int):
-        self = Self(Self.VecD(x=sx))
+    fn __init__(out self, *, sx: Int, alignment: Optional[Int] = None):
+        self = Self(Self.VecD(x=sx), alignment=alignment)
 
-    fn __init__(out self, *, sx: Int, sy: Int):
-        self = Self(Self.VecD(x=sx, y=sy))
+    fn __init__(out self, *, sx: Int, sy: Int, alignment: Optional[Int] = None):
+        self = Self(Self.VecD(x=sx, y=sy), alignment=alignment)
 
-    fn __init__(out self, *, sx: Int, sy: Int, sz: Int):
-        self = Self(Self.VecD(x=sx, y=sy, z=sz))
+    fn __init__(out self, *, sx: Int, sy: Int, sz: Int, alignment: Optional[Int] = None):
+        self = Self(Self.VecD(x=sx, y=sy, z=sz), alignment=alignment)
 
     fn rank(self) -> Int:
         return self._buf.rank()
@@ -37,6 +37,9 @@ struct Image[
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
         return self._buf.span()
+
+    fn alignment(self) -> Int:
+        return self._buf.alignment()
 
     fn __getitem__(self, *, i: Int, out v: Self.PixelType):
         v = self._buf[i=i]

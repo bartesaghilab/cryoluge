@@ -5,22 +5,28 @@ from memory import UnsafePointer, memcpy
 struct ByteBuffer(Copyable, Movable):
     var _p: UnsafePointer[Byte]
     var _size: Int
+    var _alignment: Int
 
-    fn __init__(out self, size: Int):
+    fn __init__(out self, size: Int, *, alignment: Optional[Int] = None):
         debug_assert(size >= 0, "Size can't be negative: ", size)
-        self._p = UnsafePointer[Byte].alloc(size)
         self._size = size
+        self._alignment = alignment.or_else(1)
+        self._p = UnsafePointer[Byte].alloc(size, alignment=self._alignment)
 
     fn __del__(deinit self):
         self._p.free()
 
     fn __copyinit__(out self, other: Self):
         self._size = other._size
-        self._p = UnsafePointer[Byte]().alloc(self._size)
+        self._alignment = other._alignment
+        self._p = UnsafePointer[Byte]().alloc(self._size, alignment=self._alignment)
         memcpy[Byte](self._p, other._p, self._size)
 
     fn size(self) -> Int:
         return self._size
+
+    fn alignment(self) -> Int:
+        return self._alignment
 
     fn span(self,
         *,

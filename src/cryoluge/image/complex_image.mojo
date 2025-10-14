@@ -26,8 +26,8 @@ struct ComplexImage[
     alias ScalarVec = SIMD[dtype,_]
     alias pixel_vec_max_width = simd_width_of[dtype]()
 
-    fn __init__(out self, sizes: Self.VecD[Int]):
-        self._buf = DimensionalBuffer[dim,Self.PixelType](sizes)
+    fn __init__(out self, sizes: Self.VecD[Int], *, alignment: Optional[Int] = None):
+        self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
         # NOTE: This implementation uses an interleaved ordering for complex components.
         #       ie, Array-of-Structures (AoS):
         #         real_0, imag_0, real_1, imag_1, ...
@@ -50,14 +50,14 @@ struct ComplexImage[
         #       But, as with all things HPC, we should benchmark and be sure.
         #       For what it's worth, fftw uses the AoS layout, so that's probably good enough for us too.
 
-    fn __init__(out self, *, sx: Int):
-        self = Self(Self.VecD(x=sx))
+    fn __init__(out self, *, sx: Int, alignment: Optional[Int] = None):
+        self = Self(Self.VecD(x=sx), alignment=alignment)
 
-    fn __init__(out self, *, sx: Int, sy: Int):
-        self = Self(Self.VecD(x=sx, y=sy))
+    fn __init__(out self, *, sx: Int, sy: Int, alignment: Optional[Int] = None):
+        self = Self(Self.VecD(x=sx, y=sy), alignment=alignment)
 
-    fn __init__(out self, *, sx: Int, sy: Int, sz: Int):
-        self = Self(Self.VecD(x=sx, y=sy, z=sz))
+    fn __init__(out self, *, sx: Int, sy: Int, sz: Int, alignment: Optional[Int] = None):
+        self = Self(Self.VecD(x=sx, y=sy, z=sz), alignment=alignment)
 
     fn rank(self) -> Int:
         return self._buf.rank()
@@ -70,6 +70,9 @@ struct ComplexImage[
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
         return self._buf.span()
+
+    fn alignment(self) -> Int:
+        return self._buf.alignment()
 
     fn __getitem__(self, *, i: Int, out v: Self.PixelType):
         v = self._buf[i=i]
