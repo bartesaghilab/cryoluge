@@ -293,3 +293,37 @@ struct _ImageInfo[
 
     fn __str__(self) -> String:
         return String.write(self)
+
+
+struct FFTPlans[
+    dtype: DType,
+    dim: ImageDimension
+]:
+    var alignment: Int
+    var size_real: VecD[Int,dim]
+    var size_fourier: VecD[Int,dim]
+    var r2c: FFTPlan.R2C[dim,dtype]
+    var c2r: FFTPlan.C2R[dim,dtype]
+
+    fn __init__(out self, size_real: VecD[Int,dim]) raises:
+
+        self.alignment = best_alignment[dtype]
+
+        # calculate the sizes
+        self.size_real = size_real.copy()
+        var fft_coords = FourierCoords(self.size_real)
+        self.size_fourier = fft_coords.sizes_fourier()
+
+        # allocate some temporary images to run the fftw planner
+        var plan_img_real = Image[dim,dtype](self.size_real, alignment=self.alignment)
+        var plan_img_fourier = ComplexImage[dim,dtype](self.size_fourier, alignment=self.alignment)
+
+        # make the plans
+        self.r2c = FFTPlan.R2C(plan_img_real, plan_img_fourier)
+        self.c2r = FFTPlan.C2R(plan_img_real, plan_img_fourier)
+
+    fn alloc_real(self, out img: Image[dim,dtype]):
+        img = Image[dim,dtype](self.size_real, alignment=self.alignment)
+
+    fn alloc_fourier(self, out img: ComplexImage[dim,dtype]):
+        img = ComplexImage[dim,dtype](self.size_fourier, alignment=self.alignment)
