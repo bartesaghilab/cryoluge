@@ -13,6 +13,8 @@ struct Image[
     alias D3 = Image[ImageDimension.D3,_]
     alias VecD = VecD[_,dim]
     alias PixelType = Scalar[dtype]
+    alias PixelVec = SIMD[dtype,_]
+    alias pixel_vec_max_width = simd_width_of[dtype]()
 
     fn __init__(out self, sizes: Self.VecD[Int], *, alignment: Optional[Int] = None):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
@@ -92,13 +94,54 @@ struct Image[
     ):
         self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose)
 
+
+    fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
+
+        # get the address of the pixel at the offset
+        var p = self._buf.unsafe_ptr(offset=offset)
+            .bitcast[Self.PixelType]()
+
+        v = p.load[width=width]()
+
+    fn _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
+
+        # get the address of the pixel at the offset
+        var p = self._buf.unsafe_ptr(offset=offset)
+            .bitcast[Self.PixelType]()
+        
+        p.store[width=width](v)
+        
+    fn pixels_read[
+        func: fn[width: Int](Self.PixelVec[width]) capturing,
+        width: Int = Self.pixel_vec_max_width
+    ](ref self):
+
+        @parameter
+        fn loader[width: Int](offset: Int):
+            var v = self._load[width](offset)
+            func[width](v)
+
+        vectorize[loader, width](self.num_pixels())
+
+    fn pixels_read_write[
+        func: fn[width: Int](mut p: Self.PixelVec[width]) capturing,
+        width: Int = Self.pixel_vec_max_width
+    ](mut self):
+
+        @parameter
+        fn loader[width: Int](offset: Int):
+            var v = self._load[width](offset)
+            func[width](v)
+            self._store[width](offset, v)
+
+        vectorize[loader, width](self.num_pixels())
+
     fn copy(self, *, center: Self.VecD[Int], padding: Self.PixelType, mut to: Self):
 
-        var to_center = to.sizes()//2
-        # NOTE: the compiler says the above variable is unsused, but it think it's wrong?
-        #       the variable gets captured by the closure below, right?
         @parameter
         fn func(i: Self.VecD[Int]):
+            var to_center = to.sizes()//2
+            # NOTE: don't try to compute `to_center` outside the loop: it causes a compiler bug!!
             to[i] = self.get(i + center - to_center).or_else(padding)
 
         to.iterate[func]()
