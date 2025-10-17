@@ -304,6 +304,11 @@ struct FFTPlans[
     var size_fourier: VecD[Int,dim]
     var r2c: FFTPlan.R2C[dim,dtype]
     var c2r: FFTPlan.C2R[dim,dtype]
+    """
+    WARNING: C2R transforms will destroy the complex input!!
+             This is a "feature" of fftw, and it can't be turned off. =(
+             fftw will reject FFTW_PRESERVE_INPUT flags on multi-dimensional transforms!
+    """
 
     fn __init__(out self, size_real: VecD[Int,dim]) raises:
 
