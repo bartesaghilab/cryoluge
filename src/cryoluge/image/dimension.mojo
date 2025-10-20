@@ -122,7 +122,7 @@ struct DimensionalBuffer[
     fn unsafe_ptr(self, *, offset: Int = 0) -> UnsafePointer[T]:
         debug_assert(
             offset >= 0 and offset < self.num_elements(),
-            String("Offset ", offset, " out of range [0,", self.num_elements(), ")")
+            "Offset ", offset, " out of range [0,", self.num_elements(), ")"
         )
         return self._start() + offset
 
@@ -136,7 +136,10 @@ struct DimensionalBuffer[
         for d in range(dim.rank):
             var coord = i[d]
             var size = self._sizes[d]
-            debug_assert(coord >= 0 and coord < size, d_names[d], "=", coord, " out of range [0,", size, ")")
+            debug_assert(
+                coord >= 0 and coord < size,
+                d_names[d], "=", coord, " out of range [0,", size, ")"
+            )
             offset += coord*self._strides[d]
 
     fn _maybe_offset(self, i: Self.VecD[Int]) -> Optional[Int]:
@@ -155,7 +158,10 @@ struct DimensionalBuffer[
         return offset
 
     fn _check_offset(self, i: Int):
-        debug_assert(i >= 0 and i < self.num_elements(), "i=", i, " out of range [0,", self.num_elements(), ")")
+        debug_assert(
+            i >= 0 and i < self.num_elements(),
+            "i=", i, " out of range [0,", self.num_elements(), ")"
+        )
 
     fn __getitem__(self, *, i: Int, out v: T):
         self._check_offset(i)
