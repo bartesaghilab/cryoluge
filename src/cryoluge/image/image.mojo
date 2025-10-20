@@ -145,3 +145,48 @@ struct Image[
             to[i] = self.get(i + center - to_center).or_else(padding)
 
         to.iterate[func]()
+
+    fn mean_variance(self: Image[dim,DType.float32]) -> (Float32, Float32):
+        """Returns mean and variance of the entire image, in single precision."""
+        return self.mean_variance(mask = AllMask())
+
+    fn mean_variance[
+        M: Mask, //
+    ](
+        self: Image[dim,DType.float32],
+        *,
+        mask: M
+    ) -> (Float32, Float32):
+        """Returns mean and variance of the masked region, in single precision."""
+
+        # since we can't divide by zero
+        if self.num_pixels() <= 0:
+            return (0, 0)
+
+        var sum: Float64 = 0
+        var sum_of_squares: Float64 = 0
+        var num_pixels_matched: Int = 0
+
+        @parameter
+        fn func(i: VecD[Int,dim]):
+            if mask.includes(i, self.sizes()):
+                num_pixels_matched += 1
+                # TODO: this is higher-precision, and possibly more efficient, but doesn't match the original csp
+                # var p = Float64(self[i])
+                # sum += p
+                # p *= p
+                # sum_of_squares += p
+                # TEMP: for now, do the lower-precision thing, to match the original csp exactly
+                var p = self[i]
+                sum += Float64(p)
+                sum_of_squares += Float64(p*p)
+
+        self.iterate[func]()
+
+        var n = Float64(num_pixels_matched)
+        var mean = Float32(sum/n)
+        # TODO: this is higher-precision, but doesn't match the original csp
+        #var variance = abs(Float32( sum_of_squares/n - (sum/n)*(sum/n) ))
+        # TEMP: for now, do the lower-precision thing, to match the original csp exactly
+        var variance = abs(Float32( sum_of_squares/n - Float64(mean*mean) ))
+        return (mean, variance)
