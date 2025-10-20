@@ -94,7 +94,6 @@ struct Image[
     ):
         self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose)
 
-
     fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
 
         # get the address of the pixel at the offset
@@ -136,6 +135,13 @@ struct Image[
 
         vectorize[loader, width](self.num_pixels())
 
+    fn fill(mut self, v: Self.PixelType):
+
+        @always_inline
+        @parameter
+        fn func[width: Int](mut p: Self.PixelVec[width]):
+            p = v
+            
     fn copy(self, *, center: Self.VecD[Int], padding: Self.PixelType, mut to: Self):
 
         @parameter
@@ -166,6 +172,8 @@ struct Image[
         var sum: Float64 = 0
         var sum_of_squares: Float64 = 0
         var num_pixels_matched: Int = 0
+
+        # TODO: any chance we can vectorize this?
 
         @parameter
         fn func(i: VecD[Int,dim]):
