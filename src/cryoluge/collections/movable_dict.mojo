@@ -33,7 +33,7 @@ struct MovableDict[
 
         self._dict = Dict[K,UnsafePointer[V],H](power_of_two_initial_capacity=cap)
 
-    fn __getitem__(self, key: K) raises -> ref [self._dict.__getitem__(key)] V:
+    fn __getitem__(ref self, key: K) raises -> ref [self._dict.__getitem__(key)] V:
         var p = self._dict[key]
         return p[]
 
