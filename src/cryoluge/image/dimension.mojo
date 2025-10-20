@@ -246,15 +246,24 @@ struct DimensionalBuffer[
         )
 
         # check the samples
-        var samples_match = True
-        @parameter
-        for s in range(samples):
-            samples_match = samples_match and sample_eq(self[i=s], head[s])
-        @parameter
-        for s in range(samples):
-            s2 = self.num_elements() - samples + s
-            samples_match = samples_match and sample_eq(self[i=s2], tail[s])
-        debug_assert(samples_match, msg, ": ", self.dump_samples(head, tail))
+        debug_assert(
+            self.num_elements() >= 3,
+            msg, ": buffer too small for ", samples, " samples"
+        )
+        var obs_head = self._sample[samples](0)
+        var obs_tail = self._sample[samples](self.num_elements() - samples)
+        var err_head = _err_rel(obs_head, head)
+        var err_tail = _err_rel(obs_tail, tail)
+        debug_assert(
+            _samples_eq(err_head) and _samples_eq(err_tail),
+            msg, ": Samples don't match!:",
+            "\n\thead obs = ", self._render_samples(obs_head),
+            "\n\thead exp = ", self._render_samples(head),
+            "\n\thead err = ", self._render_samples(err_head),
+            "\n\ttail obs = ", self._render_samples(obs_tail),
+            "\n\ttail exp = ", self._render_samples(tail),
+            "\n\ttail err = ", self._render_samples(err_tail),
+        )
 
         # check the hash
         var obs_hash: UInt64 = 0
@@ -292,15 +301,20 @@ struct DimensionalBuffer[
             self.num_elements() >= 3,
             msg, ": buffer too small for ", samples, " samples"
         )
-        var samples_match = True
-        @parameter
-        for s in range(samples):
-            samples_match = samples_match and sample_eq(self[i=s], head[s])
-        @parameter
-        for s in range(samples):
-            s2 = self.num_elements() - samples + s
-            samples_match = samples_match and sample_eq(self[i=s2], tail[s])
-        debug_assert(samples_match, msg, ": ", self.dump_samples(head, tail))
+        var obs_head = self._sample[samples](0)
+        var obs_tail = self._sample[samples](self.num_elements() - samples)
+        var err_head = _err_rel(obs_head, head)
+        var err_tail = _err_rel(obs_tail, tail)
+        debug_assert(
+            _samples_eq(err_head) and _samples_eq(err_tail),
+            msg, ": Samples don't match!:",
+            "\n\thead obs = ", self._render_samples(obs_head),
+            "\n\thead exp = ", self._render_samples(head),
+            "\n\thead err = ", self._render_samples(err_head),
+            "\n\ttail obs = ", self._render_samples(obs_tail),
+            "\n\ttail exp = ", self._render_samples(tail),
+            "\n\ttail err = ", self._render_samples(err_tail),
+        )
 
         # check the hash
         var obs_hash: UInt64 = 0
@@ -318,65 +332,85 @@ struct DimensionalBuffer[
         if verbose:
             print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
 
-
-    fn dump_samples[samples: Int, T: Stringable & Copyable & Movable](
+    fn _render_samples[samples: Int, T: Stringable & Copyable & Movable](
         self: DimensionalBuffer[dim,T],
-        head: InlineArray[T,samples],
-        tail: InlineArray[T,samples]
+        data: InlineArray[T,samples]
     ) -> String:
-        var msg = "Samples don't match!:\n"
-
-        msg += "\thead obs = [ "
+        var msg = "[ "
         @parameter
         for s in range(samples):
             @parameter
             if s > 0:
                 msg += ",  "
-            msg += String(self[i=s])
-        msg += " ]\n"
-
-        msg += "\thead exp = [ "
-        @parameter
-        for s in range(samples):
-            @parameter
-            if s > 0:
-                msg += ",  "
-            msg += String(head[s])
-        msg += " ]\n"
-
-        msg += "\ttail obs = [ "
-        @parameter
-        for s in range(samples):
-            @parameter
-            if s > 0:
-                msg += ",  "
-            s2 = self.num_elements() - samples + s
-            msg += String(self[i=s2])
-        msg += " ]\n"
-
-        msg += "\ttail exp = [ "
-        @parameter
-        for s in range(samples):
-            @parameter
-            if s > 0:
-                msg += ",   "
-            msg += String(tail[s])
+            msg += String(data[s])
         msg += " ]"
-
         return msg
 
+    fn _sample[samples: Int](self, i: Int, out data: InlineArray[T,samples]):
+        data = InlineArray[T,samples](uninitialized=True)
+        @parameter
+        for s in range(samples):
+            data[s] = self[i=i+s]
 
-fn err_rel(obs: Float32, exp: Float32) -> Float32:
+
+# TEMP
+fn _err_rel(obs: Float32, exp: Float32) -> Float32:
     if exp == 0:
         return abs(obs - exp)
     else:
         return abs(obs - exp)/abs(exp)
 
 # TEMP
-fn sample_eq(obs: Float32, exp: Float32, eps: Float32 = 1e-5   
-) -> Bool:
-    return err_rel(obs, exp) <= eps
+fn _err_rel(obs: ComplexFloat32, exp: ComplexFloat32) -> ComplexFloat32:
+    return ComplexFloat32(
+        re=_err_rel(obs.re, exp.re),
+        im=_err_rel(obs.im, exp.im)
+    )
 
 # TEMP
-fn sample_eq(obs: ComplexFloat32, exp: ComplexFloat32, eps: Float32 = 1e-5) -> Bool:
-    return err_rel(obs.re, exp.re) <= eps and err_rel(obs.im, exp.im) <= eps
+fn _err_rel[samples: Int, //](
+    obs: InlineArray[Float32,samples],
+    exp: InlineArray[Float32,samples],
+    out err: InlineArray[Float32,samples]
+):
+    err = InlineArray[Float32,samples](uninitialized=True)
+    @parameter
+    for s in range(samples):
+        err[s] = _err_rel(obs[s], exp[s])
+
+# TEMP
+fn _err_rel[samples: Int, //](
+    obs: InlineArray[ComplexFloat32,samples],
+    exp: InlineArray[ComplexFloat32,samples],
+    out err: InlineArray[ComplexFloat32,samples]
+):
+    err = InlineArray[ComplexFloat32,samples](uninitialized=True)
+    @parameter
+    for s in range(samples):
+        err[s] = _err_rel(obs[s], exp[s])
+
+# TEMP
+fn _sample_eq(obs: Float32, exp: Float32, eps: Float32 = 1e-5   
+) -> Bool:
+    return _err_rel(obs, exp) <= eps
+
+# TEMP
+fn _sample_eq(obs: ComplexFloat32, exp: ComplexFloat32, eps: Float32 = 1e-5) -> Bool:
+    var err = _err_rel(obs, exp)
+    return err.re <= eps and err.im <= eps
+
+# TEMP
+fn _samples_eq[samples: Int, //](err: InlineArray[Float32,samples], eps: Float32 = 1e-5) -> Bool:
+    @parameter
+    for s in range(samples):
+        if err[s] > eps:
+            return False
+    return True
+
+# TEMP
+fn _samples_eq[samples: Int, //](err: InlineArray[ComplexFloat32,samples], eps: Float32 = 1e-5) -> Bool:
+    @parameter
+    for s in range(samples):
+        if err[s].re > eps or err[s].im > eps:
+            return False
+    return True
