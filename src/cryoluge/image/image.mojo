@@ -94,6 +94,16 @@ struct Image[
     ):
         self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose)
 
+    # TEMP
+    fn assert_data[err_fn: ErrFnFloat32 = err_rel](
+        self: Image[dim,DType.float32],
+        msg: String,
+        path: String,
+        *,
+        verbose: Bool = False
+    ) raises:
+        self._buf.assert_data[err_fn](msg, path, verbose=verbose)
+
     fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
 
         # get the address of the pixel at the offset
@@ -151,6 +161,41 @@ struct Image[
             to[i] = self.get(i + center - to_center).or_else(padding)
 
         to.iterate[func]()
+
+    # TODO: move these function to struct extension functions? when that gets released?
+
+    fn mean(self: Image[dim,DType.float32]) -> Float64:
+        """Returns mean of the entire image, in double precision."""
+        return self.mean(mask = AllMask())
+
+    fn mean[
+        M: Mask, //
+    ](
+        self: Image[dim,DType.float32],
+        *,
+        mask: M
+    ) -> Float64:
+        """Returns mean of the masked region, in double precision."""
+
+        # since we can't divide by zero
+        if self.num_pixels() <= 0:
+            return 0
+
+        var sum: Float64 = 0
+        var num_pixels_matched: Int = 0
+
+        # TODO: any chance we can vectorize this?
+
+        @parameter
+        fn func(i: VecD[Int,dim]):
+            if mask.includes(i, self.sizes()):
+                num_pixels_matched += 1
+                sum += Float64(self[i])
+
+        self.iterate[func]()
+
+        print('mean', sum/Float64(num_pixels_matched), 'count', num_pixels_matched)  # TEMP
+        return sum/Float64(num_pixels_matched)
 
     fn mean_variance(self: Image[dim,DType.float32]) -> (Float32, Float32):
         """Returns mean and variance of the entire image, in single precision."""

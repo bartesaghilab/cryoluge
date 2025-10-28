@@ -182,6 +182,8 @@ struct ComplexImage[
 
         vectorize[loader, width](self.num_pixels())
 
+    # TODO: move these function to struct extension functions? when that gets released?
+
     fn multiply[
         width: Int = Self.pixel_vec_max_width
     ](mut self, factor: Self.ScalarType):
