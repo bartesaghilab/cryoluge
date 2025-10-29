@@ -12,6 +12,34 @@ fn is_odd(n: Int) -> Bool:
     return not is_even(n)
 
 
+fn clamp[dtype: DType, width: Int](
+    n: SIMD[dtype,width],
+    out r: SIMD[dtype,width],
+    *,
+    min: SIMD[dtype,width]
+):
+    r = math.max(n, min)
+
+
+fn clamp[dtype: DType, width: Int](
+    n: SIMD[dtype,width],
+    out r: SIMD[dtype,width],
+    *,
+    max: SIMD[dtype,width]
+):
+    r = math.min(n, max)
+
+
+fn clamp[dtype: DType, width: Int](
+    n: SIMD[dtype,width],
+    out r: SIMD[dtype,width],
+    *,
+    min: SIMD[dtype,width],
+    max: SIMD[dtype,width]
+):
+    r = math.min(math.max(n, min), max)
+
+
 fn ease_linear[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[dtype,width]):
     """
     Easing function over [0,1] with a linear shape, essentially a no-op.

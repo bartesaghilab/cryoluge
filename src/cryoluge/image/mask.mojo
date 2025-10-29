@@ -2,7 +2,7 @@
 from os import abort
 from math import pi, sqrt
 
-from cryoluge.math import sinc
+from cryoluge.math import sinc, clamp
 
 
 trait Mask:
@@ -70,6 +70,11 @@ struct RadialMask[
     var radius: Scalar[dtype]
     var _r2: Scalar[dtype]
 
+    alias InsideExclusive = RadialMask[MaskRegion.Inside, include_boundary=False, dtype=_]
+    alias InsideInclusive = RadialMask[MaskRegion.Inside, include_boundary=True, dtype=_]
+    alias OutsideExclusive = RadialMask[MaskRegion.Outside, include_boundary=False, dtype=_]
+    alias OutsideInclusive = RadialMask[MaskRegion.Outside, include_boundary=True, dtype=_]
+
     fn __init__(out self, radius: Scalar[dtype]):
         self.radius = radius
         self._r2 = radius*radius
@@ -136,11 +141,24 @@ struct AnnularMask[
     var _r12: Scalar[dtype]
     var _r22: Scalar[dtype]
 
+    alias InsideInclusive = AnnularMask[
+        MaskRegion.Inside,
+        include_boundary_inner=True,
+        include_boundary_outer=True,
+        dtype=_
+    ]
+
     fn __init__(out self, radius_inner: Scalar[dtype], radius_outer: Scalar[dtype]):
         self.radius_inner = radius_inner
         self.radius_outer = radius_outer
         self._r12 = radius_inner*radius_inner
         self._r22 = radius_outer*radius_outer
+
+    fn __init__(out self, *, radius_center: Scalar[dtype], width: Scalar[dtype]):
+        self = Self(
+            radius_inner = clamp(radius_center - width/2, min=0),
+            radius_outer = (radius_center + width/2)
+        )
 
     fn includes(self, r2: Scalar[dtype]) -> Bool:
         @parameter
@@ -172,7 +190,7 @@ struct AnnularMask[
         return self.includes(center_dist2[dim,dtype](i, sizes))
 
     # TODO: move these into a generic image ops namespace?
-    
+
     fn blend[
         dim: ImageDimension,
         dir: AnnularBlendDirection,
