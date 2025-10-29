@@ -90,19 +90,22 @@ struct Image[
         tail: InlineArray[Float32, samples],
         hash: UInt64,
         *,
-        verbose: Bool = False
+        verbose: Bool = False,
+        eps: Float32 = 1e-5
     ):
-        self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose)
+        self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose, eps=eps)
 
     # TEMP
     fn assert_data[err_fn: ErrFnFloat32 = err_rel](
-        self: Image[dim,DType.float32],
+        mut self: Image[dim,DType.float32],
         msg: String,
         path: String,
         *,
-        verbose: Bool = False
+        verbose: Bool = False,
+        eps: Float32 = 1e-5,
+        overwrite: Bool = False
     ) raises:
-        self._buf.assert_data[err_fn](msg, path, verbose=verbose)
+        self._buf.assert_data[err_fn](msg, path, verbose=verbose, eps=eps, overwrite=overwrite)
 
     fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
 

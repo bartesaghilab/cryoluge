@@ -2,7 +2,7 @@
 from os import abort
 from sys.info import size_of
 from complex import ComplexFloat32
-from memory import bitcast
+from memory import bitcast, memcpy
 
 from cryoluge.io import FileReader, Endian
 
@@ -240,7 +240,8 @@ struct DimensionalBuffer[
         tail: InlineArray[Float32, samples],
         hash: UInt64,
         *,
-        verbose: Bool = False
+        verbose: Bool = False,
+        eps: Float32 = 1e-5
     ):
 
         # check the sizes
@@ -259,7 +260,7 @@ struct DimensionalBuffer[
         var err_head = _err[err_fn](obs_head, head)
         var err_tail = _err[err_fn](obs_tail, tail)
         debug_assert(
-            _err_small(err_head) and _err_small(err_tail),
+            _err_small(err_head, eps) and _err_small(err_tail, eps),
             msg, ": Samples don't match!:",
             "\n\thead obs = ", self._render_samples(obs_head),
             "\n\thead exp = ", self._render_samples(head),
@@ -291,7 +292,8 @@ struct DimensionalBuffer[
         tail: InlineArray[ComplexFloat32, samples],
         hash: UInt64,
         *,
-        verbose: Bool = False
+        verbose: Bool = False,
+        eps: Float32 = 1e-5
     ):
 
         # check the sizes
@@ -310,7 +312,7 @@ struct DimensionalBuffer[
         var err_head = _err[err_fn](obs_head, head)
         var err_tail = _err[err_fn](obs_tail, tail)
         debug_assert(
-            _err_small(err_head) and _err_small(err_tail),
+            _err_small(err_head, eps) and _err_small(err_tail, eps),
             msg, ": Samples don't match!:",
             "\n\thead obs = ", self._render_samples(obs_head),
             "\n\thead exp = ", self._render_samples(head),
@@ -358,11 +360,13 @@ struct DimensionalBuffer[
 
     # TEMP
     fn assert_data[err_fn: ErrFnFloat32 = err_rel](
-        self: DimensionalBuffer[dim,Float32],
+        mut self: DimensionalBuffer[dim,Float32],
         msg: String,
         path: String,
         *,
-        verbose: Bool = False
+        verbose: Bool = False,
+        eps: Float32 = 1e-5,
+        overwrite: Bool = False
     ):
 
         # read the file
@@ -375,7 +379,7 @@ struct DimensionalBuffer[
         except:
             debug_assert(False, msg, ": Failed to open data file")
 
-        # look for mismatched pixels using absolute error
+        # look for mismatched pixels
         var mismatches = List[Self.VecD[Int]]()
         var expi = 0
         @parameter
@@ -383,7 +387,7 @@ struct DimensionalBuffer[
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
-            if not _err_small(_err[err_fn](obs, exp)):
+            if not _err_small(_err[err_fn](obs, exp), eps):
                 mismatches.append(i.copy())
 
         self.iterate[func]()
@@ -407,6 +411,77 @@ struct DimensionalBuffer[
 
         if verbose:
             print(msg, ": data errors ok!")
+
+        if overwrite:
+            memcpy(
+                dest=self._start(),
+                src=exp_data.unsafe_ptr(),
+                count=self.num_elements()
+            )
+
+    # TEMP
+    fn assert_data[err_fn: ErrFnFloat32 = err_rel](
+        self: DimensionalBuffer[dim,ComplexFloat32],
+        msg: String,
+        path: String,
+        *,
+        verbose: Bool = False,
+        eps: Float32 = 1e-5,
+        overwrite: Bool = False
+    ):
+
+        # read the file
+        var exp_data = List[ComplexFloat32]()
+        try:
+            with open(path, "r") as f:
+                var reader = FileReader(f)
+                for _ in range(self.num_elements()):
+                    exp_data.append(ComplexFloat32(
+                        reader.read_f32[Endian.Little](),
+                        reader.read_f32[Endian.Little]()
+                    ))
+        except:
+            debug_assert(False, msg, ": Failed to open data file")
+
+        # look for mismatched pixels
+        var mismatches = List[Self.VecD[Int]]()
+        var expi = 0
+        @parameter
+        fn func(i: VecD[Int,dim]):
+            var obs = self[i=i]
+            var exp = exp_data[expi]
+            expi += 1
+            if not _err_small(_err[err_fn](obs, exp), eps):
+                mismatches.append(i.copy())
+
+        self.iterate[func]()
+
+        # TEMP: need to use expi to avoid compiler bugs
+        debug_assert(expi == self.num_elements(), msg, ": Iteration didn't finish")
+
+        # report the errors
+        if len(mismatches) > 0:
+            var obs = self[i=mismatches[0]]
+            var exp = exp_data[self._offset(mismatches[0])]
+            var err = _err[err_fn](obs, exp)
+            debug_assert(
+                False,
+                msg, ": Found ", len(mismatches), " mismatched pixels:",
+                "\n\tfirst at ", mismatches[0],
+                "\n\tobs = ", obs,
+                "\n\texp = ", exp,
+                "\n\terr = ", err,
+            )
+
+        if verbose:
+            print(msg, ": data errors ok!")
+
+        if overwrite:
+            memcpy(
+                dest=self._start(),
+                src=exp_data.unsafe_ptr(),
+                count=self.num_elements()
+            )
 
 
 # TEMP
@@ -455,14 +530,14 @@ fn _err[samples: Int, //, err_fn: ErrFnFloat32](
     for s in range(samples):
         err[s] = _err[err_fn](obs[s], exp[s])
 
-fn _err_small(err: Float32, eps: Float32 = 1e-5) -> Bool:
+fn _err_small(err: Float32, eps: Float32) -> Bool:
     return err < eps
 
-fn _err_small(err: ComplexFloat32, eps: Float32 = 1e-5) -> Bool:
+fn _err_small(err: ComplexFloat32, eps: Float32) -> Bool:
     return _err_small(err.re, eps) and _err_small(err.im, eps)
 
 # TEMP
-fn _err_small[samples: Int, //](err: InlineArray[Float32,samples], eps: Float32 = 1e-5) -> Bool:
+fn _err_small[samples: Int, //](err: InlineArray[Float32,samples], eps: Float32) -> Bool:
     @parameter
     for s in range(samples):
         if not _err_small(err[s], eps):
@@ -470,9 +545,9 @@ fn _err_small[samples: Int, //](err: InlineArray[Float32,samples], eps: Float32 
     return True
 
 # TEMP
-fn _err_small[samples: Int, //](err: InlineArray[ComplexFloat32,samples], eps: Float32 = 1e-5) -> Bool:
+fn _err_small[samples: Int, //](err: InlineArray[ComplexFloat32,samples], eps: Float32) -> Bool:
     @parameter
     for s in range(samples):
-        if not _err_small(err[s]):
+        if not _err_small(err[s], eps):
             return False
     return True
