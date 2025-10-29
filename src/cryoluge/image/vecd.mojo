@@ -94,11 +94,17 @@ struct VecD[
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
     #       since mojo doesn't seem to have traits for their math dunder methods =(
 
-    fn __floordiv__(self: VecD[Int,dim], dividend: Int, out result: VecD[Int,dim]):
+    fn __neg__(self: VecD[Int,dim], out result: VecD[Int,dim]):
         result = VecD[Int,dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
-            result[d] = self[d]//dividend
+            result[d] = -self[d]
+
+    fn __neg__[dtype: DType](self: VecD[Scalar[dtype],dim], out result: VecD[Scalar[dtype],dim]):
+        result = VecD[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = -self[d]
 
     fn __add__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
         result = VecD[Int,dim](uninitialized=True)
@@ -106,8 +112,183 @@ struct VecD[
         for d in range(dim.rank):
             result[d] = self[d] + other[d]
 
+    fn __add__(self: VecD[Int,dim], other: Int, out result: VecD[Int,dim]):
+        result = self + VecD[Int,dim](fill=other)
+
+    fn __add__[dtype: DType](self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim], out result: VecD[Scalar[dtype],dim]):
+        result = VecD[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] + other[d]
+
+    fn __add__[dtype: DType](self: VecD[Scalar[dtype],dim], other: Scalar[dtype], out result: VecD[Scalar[dtype],dim]):
+        result = self + VecD[Scalar[dtype],dim](fill=other)
+
+    fn __iadd__(mut self: VecD[Int,dim], other: VecD[Int,dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] += other[d]
+
+    fn __iadd__(mut self: VecD[Int,dim], other: Int):
+        self += VecD[Int,dim](fill=other)
+
+    fn __iadd__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] += other[d]
+
+    fn __iadd__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: Scalar[dtype]):
+        self += VecD[Scalar[dtype],dim](fill=other)
+
     fn __sub__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
         result = VecD[Int,dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             result[d] = self[d] - other[d]
+
+    fn __sub__(self: VecD[Int,dim], other: Int, out result: VecD[Int,dim]):
+        result = self - VecD[Int,dim](fill=other)
+
+    fn __sub__[dtype: DType](self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim], out result: VecD[Scalar[dtype],dim]):
+        result = VecD[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] - other[d]
+
+    fn __sub__[dtype: DType](self: VecD[Scalar[dtype],dim], other: Scalar[dtype], out result: VecD[Scalar[dtype],dim]):
+        result = self - VecD[Scalar[dtype],dim](fill=other)
+
+    fn __isub__(mut self: VecD[Int,dim], other: VecD[Int,dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] -= other[d]
+
+    fn __isub__(mut self: VecD[Int,dim], other: Int):
+        self -= VecD[Int,dim](fill=other)
+
+    fn __isub__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] -= other[d]
+
+    fn __isub__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: Scalar[dtype]):
+        self -= VecD[Scalar[dtype],dim](fill=other)
+
+    fn __mul__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
+        result = VecD[Int,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] * other[d]
+
+    fn __mul__(self: VecD[Int,dim], other: Int, out result: VecD[Int,dim]):
+        result = self * VecD[Int,dim](fill=other)
+
+    fn __mul__[dtype: DType](self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim], out result: VecD[Scalar[dtype],dim]):
+        result = VecD[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] * other[d]
+
+    fn __mul__[dtype: DType](self: VecD[Scalar[dtype],dim], other: Scalar[dtype], out result: VecD[Scalar[dtype],dim]):
+        result = self * VecD[Scalar[dtype],dim](fill=other)
+
+    fn __imul__(mut self: VecD[Int,dim], other: VecD[Int,dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] *= other[d]
+
+    fn __imul__(mut self: VecD[Int,dim], other: Int):
+        self += VecD[Int,dim](fill=other)
+
+    fn __imul__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] *= other[d]
+
+    fn __imul__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: Scalar[dtype]):
+        self += VecD[Scalar[dtype],dim](fill=other)
+
+    fn __floordiv__(self: VecD[Int,dim], other: VecD[Int,dim], out result: VecD[Int,dim]):
+        result = VecD[Int,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]//other[d]
+
+    fn __floordiv__(self: VecD[Int,dim], other: Int, out result: VecD[Int,dim]):
+        result = self//VecD[Int,dim](fill=other)
+
+    fn __ifloordiv__(mut self: VecD[Int,dim], other: VecD[Int,dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] //= other[d]
+
+    fn __ifloordiv__(mut self: VecD[Int,dim], other: Int):
+        self //= VecD[Int,dim](fill=other)
+
+    fn __truediv__[dtype: DType](self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim], out result: VecD[Scalar[dtype],dim]):
+        result = VecD[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]/other[d]
+
+    fn __truediv__[dtype: DType](self: VecD[Scalar[dtype],dim], other: Scalar[dtype], out result: VecD[Scalar[dtype],dim]):
+        result = self/VecD[Scalar[dtype],dim](fill=other)
+
+    fn __itruediv__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] /= other[d]
+
+    fn __itruediv__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: Scalar[dtype]):
+        self /= VecD[Scalar[dtype],dim](fill=other)
+
+    fn product(self: VecD[Int,dim], out result: Int):
+        result = 1
+        @parameter
+        for d in range(dim.rank):
+            result *= self[d]
+
+    fn product[dtype: DType](self: VecD[Scalar[dtype],dim], out result: Scalar[dtype]):
+        result = Scalar[dtype](1)
+        @parameter
+        for d in range(dim.rank):
+            result *= self[d]
+
+    fn inner_product(self: VecD[Int,dim], other: VecD[Int,dim], out result: Int):
+        result = 0
+        @parameter
+        for d in range(dim.rank):
+            result += self[d]*other[d]
+
+    fn inner_product[dtype: DType](self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim], out result: Scalar[dtype]):
+        result = Scalar[dtype](0)
+        @parameter
+        for d in range(dim.rank):
+            result += self[d]*other[d]
+
+    fn square(self: VecD[Int,dim], out result: Int):
+        result = self.inner_product(self)
+
+    fn square[dtype: DType](self: VecD[Scalar[dtype],dim], out result: Scalar[dtype]):
+        result = self.inner_product(self)
+
+    fn map[R: _TBounds, //, mapper: fn(T) -> R](self, out result: VecD[R,dim]):
+        result = VecD[R,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = mapper(self[d])
+
+    fn map_int[dtype: DType](self: VecD[Scalar[dtype],dim], out result: VecD[Int,dim]):
+        fn int(v: Scalar[dtype]) -> Int:
+            return Int(v) 
+        result = self.map[mapper=int]()
+
+    fn map_scalar[dtype: DType](self: VecD[Int,dim], out result: VecD[Scalar[dtype],dim]):
+        fn scalar(i: Int) -> Scalar[dtype]:
+            return Scalar[dtype](i)
+        result = self.map[mapper=scalar]()
+
+    fn map_scalar[dst: DType, src: DType](self: VecD[Scalar[src],dim], out result: VecD[Scalar[dst],dim]):
+        fn scalar(v: Scalar[src]) -> Scalar[dst]:
+            return Scalar[dst](v)
+        result = self.map[mapper=scalar]()

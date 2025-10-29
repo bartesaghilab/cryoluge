@@ -51,12 +51,9 @@ fn unrecognized_mask_region[region: MaskRegion, T: AnyType = NoneType._mlir_type
 
 fn center_dist2[dim: ImageDimension, dtype: DType](i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Scalar[dtype]:
     """Calculate squared distance from the center."""
-    var dist2: Scalar[dtype] = 0
-    @parameter
-    for d in range(dim.rank):
-        var dist_d: Scalar[dtype] = Scalar[dtype](i[d]) - Scalar[dtype](sizes[d])/2
-        dist2 += dist_d*dist_d
-    return dist2
+    var pos = i.map_scalar[dtype]()
+    var center = sizes.map_scalar[dtype]()/Scalar[dtype](2)
+    return (pos - center).square()
 
 
 struct RadialMask[

@@ -103,11 +103,7 @@ struct DimensionalBuffer[
         return dim.rank
 
     fn num_elements(self) -> Int:
-        var count: Int = 1
-        @parameter
-        for d in range(dim.rank):
-            count *= self._sizes[d]
-        return count
+        return self._sizes.product()
 
     fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._sizes)]] Self.VecD[Int]:
         return self._sizes
