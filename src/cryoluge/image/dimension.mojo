@@ -374,6 +374,7 @@ struct DimensionalBuffer[
         try:
             with open(path, "r") as f:
                 var reader = FileReader(f)
+                self._assert_sizes(msg, reader)
                 for _ in range(self.num_elements()):
                     exp_data.append(reader.read_f32[Endian.Little]())
         except:
@@ -410,7 +411,7 @@ struct DimensionalBuffer[
             )
 
         if verbose:
-            print(msg, ": data errors ok!")
+            print(msg, ": sizes=", self.sizes(), " pixels ok!")
 
         if overwrite:
             memcpy(
@@ -435,6 +436,7 @@ struct DimensionalBuffer[
         try:
             with open(path, "r") as f:
                 var reader = FileReader(f)
+                self._assert_sizes(msg, reader)
                 for _ in range(self.num_elements()):
                     exp_data.append(ComplexFloat32(
                         reader.read_f32[Endian.Little](),
@@ -474,7 +476,7 @@ struct DimensionalBuffer[
             )
 
         if verbose:
-            print(msg, ": data errors ok!")
+            print(msg, ": sizes=", self.sizes(), " pixels ok!")
 
         if overwrite:
             memcpy(
@@ -482,6 +484,25 @@ struct DimensionalBuffer[
                 src=exp_data.unsafe_ptr(),
                 count=self.num_elements()
             )
+
+    fn _assert_sizes(
+        self,
+        msg: String,
+        mut reader: FileReader
+    ) raises:
+        var rank = reader.read_i32[Endian.Little]()
+        debug_assert(
+            rank == dim.rank,
+            msg, ": Expected rank ", rank, " but image has rank ", dim.rank
+        )
+        var sizes = Self.VecD[Int](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            sizes[d] = Int(reader.read_i32[Endian.Little]())
+        debug_assert(
+            self.sizes() == sizes,
+            msg, ": Expected sizes ", sizes, " but image has sizes ", self.sizes()
+        )
 
 
 # TEMP

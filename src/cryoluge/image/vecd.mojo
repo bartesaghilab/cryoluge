@@ -284,23 +284,29 @@ struct VecD[
     fn len2[dtype: DType](self: VecD[Scalar[dtype],dim], out result: Scalar[dtype]):
         result = self.inner_product(self)
 
-    fn map[R: _TBounds, //, mapper: fn(T) -> R](self, out result: VecD[R,dim]):
+    fn map[
+        R: _TBounds, //,
+        mapper: fn(T) capturing -> R
+    ](self, out result: VecD[R,dim]):
         result = VecD[R,dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             result[d] = mapper(self[d])
 
     fn map_int[dtype: DType](self: VecD[Scalar[dtype],dim], out result: VecD[Int,dim]):
+        @parameter
         fn int(v: Scalar[dtype]) -> Int:
             return Int(v) 
         result = self.map[mapper=int]()
 
     fn map_scalar[dtype: DType](self: VecD[Int,dim], out result: VecD[Scalar[dtype],dim]):
+        @parameter
         fn scalar(i: Int) -> Scalar[dtype]:
             return Scalar[dtype](i)
         result = self.map[mapper=scalar]()
 
     fn map_scalar[dst: DType, src: DType](self: VecD[Scalar[src],dim], out result: VecD[Scalar[dst],dim]):
+        @parameter
         fn scalar(v: Scalar[src]) -> Scalar[dst]:
             return Scalar[dst](v)
         result = self.map[mapper=scalar]()
