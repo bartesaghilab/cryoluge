@@ -1,6 +1,8 @@
 
 from os import abort
-from math import sqrt
+from math import pi, sqrt
+
+from cryoluge.math import sinc
 
 
 trait Mask:
@@ -53,7 +55,7 @@ fn center_dist2[dim: ImageDimension, dtype: DType](i: VecD[Int,dim], sizes: VecD
     """Calculate squared distance from the center."""
     var pos = i.map_scalar[dtype]()
     var center = sizes.map_scalar[dtype]()/Scalar[dtype](2)
-    return (pos - center).square()
+    return (pos - center).len2()
 
 
 struct RadialMask[
@@ -91,6 +93,32 @@ struct RadialMask[
 
     fn includes[dim: ImageDimension](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
         return self.includes(center_dist2[dim,dtype](i, sizes))
+
+    # TODO: move these into a generic image ops namespace?
+
+    fn correct_sinc[
+        dim: ImageDimension, //
+    ](
+        self: RadialMask[region, include_boundary, DType.float32],
+        mut img: Image[dim,DType.float32]
+    ):
+        """TODO: what does this do? Someone must know."""
+
+        var scale = pi/img.sizes().map_float32()
+        var weight_outside = sinc(scale.x()*self.radius)
+        weight_outside *= weight_outside
+
+        @parameter
+        fn func(i: VecD[Int,dim]):
+            if self.includes(i, img.sizes()):
+                var dist = i - img.sizes()//2
+                var weight = (dist.map_float32()*scale).sinc().product()
+                weight *= weight
+                img[i=i] /= weight
+            else:
+                img[i=i] /= weight_outside
+
+        img.iterate[func]()
 
 
 struct AnnularMask[
@@ -143,6 +171,8 @@ struct AnnularMask[
     fn includes[dim: ImageDimension](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
         return self.includes(center_dist2[dim,dtype](i, sizes))
 
+    # TODO: move these into a generic image ops namespace?
+    
     fn blend[
         dim: ImageDimension,
         dir: AnnularBlendDirection,

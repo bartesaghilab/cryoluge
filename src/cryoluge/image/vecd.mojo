@@ -1,4 +1,7 @@
 
+from cryoluge.math import sinc
+
+
 alias _TBounds = Copyable & Movable & EqualityComparable & Writable & Stringable
 
 
@@ -234,6 +237,15 @@ struct VecD[
     fn __truediv__[dtype: DType](self: VecD[Scalar[dtype],dim], other: Scalar[dtype], out result: VecD[Scalar[dtype],dim]):
         result = self/VecD[Scalar[dtype],dim](fill=other)
 
+    fn __rtruediv__[dtype: DType](self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim], out result: VecD[Scalar[dtype],dim]):
+        result = VecD[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = other[d]/self[d]
+
+    fn __rtruediv__[dtype: DType](self: VecD[Scalar[dtype],dim], other: Scalar[dtype], out result: VecD[Scalar[dtype],dim]):
+        result = VecD[Scalar[dtype],dim](fill=other)/self
+
     fn __itruediv__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: VecD[Scalar[dtype],dim]):
         @parameter
         for d in range(dim.rank):
@@ -266,10 +278,10 @@ struct VecD[
         for d in range(dim.rank):
             result += self[d]*other[d]
 
-    fn square(self: VecD[Int,dim], out result: Int):
+    fn len2(self: VecD[Int,dim], out result: Int):
         result = self.inner_product(self)
 
-    fn square[dtype: DType](self: VecD[Scalar[dtype],dim], out result: Scalar[dtype]):
+    fn len2[dtype: DType](self: VecD[Scalar[dtype],dim], out result: Scalar[dtype]):
         result = self.inner_product(self)
 
     fn map[R: _TBounds, //, mapper: fn(T) -> R](self, out result: VecD[R,dim]):
@@ -292,3 +304,15 @@ struct VecD[
         fn scalar(v: Scalar[src]) -> Scalar[dst]:
             return Scalar[dst](v)
         result = self.map[mapper=scalar]()
+
+    fn map_float32(self: VecD[Int,dim], out result: VecD[Float32,dim]):
+        result = self.map_scalar[DType.float32]()
+
+    fn map_float32[dtype: DType](self: VecD[Scalar[dtype],dim], out result: VecD[Float32,dim]):
+        result = self.map_scalar[DType.float32]()
+
+    fn sinc(self: VecD[Float32,dim], out result: VecD[Float32,dim]):
+        result = VecD[Float32,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = sinc(self[d])
