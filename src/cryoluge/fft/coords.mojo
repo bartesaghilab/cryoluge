@@ -3,7 +3,7 @@ from cryoluge.image import ImageDimension
 from cryoluge.math import is_odd
 
 
-struct FourierCoords[
+struct FFTCoords[
     dim: ImageDimension,
     origin: Origin[mut=False]
 ](
@@ -99,26 +99,3 @@ struct FourierCoords[
             if i[d] >= self.pivot()[d]:
                 f[d] = i[d] - self.sizes_fourier()[d]
         # TODO: is the compiler smart enough to lift the function calls outside of the loop?
-
-    fn crop_fourier[dtype: DType, dst_origin: Origin[mut=False]](
-        self, *,
-        src: ComplexImage[dim,dtype],
-        dst_coords: FourierCoords[dim,dst_origin],
-        mut dst: ComplexImage[dim,dtype]
-    ):
-
-        # make sure the destination image is smaller (or the same size) as this one
-        @parameter
-        for d in range(dim.rank):
-            debug_assert(
-                dst_coords.sizes_real()[d] <= self.sizes_real()[d],
-                "Crop destination real sizes ", dst_coords.sizes_real(),
-                " must be smaller (or same size) as this source real sizes ", self.sizes_real()
-            )
-
-        # sample into the dst image
-        @parameter
-        fn sample(i: dst.VecD[Int]):
-            dst[i] = src[self.f2i(dst_coords.i2f(i))]
-
-        dst.iterate[sample]()

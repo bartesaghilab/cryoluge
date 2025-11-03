@@ -3,7 +3,7 @@ from testing import assert_equal
 
 from cryoluge.lang import LexicalScope
 from cryoluge.image import VecD
-from cryoluge.fft import FourierCoords
+from cryoluge.fft import FFTCoords
 
 
 def test_coords():
@@ -12,7 +12,7 @@ def test_coords():
 
     with LexicalScope():
         var sizes_real = VecD.D1(x=4)
-        var coords = FourierCoords(sizes_real)
+        var coords = FFTCoords(sizes_real)
 
         assert_equal(coords.sizes_real(), sizes_real)
         assert_equal(coords.sizes_fourier(), VecD.D1(x=3))
@@ -32,7 +32,7 @@ def test_coords():
 
     with LexicalScope():
         var sizes_real = VecD.D1(x=5)
-        var coords = FourierCoords(sizes_real)
+        var coords = FFTCoords(sizes_real)
 
         assert_equal(coords.sizes_real(), sizes_real)
         assert_equal(coords.sizes_fourier(), VecD.D1(x=3))
@@ -54,7 +54,7 @@ def test_coords():
 
     with LexicalScope():
         var sizes_real = VecD.D2(x=5, y=4)
-        var coords = FourierCoords(sizes_real)
+        var coords = FFTCoords(sizes_real)
 
         assert_equal(coords.sizes_real(), sizes_real)
         assert_equal(coords.sizes_fourier(), VecD.D2(x=3, y=4))
@@ -74,7 +74,7 @@ def test_coords():
 
     with LexicalScope():
         var sizes_real = VecD.D2(x=5, y=5)
-        var coords = FourierCoords(sizes_real)
+        var coords = FFTCoords(sizes_real)
 
         assert_equal(coords.sizes_real(), sizes_real)
         assert_equal(coords.sizes_fourier(), VecD.D2(x=3, y=5))
@@ -98,7 +98,7 @@ def test_coords():
 
     with LexicalScope():
         var sizes_real = VecD.D3(x=5, y=3, z=4)
-        var coords = FourierCoords(sizes_real)
+        var coords = FFTCoords(sizes_real)
 
         assert_equal(coords.sizes_real(), sizes_real)
         assert_equal(coords.sizes_fourier(), VecD.D3(x=3, y=3, z=4))
@@ -118,7 +118,7 @@ def test_coords():
 
     with LexicalScope():
         var sizes_real = VecD.D3(x=5, y=3, z=5)
-        var coords = FourierCoords(sizes_real)
+        var coords = FFTCoords(sizes_real)
 
         assert_equal(coords.sizes_real(), sizes_real)
         assert_equal(coords.sizes_fourier(), VecD.D3(x=3, y=3, z=5))

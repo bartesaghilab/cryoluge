@@ -3,18 +3,35 @@ from os import abort
 from math import pi, sqrt
 
 from cryoluge.math import sinc, clamp
+from cryoluge.fft import FFTCoords, FFTImage, CoordDomain, constrain_coord_domain
 
 
-trait Mask:
-    fn includes[dim: ImageDimension](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool: ...
+trait MaskReal:
+    fn includes[
+        dim: ImageDimension
+    ](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool: ...
+
+trait MaskFourier:
+    fn includes[
+        dim: ImageDimension,
+        origin: Origin[mut=False]
+    ](self, i: VecD[Int,dim], fft_coords: FFTCoords[dim,origin]) -> Bool: ...
 
 
-struct AllMask(Mask):
+struct AllMask(MaskReal, MaskFourier):
 
     fn __init__(out self):
         pass
 
-    fn includes[dim: ImageDimension](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
+    fn includes[
+        dim: ImageDimension
+    ](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
+        return True
+
+    fn includes[
+        dim: ImageDimension,
+        origin: Origin[mut=False]
+    ](self, i: VecD[Int,dim], fft_coords: FFTCoords[dim,origin]) -> Bool:
         return True
 
 
@@ -51,29 +68,56 @@ fn unrecognized_mask_region[region: MaskRegion, T: AnyType = NoneType._mlir_type
     return abort[T]()
 
 
-fn center_dist2[dim: ImageDimension, dtype: DType](i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Scalar[dtype]:
-    """Calculate squared distance from the center."""
+fn center_dist2_real[
+    dim: ImageDimension,
+    dtype: DType
+](
+    i: VecD[Int,dim],
+    sizes: VecD[Int,dim],
+    out dist2: Scalar[dtype]
+):
+    """Calculate squared distance from the center, in real coordinates."""
     var pos = i.map_scalar[dtype]()
     var center = sizes.map_scalar[dtype]()/Scalar[dtype](2)
-    return (pos - center).len2()
+    dist2 = (pos - center).len2()
+
+
+fn center_dist2_fourier[
+    dim: ImageDimension,
+    dtype: DType
+](
+    i: VecD[Int,dim],
+    fft_coords: FFTCoords[dim],
+    out dist2: Scalar[dtype]
+):
+    """Calculate squared distance from the center, in Fourier coordinates."""
+    var freq = fft_coords.i2f(i).map_scalar[dtype]()
+    var sizes = fft_coords.sizes_real().map_scalar[dtype]()
+    dist2 = (freq/sizes).len2()
 
 
 struct RadialMask[
+    domain: CoordDomain,
     region: MaskRegion,
     include_boundary: Bool,
     dtype: DType
 ](
     Copyable,
     Movable,
-    Mask
+    MaskReal,
+    MaskFourier
 ):
     var radius: Scalar[dtype]
     var _r2: Scalar[dtype]
 
-    alias InsideExclusive = RadialMask[MaskRegion.Inside, include_boundary=False, dtype=_]
-    alias InsideInclusive = RadialMask[MaskRegion.Inside, include_boundary=True, dtype=_]
-    alias OutsideExclusive = RadialMask[MaskRegion.Outside, include_boundary=False, dtype=_]
-    alias OutsideInclusive = RadialMask[MaskRegion.Outside, include_boundary=True, dtype=_]
+    alias RealInsideExclusive = RadialMask[CoordDomain.Real, MaskRegion.Inside, False, _]
+    alias RealInsideInclusive = RadialMask[CoordDomain.Real, MaskRegion.Inside, True, _]
+    alias RealOutsideExclusive = RadialMask[CoordDomain.Real, MaskRegion.Outside, False, _]
+    alias RealOutsideInclusive = RadialMask[CoordDomain.Real, MaskRegion.Outside, True, _]
+    alias FourierInsideExclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Inside, False, _]
+    alias FourierInsideInclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Inside, True, _]
+    alias FourierOutsideExclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, False, _]
+    alias FourierOutsideInclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, True, _]
 
     fn __init__(out self, radius: Scalar[dtype]):
         self.radius = radius
@@ -96,15 +140,33 @@ struct RadialMask[
         else:
             return unrecognized_mask_region[region,Bool]()
 
-    fn includes[dim: ImageDimension](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
-        return self.includes(center_dist2[dim,dtype](i, sizes))
+    fn includes[
+        dim: ImageDimension
+    ](
+        self,
+        i: VecD[Int,dim],
+        sizes: VecD[Int,dim]
+    ) -> Bool:
+        constrain_coord_domain["includes()", domain, CoordDomain.Real]()
+        return self.includes(center_dist2_real[dim,dtype](i, sizes))
+
+    fn includes[
+        dim: ImageDimension,
+        origin: Origin[mut=False]
+    ](
+        self,
+        i: VecD[Int,dim],
+        fft_coords: FFTCoords[dim, origin]
+    ) -> Bool:
+        constrain_coord_domain["includes()", domain, CoordDomain.Fourier]()
+        return self.includes(center_dist2_fourier[dim,dtype](i, fft_coords))
 
     # TODO: move these into a generic image ops namespace?
 
     fn correct_sinc[
         dim: ImageDimension, //
     ](
-        self: RadialMask[region, include_boundary, DType.float32],
+        self: RadialMask[CoordDomain.Real, region, include_boundary, DType.float32],
         mut img: Image[dim,DType.float32]
     ):
         """TODO: what does this do? Someone must know."""
@@ -127,6 +189,7 @@ struct RadialMask[
 
 
 struct AnnularMask[
+    domain: CoordDomain,
     region: MaskRegion,
     include_boundary_inner: Bool,
     include_boundary_outer: Bool,
@@ -134,19 +197,17 @@ struct AnnularMask[
 ](
     Copyable,
     Movable,
-    Mask
+    MaskReal,
+    MaskFourier
 ):
     var radius_inner: Scalar[dtype]
     var radius_outer: Scalar[dtype]
     var _r12: Scalar[dtype]
     var _r22: Scalar[dtype]
 
-    alias InsideInclusive = AnnularMask[
-        MaskRegion.Inside,
-        include_boundary_inner=True,
-        include_boundary_outer=True,
-        dtype=_
-    ]
+    alias RealInsideInclusive = AnnularMask[CoordDomain.Real, MaskRegion.Inside, True, True, _]
+    alias FourierInsideInclusive = AnnularMask[CoordDomain.Fourier, MaskRegion.Inside, True, True, _]
+    alias EaseFn = fn[dtype_ease: DType, width: Int](SIMD[dtype_ease,width]) -> SIMD[dtype_ease,width]
 
     fn __init__(out self, radius_inner: Scalar[dtype], radius_outer: Scalar[dtype]):
         self.radius_inner = radius_inner
@@ -186,90 +247,120 @@ struct AnnularMask[
             constrained[False, String("Unsupported MaskRegion: ", region)]()
             return abort[Bool]()
 
-    fn includes[dim: ImageDimension](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
-        return self.includes(center_dist2[dim,dtype](i, sizes))
+    fn includes[
+        dim: ImageDimension
+    ](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
+        # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
+        constrain_coord_domain["includes()", domain, CoordDomain.Real]()
+        return self.includes(center_dist2_real[dim,dtype](i, sizes))
+
+    fn includes[
+        dim: ImageDimension,
+        origin: Origin[mut=False]
+    ](self, i: VecD[Int,dim], fft_coords: FFTCoords[dim, origin]) -> Bool:
+        # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
+        constrain_coord_domain["includes()", domain, CoordDomain.Fourier]()
+        return self.includes(center_dist2_fourier[dim,dtype](i, fft_coords))
 
     # TODO: move these into a generic image ops namespace?
 
+    fn _blend_interpolate[
+        dir: AnnularBlendDirection,
+        ease: Self.EaseFn
+    ](self, r2: Scalar[dtype]) -> Scalar[dtype]:
+        
+        var r = sqrt(r2)
+
+        # compute the iterpolation parameter based on the direction and distance
+        var t: Scalar[dtype]
+        @parameter
+        if dir == AnnularBlendDirection.In:
+            t = self.radius_outer - r
+        elif dir == AnnularBlendDirection.Out:
+            t = r - self.radius_inner
+        else:
+            return unrecognized_mask_region[region,Scalar[dtype]]()
+        t /= self.radius_outer - self.radius_inner
+
+        # apply easing function
+        return ease(t)
+
+    fn _past_end[
+        dir: AnnularBlendDirection
+    ](self, r2: Scalar[dtype]) -> Bool:
+        # outside the annulus: determine if we're past the end
+        # (otherwise, we're before the start, but we don't need to do anything there)
+        @parameter
+        if dir == AnnularBlendDirection.In:
+            @parameter
+            if include_boundary_inner:
+                return r2 < self._r12
+            else:
+                return r2 <= self._r12
+        elif dir == AnnularBlendDirection.Out:
+            @parameter
+            if include_boundary_outer:
+                return r2 > self._r12
+            else:
+                return r2 >= self._r12
+        else:
+            return unrecognized_mask_region[region,Bool]()
+
     fn blend[
-        dim: ImageDimension,
         dir: AnnularBlendDirection,
         *,
-        ease: fn[dtype_ease: DType, width: Int](SIMD[dtype_ease,width]) -> SIMD[dtype_ease,width]
+        ease: Self.EaseFn,
+        dim: ImageDimension
     ](
-        self,
+        self: AnnularMask[CoordDomain.Real, region, include_boundary_inner, include_boundary_outer, dtype],
         mut img: Image[dim,dtype],
         v: img.PixelType
     ):
         """
-        Blend the image in the given direction, starting with the original image value,
+        Blend the real-space image in the given direction, starting with the original image value,
         and ending at the given constant value.
         Pixels before the annulus will remain their original values.
         Pixels after the annulus will be set to the constant value.
         """
 
-        var r2_start: Scalar[dtype]
         @parameter
-        if dir == AnnularBlendDirection.In:
-            r2_start = self._r22
-        elif dir == AnnularBlendDirection.Out:
-            r2_start = self._r12
-        else:
-            return unrecognized_mask_region[region]()
+        fn func(i: VecD[Int,dim]):
+            var r2 = center_dist2_real[dim,dtype](i, img.sizes())
+            if self.includes(r2):
+                var t = self._blend_interpolate[dir,ease](r2)
+                img[i=i] = img[i=i]*(1 - t) + t*v
+            elif self._past_end[dir](r2):
+                img[i=i] = v
 
-        var r_start = sqrt(r2_start)
+        img.iterate[func]()
 
-        print('hack', r_start)  # TEMP: to work around compiler bug
+    fn blend[
+        dir: AnnularBlendDirection,
+        *,
+        ease: Self.EaseFn,
+        dim: ImageDimension
+    ](
+        self: AnnularMask[CoordDomain.Fourier, region, include_boundary_inner, include_boundary_outer, dtype],
+        mut img: FFTImage[dim,dtype],
+        v: img.PixelType
+    ):
+        """
+        Blend the Fourier-space image in the given direction, starting with the original image value,
+        and ending at the given constant value.
+        Pixels before the annulus will remain their original values.
+        Pixels after the annulus will be set to the constant value.
+        """
 
         @parameter
         fn func(i: VecD[Int,dim]):
-            var r2 = center_dist2[dim,dtype](i, img.sizes())
+            var r2 = center_dist2_fourier[dim,dtype](i, img.coords())
             if self.includes(r2):
+                var t = self._blend_interpolate[dir,ease](r2)
+                img.complex[i=i] = img.complex[i=i]*(1 - t) + t*v
+            elif self._past_end[dir](r2):
+                img.complex[i=i] = v
 
-                var r = sqrt(r2)
-
-                # compute the iterpolation parameter based on the direction and distance
-                var t: Scalar[dtype]
-                @parameter
-                if dir == AnnularBlendDirection.In:
-                    t = r_start - r
-                elif dir == AnnularBlendDirection.Out:
-                    t = r - r_start
-                else:
-                    return unrecognized_mask_region[region]()
-                t /= self.radius_outer - self.radius_inner
-
-                # apply easing function
-                t = ease(t)
-
-                # finally, blend the pixel
-                img[i=i] = img[i=i]*(1 - t) + t*v
-
-            else:
-
-                # outside the annulus: determine if we're past the end
-                # (otherwise, we're before the start, but we don't need to do anything there)
-                var past_end: Bool
-                @parameter
-                if dir == AnnularBlendDirection.In:
-                    @parameter
-                    if include_boundary_inner:
-                        past_end = r2 < self._r12
-                    else:
-                        past_end = r2 <= self._r12
-                elif dir == AnnularBlendDirection.Out:
-                    @parameter
-                    if include_boundary_outer:
-                        past_end = r2 > self._r12
-                    else:
-                        past_end = r2 >= self._r12
-                else:
-                    return unrecognized_mask_region[region]()
-
-                if past_end:
-                    img[i=i] = v
-
-        img.iterate[func]()
+        img.complex.iterate[func]()
 
 
 @fieldwise_init

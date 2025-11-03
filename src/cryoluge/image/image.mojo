@@ -172,7 +172,7 @@ struct Image[
         return self.mean(mask = AllMask())
 
     fn mean[
-        M: Mask, //
+        M: MaskReal, //
     ](
         self: Image[dim,DType.float32],
         *,
@@ -197,7 +197,6 @@ struct Image[
 
         self.iterate[func]()
 
-        print('mean', sum/Float64(num_pixels_matched), 'count', num_pixels_matched)  # TEMP
         return sum/Float64(num_pixels_matched)
 
     fn mean_variance(self: Image[dim,DType.float32]) -> (Float32, Float32):
@@ -205,7 +204,7 @@ struct Image[
         return self.mean_variance(mask = AllMask())
 
     fn mean_variance[
-        M: Mask, //
+        M: MaskReal, //
     ](
         self: Image[dim,DType.float32],
         *,
