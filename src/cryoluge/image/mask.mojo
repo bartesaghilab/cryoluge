@@ -2,20 +2,20 @@
 from os import abort
 from math import pi, sqrt
 
-from cryoluge.math import sinc, clamp
+from cryoluge.math import Dimension, Vec, sinc, clamp
 from cryoluge.fft import FFTCoords, FFTImage, CoordDomain, constrain_coord_domain
 
 
 trait MaskReal:
     fn includes[
-        dim: ImageDimension
-    ](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool: ...
+        dim: Dimension
+    ](self, i: Vec[Int,dim], sizes: Vec[Int,dim]) -> Bool: ...
 
 trait MaskFourier:
     fn includes[
-        dim: ImageDimension,
+        dim: Dimension,
         origin: Origin[mut=False]
-    ](self, i: VecD[Int,dim], fft_coords: FFTCoords[dim,origin]) -> Bool: ...
+    ](self, i: Vec[Int,dim], fft_coords: FFTCoords[dim,origin]) -> Bool: ...
 
 
 struct AllMask(MaskReal, MaskFourier):
@@ -24,14 +24,14 @@ struct AllMask(MaskReal, MaskFourier):
         pass
 
     fn includes[
-        dim: ImageDimension
-    ](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
+        dim: Dimension
+    ](self, i: Vec[Int,dim], sizes: Vec[Int,dim]) -> Bool:
         return True
 
     fn includes[
-        dim: ImageDimension,
+        dim: Dimension,
         origin: Origin[mut=False]
-    ](self, i: VecD[Int,dim], fft_coords: FFTCoords[dim,origin]) -> Bool:
+    ](self, i: Vec[Int,dim], fft_coords: FFTCoords[dim,origin]) -> Bool:
         return True
 
 
@@ -69,11 +69,11 @@ fn unrecognized_mask_region[region: MaskRegion, T: AnyType = NoneType._mlir_type
 
 
 fn center_dist2_real[
-    dim: ImageDimension,
+    dim: Dimension,
     dtype: DType
 ](
-    i: VecD[Int,dim],
-    sizes: VecD[Int,dim],
+    i: Vec[Int,dim],
+    sizes: Vec[Int,dim],
     out dist2: Scalar[dtype]
 ):
     """Calculate squared distance from the center, in real coordinates."""
@@ -83,10 +83,10 @@ fn center_dist2_real[
 
 
 fn center_dist2_fourier[
-    dim: ImageDimension,
+    dim: Dimension,
     dtype: DType
 ](
-    i: VecD[Int,dim],
+    i: Vec[Int,dim],
     fft_coords: FFTCoords[dim],
     out dist2: Scalar[dtype]
 ):
@@ -141,21 +141,21 @@ struct RadialMask[
             return unrecognized_mask_region[region,Bool]()
 
     fn includes[
-        dim: ImageDimension
+        dim: Dimension
     ](
         self,
-        i: VecD[Int,dim],
-        sizes: VecD[Int,dim]
+        i: Vec[Int,dim],
+        sizes: Vec[Int,dim]
     ) -> Bool:
         constrain_coord_domain["includes()", domain, CoordDomain.Real]()
         return self.includes(center_dist2_real[dim,dtype](i, sizes))
 
     fn includes[
-        dim: ImageDimension,
+        dim: Dimension,
         origin: Origin[mut=False]
     ](
         self,
-        i: VecD[Int,dim],
+        i: Vec[Int,dim],
         fft_coords: FFTCoords[dim, origin]
     ) -> Bool:
         constrain_coord_domain["includes()", domain, CoordDomain.Fourier]()
@@ -164,7 +164,7 @@ struct RadialMask[
     # TODO: move these into a generic image ops namespace?
 
     fn correct_sinc[
-        dim: ImageDimension, //
+        dim: Dimension, //
     ](
         self: RadialMask[CoordDomain.Real, region, include_boundary, DType.float32],
         mut img: Image[dim,DType.float32]
@@ -176,7 +176,7 @@ struct RadialMask[
         weight_outside *= weight_outside
 
         @parameter
-        fn func(i: VecD[Int,dim]):
+        fn func(i: Vec[Int,dim]):
             if self.includes(i, img.sizes()):
                 var dist = i - img.sizes()//2
                 var weight = (dist.map_float32()*scale).sinc().product()
@@ -248,16 +248,16 @@ struct AnnularMask[
             return abort[Bool]()
 
     fn includes[
-        dim: ImageDimension
-    ](self, i: VecD[Int,dim], sizes: VecD[Int,dim]) -> Bool:
+        dim: Dimension
+    ](self, i: Vec[Int,dim], sizes: Vec[Int,dim]) -> Bool:
         # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
         constrain_coord_domain["includes()", domain, CoordDomain.Real]()
         return self.includes(center_dist2_real[dim,dtype](i, sizes))
 
     fn includes[
-        dim: ImageDimension,
+        dim: Dimension,
         origin: Origin[mut=False]
-    ](self, i: VecD[Int,dim], fft_coords: FFTCoords[dim, origin]) -> Bool:
+    ](self, i: Vec[Int,dim], fft_coords: FFTCoords[dim, origin]) -> Bool:
         # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
         constrain_coord_domain["includes()", domain, CoordDomain.Fourier]()
         return self.includes(center_dist2_fourier[dim,dtype](i, fft_coords))
@@ -310,7 +310,7 @@ struct AnnularMask[
         dir: AnnularBlendDirection,
         *,
         ease: Self.EaseFn,
-        dim: ImageDimension
+        dim: Dimension
     ](
         self: AnnularMask[CoordDomain.Real, region, include_boundary_inner, include_boundary_outer, dtype],
         mut img: Image[dim,dtype],
@@ -324,7 +324,7 @@ struct AnnularMask[
         """
 
         @parameter
-        fn func(i: VecD[Int,dim]):
+        fn func(i: Vec[Int,dim]):
             var r2 = center_dist2_real[dim,dtype](i, img.sizes())
             if self.includes(r2):
                 var t = self._blend_interpolate[dir,ease](r2)
@@ -338,7 +338,7 @@ struct AnnularMask[
         dir: AnnularBlendDirection,
         *,
         ease: Self.EaseFn,
-        dim: ImageDimension
+        dim: Dimension
     ](
         self: AnnularMask[CoordDomain.Fourier, region, include_boundary_inner, include_boundary_outer, dtype],
         mut img: FFTImage[dim,dtype],
@@ -352,7 +352,7 @@ struct AnnularMask[
         """
 
         @parameter
-        fn func(i: VecD[Int,dim]):
+        fn func(i: Vec[Int,dim]):
             var r2 = center_dist2_fourier[dim,dtype](i, img.coords())
             if self.includes(r2):
                 var t = self._blend_interpolate[dir,ease](r2)

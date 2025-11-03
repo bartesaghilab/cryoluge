@@ -4,7 +4,8 @@ from sys.ffi import DLHandle
 from os import abort
 from complex import ComplexFloat32
 
-from cryoluge.image import ImageDimension, VecD, Image, unrecognized_dimension
+from cryoluge.math import Dimension, Vec, unrecognized_dimension
+from cryoluge.image import Image
 
 
 # NOTE: fftw is perhaps not fully thread-safe?
@@ -64,7 +65,7 @@ struct FFTDirection(
 
 
 struct FFTPlan[
-    dim: ImageDimension,
+    dim: Dimension,
     dtype: DType,
     direction: FFTDirection
 ]:
@@ -91,7 +92,7 @@ struct FFTPlan[
 
         # create the plan
         @parameter
-        if dim == ImageDimension.D1:
+        if dim == Dimension.D1:
 
             @parameter
             if direction == FFTDirection.R2C:
@@ -117,7 +118,7 @@ struct FFTPlan[
             else:
                 return _unrecognized_direction[direction,Self]()
 
-        elif dim == ImageDimension.D2:
+        elif dim == Dimension.D2:
 
             @parameter
             if direction == FFTDirection.R2C:
@@ -145,7 +146,7 @@ struct FFTPlan[
             else:
                 return _unrecognized_direction[direction,Self]()
 
-        elif dim == ImageDimension.D3:
+        elif dim == Dimension.D3:
 
             @parameter
             if direction == FFTDirection.R2C:
@@ -265,7 +266,7 @@ fn _fftw_prefix[dtype: DType]() -> StaticString:
 
 @fieldwise_init
 struct _ImageInfo[
-    dim: ImageDimension
+    dim: Dimension
 ](
     Copyable,
     Movable,
@@ -273,7 +274,7 @@ struct _ImageInfo[
     Writable,
     Stringable
 ):
-    var size: VecD[Int,dim]
+    var size: Vec[Int,dim]
     var alignment: Int
 
     fn __eq__(self, other: Self) -> Bool:
@@ -292,11 +293,11 @@ struct _ImageInfo[
 
 struct FFTPlans[
     dtype: DType,
-    dim: ImageDimension
+    dim: Dimension
 ]:
     var alignment: Int
-    var sizes_real: VecD[Int,dim]
-    var sizes_fourier: VecD[Int,dim]
+    var sizes_real: Vec[Int,dim]
+    var sizes_fourier: Vec[Int,dim]
     var r2c: FFTPlan.R2C[dim,dtype]
     var c2r: FFTPlan.C2R[dim,dtype]
     """
@@ -305,7 +306,7 @@ struct FFTPlans[
              fftw will reject FFTW_PRESERVE_INPUT flags on multi-dimensional transforms.
     """
 
-    fn __init__(out self, sizes_real: VecD[Int,dim]) raises:
+    fn __init__(out self, sizes_real: Vec[Int,dim]) raises:
 
         self.alignment = best_alignment[dtype]
         self.sizes_real = sizes_real.copy()

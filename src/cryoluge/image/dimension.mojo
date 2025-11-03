@@ -4,97 +4,42 @@ from sys.info import size_of
 from complex import ComplexFloat32
 from memory import bitcast, memcpy
 
-from cryoluge.io import FileReader, Endian
-
-
-@fieldwise_init
-struct ImageDimension(
-    ImplicitlyCopyable,
-    Movable,
-    EqualityComparable,
-    Writable,
-    Stringable
-):
-    var rank: Int
-
-    # NOTE: mojo's grammar doesn't allow `1D`, `2D`, etc identifiers
-    alias D1 = Self(1)
-    alias D2 = Self(2)
-    alias D3 = Self(3)
-
-    fn __eq__(self, rhs: Self) -> Bool:
-        return self.rank == rhs.rank
-
-    fn write_to[W: Writer](self, mut writer: W):
-        if self == Self.D1:
-            writer.write("D1")
-        elif self == Self.D2:
-            writer.write("D2")
-        elif self == Self.D3:
-            writer.write("D3")
-        else:
-            writer.write("Unknown(", self.rank, ")")
-
-    fn __str__(self) -> String:
-        return String.write(self)
-
-
-fn unrecognized_dimension[dim: ImageDimension, T: AnyType = NoneType._mlir_type]() -> T:
-    constrained[False, String("Unrecognized dimensionality: ", dim)]()
-    return abort[T]()
-
-
-fn unimplemented_dimension[dim: ImageDimension, T: AnyType = NoneType._mlir_type]() -> T:
-    constrained[False, String("Dimension not implemented yet: ", dim)]()
-    return abort[T]()
-
-
-fn expect_at_least_rank[dim: ImageDimension, rank: Int]():
-    constrained[
-        dim.rank >= rank,
-        String("Expected dimension of at least rank ", rank, " but got ", dim)
-    ]()
-
-
-fn expect_num_arguments[dim: ImageDimension, count: Int]():
-    constrained[
-        dim.rank == count,
-        String(dim, " expects ", dim.rank, " argument(s), but got ", count, " instead")
-    ]()
+from cryoluge.math import Dimension, Vec, unrecognized_dimension, expect_at_least_rank
+from cryoluge.io import FileReader, Endian, ByteBuffer
 
 
 struct DimensionalBuffer[
-    dim: ImageDimension,
+    dim: Dimension,
     T: Copyable & Movable
 ](
     Copyable,
     Movable
 ):
-    var _sizes: Self.VecD[Int]
-    var _strides: Self.VecD[Int]
+    var _sizes: Self.Vec[Int]
+    var _strides: Self.Vec[Int]
     """the element strides, not the byte strides"""
     var _buf: ByteBuffer
 
-    alias VecD = VecD[_,dim]
+    alias Vec = Vec[_,dim]
     alias _elem_size = size_of[T]()
 
-    fn __init__(out self, sizes: Self.VecD[Int], *, alignment: Optional[Int] = None):
+    fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self._sizes = sizes.copy()
         @parameter
-        if dim == ImageDimension.D1:
+        if dim == Dimension.D1:
             var sx = self._sizes.x()
-            self._strides = Self.VecD[Int](x=1)
+            self._strides = Self.Vec[Int](x=1)
             self._buf = ByteBuffer(sx*Self._elem_size, alignment=alignment)
-        elif dim == ImageDimension.D2:
+        elif dim == Dimension.D2:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
-            self._strides = Self.VecD[Int](x=1, y=sx)
+            self._strides = Self.Vec[Int](x=1, y=sx)
             self._buf = ByteBuffer(sx*sy*Self._elem_size, alignment=alignment)
-        elif dim == ImageDimension.D3:
+        elif dim == Dimension.D3:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
             var sz = self._sizes.z()
-            self._strides = Self.VecD[Int](x=1, y=sx, z=sx*sy)
+            self._strides = Self.Vec[Int](x=1, y=sx, z=sx*sy)
             self._buf = ByteBuffer(sx*sy*sz*Self._elem_size, alignment=alignment)
         else:
             return unrecognized_dimension[dim,Self]()
@@ -105,7 +50,7 @@ struct DimensionalBuffer[
     fn num_elements(self) -> Int:
         return self._sizes.product()
 
-    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._sizes)]] Self.VecD[Int]:
+    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._sizes)]] Self.Vec[Int]:
         return self._sizes
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf)]]:
@@ -124,7 +69,7 @@ struct DimensionalBuffer[
         )
         return self._start() + offset
 
-    fn _offset(self, i: Self.VecD[Int], out offset: Int):
+    fn _offset(self, i: Self.Vec[Int], out offset: Int):
         
         alias d_names = InlineArray[String, 3]("x", "y", "z")
 
@@ -140,7 +85,7 @@ struct DimensionalBuffer[
             )
             offset += coord*self._strides[d]
 
-    fn _maybe_offset(self, i: Self.VecD[Int]) -> Optional[Int]:
+    fn _maybe_offset(self, i: Self.Vec[Int]) -> Optional[Int]:
 
         var offset: Int = 0
 
@@ -165,68 +110,68 @@ struct DimensionalBuffer[
         self._check_offset(i)
         v = (self._start() + i)[].copy()
 
-    fn __getitem__(self, i: Self.VecD[Int], out v: T):
+    fn __getitem__(self, i: Self.Vec[Int], out v: T):
         v = self[i=self._offset(i)]
 
     fn __getitem__(self, *, x: Int, out v: T):
         expect_at_least_rank[dim, 1]()
-        v = self[Self.VecD(x=x)]
+        v = self[Self.Vec(x=x)]
 
     fn __getitem__(self, *, x: Int, y: Int, out v: T):
         expect_at_least_rank[dim, 2]()
-        v = self[Self.VecD(x=x, y=y)]
+        v = self[Self.Vec(x=x, y=y)]
 
     fn __getitem__(self, *, x: Int, y: Int, z: Int, out v: T):
         expect_at_least_rank[dim, 3]()
-        v = self[Self.VecD[Int](x=x, y=y, z=z)]
+        v = self[Self.Vec[Int](x=x, y=y, z=z)]
 
     fn __setitem__(mut self, *, i: Int, v: T):
         self._check_offset(i)
         (self._start() + i)[] = v.copy()
 
-    fn __setitem__(mut self, i: Self.VecD[Int], v: T):
+    fn __setitem__(mut self, i: Self.Vec[Int], v: T):
         self[i=self._offset(i)] = v
 
     fn __setitem__(mut self, *, x: Int, v: T):
         expect_at_least_rank[dim, 1]()
-        self[Self.VecD[Int](x=x)] = v
+        self[Self.Vec[Int](x=x)] = v
 
     fn __setitem__(mut self, *, x: Int, y: Int, v: T):
         expect_at_least_rank[dim, 2]()
-        self[Self.VecD[Int](x=x, y=y)] = v
+        self[Self.Vec[Int](x=x, y=y)] = v
 
     fn __setitem__(mut self, *, x: Int, y: Int, z: Int, v: T):
         expect_at_least_rank[dim, 3]()
-        self[Self.VecD[Int](x=x, y=y, z=z)] = v
+        self[Self.Vec[Int](x=x, y=y, z=z)] = v
 
-    fn get(self, i: Self.VecD[Int]) -> Optional[T]:
+    fn get(self, i: Self.Vec[Int]) -> Optional[T]:
         var offset = self._maybe_offset(i)
         if offset is None:
             return None
         return self[i=offset.value()]
 
     fn iterate[
-        func: fn (i: Self.VecD[Int]) capturing
+        func: fn (i: Self.Vec[Int]) capturing
     ](self):
 
         @parameter
-        if dim == ImageDimension.D1:
+        if dim == Dimension.D1:
             
             for x in range(self.sizes().x()):
-                func(Self.VecD[Int](x=x))
+                func(Self.Vec[Int](x=x))
 
-        elif dim == ImageDimension.D2:
+        elif dim == Dimension.D2:
             
             for y in range(self.sizes().y()):
                 for x in range(self.sizes().x()):
-                    func(Self.VecD[Int](x=x, y=y))
+                    func(Self.Vec[Int](x=x, y=y))
 
-        elif dim == ImageDimension.D3:
+        elif dim == Dimension.D3:
 
             for z in range(self.sizes().z()):
                 for y in range(self.sizes().y()):
                     for x in range(self.sizes().x()):
-                        func(Self.VecD[Int](x=x, y=y, z=z))
+                        func(Self.Vec[Int](x=x, y=y, z=z))
 
         else:
             unrecognized_dimension[dim]()
@@ -235,7 +180,7 @@ struct DimensionalBuffer[
     fn assert_info[samples: Int, err_fn: ErrFnFloat32 = err_rel](
         self: DimensionalBuffer[dim,Float32],
         msg: String,
-        sizes: Self.VecD[Int],
+        sizes: Self.Vec[Int],
         head: InlineArray[Float32, samples],
         tail: InlineArray[Float32, samples],
         hash: UInt64,
@@ -287,7 +232,7 @@ struct DimensionalBuffer[
     fn assert_info[samples: Int, err_fn: ErrFnFloat32 = err_rel](
         self: DimensionalBuffer[dim,ComplexFloat32],
         msg: String,
-        sizes: Self.VecD[Int],
+        sizes: Self.Vec[Int],
         head: InlineArray[ComplexFloat32, samples],
         tail: InlineArray[ComplexFloat32, samples],
         hash: UInt64,
@@ -381,10 +326,10 @@ struct DimensionalBuffer[
             debug_assert(False, msg, ": Failed to open data file")
 
         # look for mismatched pixels
-        var mismatches = List[Self.VecD[Int]]()
+        var mismatches = List[Self.Vec[Int]]()
         var expi = 0
         @parameter
-        fn func(i: VecD[Int,dim]):
+        fn func(i: Vec[Int,dim]):
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
@@ -446,10 +391,10 @@ struct DimensionalBuffer[
             debug_assert(False, msg, ": Failed to open data file")
 
         # look for mismatched pixels
-        var mismatches = List[Self.VecD[Int]]()
+        var mismatches = List[Self.Vec[Int]]()
         var expi = 0
         @parameter
-        fn func(i: VecD[Int,dim]):
+        fn func(i: Vec[Int,dim]):
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
@@ -495,7 +440,7 @@ struct DimensionalBuffer[
             rank == dim.rank,
             msg, ": Expected rank ", rank, " but image has rank ", dim.rank
         )
-        var sizes = Self.VecD[Int](uninitialized=True)
+        var sizes = Self.Vec[Int](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             sizes[d] = Int(reader.read_i32[Endian.Little]())

@@ -1,32 +1,33 @@
 
+from cryoluge.math import Dimension, Vec
 from cryoluge.io import ByteBuffer
 
 
 struct Image[
-    dim: ImageDimension,
+    dim: Dimension,
     dtype: DType
 ](Copyable, Movable):
     var _buf: DimensionalBuffer[dim,Self.PixelType]
 
-    alias D1 = Image[ImageDimension.D1,_]
-    alias D2 = Image[ImageDimension.D2,_]
-    alias D3 = Image[ImageDimension.D3,_]
-    alias VecD = VecD[_,dim]
+    alias D1 = Image[Dimension.D1,_]
+    alias D2 = Image[Dimension.D2,_]
+    alias D3 = Image[Dimension.D3,_]
+    alias Vec = Vec[_,dim]
     alias PixelType = Scalar[dtype]
     alias PixelVec = SIMD[dtype,_]
     alias pixel_vec_max_width = simd_width_of[dtype]()
 
-    fn __init__(out self, sizes: Self.VecD[Int], *, alignment: Optional[Int] = None):
+    fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
 
     fn __init__(out self, *, sx: Int, alignment: Optional[Int] = None):
-        self = Self(Self.VecD(x=sx), alignment=alignment)
+        self = Self(Self.Vec(x=sx), alignment=alignment)
 
     fn __init__(out self, *, sx: Int, sy: Int, alignment: Optional[Int] = None):
-        self = Self(Self.VecD(x=sx, y=sy), alignment=alignment)
+        self = Self(Self.Vec(x=sx, y=sy), alignment=alignment)
 
     fn __init__(out self, *, sx: Int, sy: Int, sz: Int, alignment: Optional[Int] = None):
-        self = Self(Self.VecD(x=sx, y=sy, z=sz), alignment=alignment)
+        self = Self(Self.Vec(x=sx, y=sy, z=sz), alignment=alignment)
 
     fn rank(self) -> Int:
         return self._buf.rank()
@@ -34,7 +35,7 @@ struct Image[
     fn num_pixels(self) -> Int:
         return self._buf.num_elements()
 
-    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.VecD[Int]:
+    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.Vec[Int]:
         return self._buf.sizes()
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
@@ -46,7 +47,7 @@ struct Image[
     fn __getitem__(self, *, i: Int, out v: Self.PixelType):
         v = self._buf[i=i]
 
-    fn __getitem__(self, i: Self.VecD[Int], out v: Self.PixelType):
+    fn __getitem__(self, i: Self.Vec[Int], out v: Self.PixelType):
         v = self._buf[i]
 
     fn __getitem__(self, *, x: Int, out v: Self.PixelType):
@@ -61,7 +62,7 @@ struct Image[
     fn __setitem__(mut self, *, i: Int, v: Self.PixelType):
         self._buf[i=i] = v
 
-    fn __setitem__(mut self, i: Self.VecD[Int], v: Self.PixelType):
+    fn __setitem__(mut self, i: Self.Vec[Int], v: Self.PixelType):
         self._buf[i] = v
 
     fn __setitem__(mut self, *, x: Int, v: Self.PixelType):
@@ -73,11 +74,11 @@ struct Image[
     fn __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
 
-    fn get(self, i: Self.VecD[Int]) -> Optional[Self.PixelType]:
+    fn get(self, i: Self.Vec[Int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
 
     fn iterate[
-        func: fn (i: Self.VecD[Int]) capturing
+        func: fn (i: Self.Vec[Int]) capturing
     ](self):
         self._buf.iterate[func]()
 
@@ -85,7 +86,7 @@ struct Image[
     fn assert_info[samples: Int](
         self: Image[dim,DType.float32],
         msg: String,
-        sizes: Self.VecD[Int],
+        sizes: Self.Vec[Int],
         head: InlineArray[Float32, samples],
         tail: InlineArray[Float32, samples],
         hash: UInt64,
@@ -155,10 +156,10 @@ struct Image[
         fn func[width: Int](mut p: Self.PixelVec[width]):
             p = v
             
-    fn copy(self, *, center: Self.VecD[Int], padding: Self.PixelType, mut to: Self):
+    fn copy(self, *, center: Self.Vec[Int], padding: Self.PixelType, mut to: Self):
 
         @parameter
-        fn func(i: Self.VecD[Int]):
+        fn func(i: Self.Vec[Int]):
             var to_center = to.sizes()//2
             # NOTE: don't try to compute `to_center` outside the loop: it causes a compiler bug!!
             to[i] = self.get(i + center - to_center).or_else(padding)
@@ -190,7 +191,7 @@ struct Image[
         # TODO: any chance we can vectorize this?
 
         @parameter
-        fn func(i: VecD[Int,dim]):
+        fn func(i: Vec[Int,dim]):
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 sum += Float64(self[i])
@@ -223,7 +224,7 @@ struct Image[
         # TODO: any chance we can vectorize this?
 
         @parameter
-        fn func(i: VecD[Int,dim]):
+        fn func(i: Vec[Int,dim]):
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 # TODO: this is higher-precision, and possibly more efficient, but doesn't match the original csp

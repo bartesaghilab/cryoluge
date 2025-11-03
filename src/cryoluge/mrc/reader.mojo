@@ -1,6 +1,6 @@
 
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian, require_endian
-from cryoluge.image import Image, VecD
+from cryoluge.image import Image, Vec
 
 
 # MRC file (from the Medical Research Council, in the UK)
@@ -58,13 +58,13 @@ struct Reader[
         var nz = r.read_u32[_endian]()
         return (nx, ny, nz)
 
-    fn size_3(self) raises -> VecD.D3[Int]:
+    fn size_3(self) raises -> Vec.D3[Int]:
         var (sx, sy, sz) = self.size()
-        return VecD.D3(x=Int(sx), y=Int(sy), z=Int(sz))
+        return Vec.D3(x=Int(sx), y=Int(sy), z=Int(sz))
 
-    fn size_2(self) raises -> VecD.D2[Int]:
+    fn size_2(self) raises -> Vec.D2[Int]:
         var (sx, sy, _) = self.size()
-        return VecD.D2(x=Int(sx), y=Int(sy))
+        return Vec.D2(x=Int(sx), y=Int(sy))
 
     fn _check_dtype[dtype: DType](self) raises:
         var mode = self.mode()

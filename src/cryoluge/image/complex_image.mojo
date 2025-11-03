@@ -4,26 +4,26 @@ from algorithm import vectorize
 from sys import simd_width_of
 
 from cryoluge.io import ByteBuffer
-from cryoluge.math import ComplexScalar
+from cryoluge.math import Dimension, ComplexScalar
 
 
 struct ComplexImage[
-    dim: ImageDimension,
+    dim: Dimension,
     dtype: DType
 ](Copyable, Movable):
     var _buf: DimensionalBuffer[dim,Self.PixelType]
 
-    alias D1 = ComplexImage[ImageDimension.D1,_]
-    alias D2 = ComplexImage[ImageDimension.D2,_]
-    alias D3 = ComplexImage[ImageDimension.D3,_]
-    alias VecD = VecD[_,dim]
+    alias D1 = ComplexImage[Dimension.D1,_]
+    alias D2 = ComplexImage[Dimension.D2,_]
+    alias D3 = ComplexImage[Dimension.D3,_]
+    alias Vec = Vec[_,dim]
     alias PixelType = ComplexScalar[dtype]
     alias PixelVec = ComplexSIMD[dtype,_]
     alias ScalarType = Scalar[dtype]
     alias ScalarVec = SIMD[dtype,_]
     alias pixel_vec_max_width = simd_width_of[dtype]()
 
-    fn __init__(out self, sizes: Self.VecD[Int], *, alignment: Optional[Int] = None):
+    fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
         # NOTE: This implementation uses an interleaved ordering for complex components.
         #       ie, Array-of-Structures (AoS):
@@ -48,13 +48,13 @@ struct ComplexImage[
         #       For what it's worth, fftw uses the AoS layout, so that's probably good enough for us too.
 
     fn __init__(out self, *, sx: Int, alignment: Optional[Int] = None):
-        self = Self(Self.VecD(x=sx), alignment=alignment)
+        self = Self(Self.Vec(x=sx), alignment=alignment)
 
     fn __init__(out self, *, sx: Int, sy: Int, alignment: Optional[Int] = None):
-        self = Self(Self.VecD(x=sx, y=sy), alignment=alignment)
+        self = Self(Self.Vec(x=sx, y=sy), alignment=alignment)
 
     fn __init__(out self, *, sx: Int, sy: Int, sz: Int, alignment: Optional[Int] = None):
-        self = Self(Self.VecD(x=sx, y=sy, z=sz), alignment=alignment)
+        self = Self(Self.Vec(x=sx, y=sy, z=sz), alignment=alignment)
 
     fn rank(self) -> Int:
         return self._buf.rank()
@@ -62,7 +62,7 @@ struct ComplexImage[
     fn num_pixels(self) -> Int:
         return self._buf.num_elements()
 
-    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.VecD[Int]:
+    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.Vec[Int]:
         return self._buf.sizes()
 
     fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
@@ -74,7 +74,7 @@ struct ComplexImage[
     fn __getitem__(self, *, i: Int, out v: Self.PixelType):
         v = self._buf[i=i]
 
-    fn __getitem__(self, i: Self.VecD[Int], out v: Self.PixelType):
+    fn __getitem__(self, i: Self.Vec[Int], out v: Self.PixelType):
         v = self._buf[i]
 
     fn __getitem__(self, *, x: Int, out v: Self.PixelType):
@@ -89,7 +89,7 @@ struct ComplexImage[
     fn __setitem__(mut self, *, i: Int, v: Self.PixelType):
         self._buf[i=i] = v
 
-    fn __setitem__(mut self, i: Self.VecD[Int], v: Self.PixelType):
+    fn __setitem__(mut self, i: Self.Vec[Int], v: Self.PixelType):
         self._buf[i] = v
 
     fn __setitem__(mut self, *, x: Int, v: Self.PixelType):
@@ -101,11 +101,11 @@ struct ComplexImage[
     fn __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
 
-    fn get(self, i: Self.VecD[Int]) -> Optional[Self.PixelType]:
+    fn get(self, i: Self.Vec[Int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
     
     fn iterate[
-        func: fn (i: Self.VecD[Int]) capturing
+        func: fn (i: Self.Vec[Int]) capturing
     ](self):
         self._buf.iterate[func]()
 
@@ -113,7 +113,7 @@ struct ComplexImage[
     fn assert_info[samples: Int](
         self: ComplexImage[dim,DType.float32],
         msg: String,
-        sizes: Self.VecD[Int],
+        sizes: Self.Vec[Int],
         head: InlineArray[ComplexFloat32, samples],
         tail: InlineArray[ComplexFloat32, samples],
         hash: UInt64,

@@ -2,6 +2,8 @@
 from math import sin, cos, pi
 from complex import ComplexSIMD
 
+from .dimension import *
+from .vec import *
 
 # NOTE: coming in mojo stdlib in next release
 alias ComplexScalar = ComplexSIMD[_,1]

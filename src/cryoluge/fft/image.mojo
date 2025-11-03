@@ -1,12 +1,12 @@
 
 from math import pi, cos, sin
 
-from cryoluge.math import ComplexScalar
-from cryoluge.image import ImageDimension, VecD, ComplexImage
+from cryoluge.math import Dimension, Vec, ComplexScalar, Matrix
+from cryoluge.image import ComplexImage
 
 
 struct FFTImage[
-    dim: ImageDimension,
+    dim: Dimension,
     dtype: DType
 ](Copyable, Movable):
     """
@@ -14,19 +14,19 @@ struct FFTImage[
     to enable coordinate transfomrations between real-space and fourier-space.
     """
 
-    var sizes_real: VecD[Int,dim]
+    var sizes_real: Vec[Int,dim]
     var complex: ComplexImage[dim,dtype]
 
-    alias D1 = FFTImage[ImageDimension.D1,_]
-    alias D2 = FFTImage[ImageDimension.D2,_]
-    alias D3 = FFTImage[ImageDimension.D3,_]
-    alias VecD = ComplexImage[dim,dtype].VecD
+    alias D1 = FFTImage[Dimension.D1,_]
+    alias D2 = FFTImage[Dimension.D2,_]
+    alias D3 = FFTImage[Dimension.D3,_]
+    alias Vec = ComplexImage[dim,dtype].Vec
     alias PixelType = ComplexImage[dim,dtype].PixelType
     alias PixelVec = ComplexImage[dim,dtype].PixelVec
     alias ScalarType = ComplexImage[dim,dtype].ScalarType
     alias ScalarVec = ComplexImage[dim,dtype].ScalarVec
 
-    fn __init__(out self, sizes_real: Self.VecD[Int], *, alignment: Optional[Int] = None):
+    fn __init__(out self, sizes_real: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self.sizes_real = sizes_real.copy()
         var fft_coords = FFTCoords(sizes_real)
         self.complex = ComplexImage[dim,dtype](fft_coords.sizes_fourier(), alignment=alignment)
@@ -52,17 +52,15 @@ struct FFTImage[
 
         # sample into the dst image
         @parameter
-        fn sample(i: Self.VecD[Int]):
+        fn sample(i: Self.Vec[Int]):
             dst.complex[i] = self.complex[self.coords().f2i(dst.coords().i2f(i))]
 
         dst.complex.iterate[sample]()
 
-    # TODO: move these functions to struct extension functions? when that gets released?
-
-    fn phase_shift(mut self, shift: Self.VecD[Scalar[dtype]]):
+    fn phase_shift(mut self, shift: Self.Vec[Scalar[dtype]]):
         
         @parameter
-        fn func(i: Self.VecD[Int]):
+        fn func(i: Self.Vec[Int]):
             var freq = self.coords().i2f(i).map_scalar[dtype]()
             var sizes_real = self.coords().sizes_real().map_scalar[dtype]()
             var phase = 0 - (freq*shift*2*pi/sizes_real).sum()

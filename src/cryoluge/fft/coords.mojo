@@ -1,10 +1,9 @@
 
-from cryoluge.image import ImageDimension
-from cryoluge.math import is_odd
+from cryoluge.math import Dimension, Vec, is_odd
 
 
 struct FFTCoords[
-    dim: ImageDimension,
+    dim: Dimension,
     origin: Origin[mut=False]
 ](
     Copyable,
@@ -29,24 +28,24 @@ struct FFTCoords[
             A[d][n/2+1:n) contains the negative-frequency terms, in order of decreasing absolute frequency
     """
 
-    var _sizes_real: Pointer[Self.VecD, origin]
+    var _sizes_real: Pointer[Self.Vec, origin]
 
-    alias VecD = VecD[Int,dim]
+    alias Vec = Vec[Int,dim]
 
-    fn __init__(out self, ref [origin] sizes_real: Self.VecD):
+    fn __init__(out self, ref [origin] sizes_real: Self.Vec):
         self._sizes_real = Pointer(to=sizes_real)
 
-    fn sizes_real(self) -> ref [origin] Self.VecD:
+    fn sizes_real(self) -> ref [origin] Self.Vec:
         return self._sizes_real[]
 
-    fn sizes_fourier(self, out sizes_fourier: Self.VecD):
+    fn sizes_fourier(self, out sizes_fourier: Self.Vec):
         sizes_fourier = self.sizes_real().copy()
         sizes_fourier.x() = self.sizes_real().x()//2 + 1
         # NOTE: all the higher dimensions should stay the same
 
-    fn pivot(self, out v: Self.VecD):
+    fn pivot(self, out v: Self.Vec):
         """The first image index that maps to a negative frequency."""
-        v = Self.VecD(uninitialized=True)
+        v = Self.Vec(uninitialized=True)
         v[0] = 0  # not used: can be an arbitrary value
         @parameter
         for d in range(1, dim.rank):
@@ -54,26 +53,26 @@ struct FFTCoords[
             if is_odd(self.sizes_real()[d]):
                 v[d] += 1
 
-    fn fmin(self, out v: Self.VecD):
+    fn fmin(self, out v: Self.Vec):
         """Returns the lower bound (inclusive) on fourier coordinates."""
-        v = Self.VecD(uninitialized=True)
+        v = Self.Vec(uninitialized=True)
         v[0] = 1 - self.sizes_fourier()[0]
         @parameter
         for d in range(1, dim.rank):
             v[d] = self.pivot()[d] - self.sizes_real()[d]
 
-    fn fmax(self, out v: Self.VecD):
+    fn fmax(self, out v: Self.Vec):
         """Returns the upper bound (inclusive) on fourier coordinates."""
-        v = Self.VecD(uninitialized=True)
+        v = Self.Vec(uninitialized=True)
         v[0] = self.sizes_fourier()[0] - 1
         @parameter
         for d in range(1, dim.rank):
             v[d] = self.pivot()[d] - 1
 
-    fn needs_conjugation(self, f: Self.VecD) -> Bool:
+    fn needs_conjugation(self, f: Self.Vec) -> Bool:
         return f.x() < 0
 
-    fn f2i(self, f: Self.VecD, out i: Self.VecD):
+    fn f2i(self, f: Self.Vec, out i: Self.Vec):
         """
         Converts fourier coordinates to image coordinates.
         Maps negative x fourier coordinates to the positive side.
@@ -87,7 +86,7 @@ struct FFTCoords[
             if i[d] < 0:
                 i[d] += self.sizes_fourier()[d]
 
-    fn i2f(self, i: Self.VecD, out f: Self.VecD):
+    fn i2f(self, i: Self.Vec, out f: Self.Vec):
         """Converts image coordinates to fourier coordinates."""
 
         f = i.copy()
