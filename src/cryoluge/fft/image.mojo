@@ -1,4 +1,7 @@
 
+from math import pi, cos, sin
+
+from cryoluge.math import ComplexScalar
 from cryoluge.image import ImageDimension, VecD, ComplexImage
 
 
@@ -23,7 +26,7 @@ struct FFTImage[
     alias ScalarType = ComplexImage[dim,dtype].ScalarType
     alias ScalarVec = ComplexImage[dim,dtype].ScalarVec
 
-    fn __init__(out self, sizes_real: VecD[Int,dim], *, alignment: Optional[Int] = None):
+    fn __init__(out self, sizes_real: Self.VecD[Int], *, alignment: Optional[Int] = None):
         self.sizes_real = sizes_real.copy()
         var fft_coords = FFTCoords(sizes_real)
         self.complex = ComplexImage[dim,dtype](fft_coords.sizes_fourier(), alignment=alignment)
@@ -53,3 +56,16 @@ struct FFTImage[
             dst.complex[i] = self.complex[self.coords().f2i(dst.coords().i2f(i))]
 
         dst.complex.iterate[sample]()
+
+    # TODO: move these functions to struct extension functions? when that gets released?
+
+    fn phase_shift(mut self, shift: Self.VecD[Scalar[dtype]]):
+        
+        @parameter
+        fn func(i: Self.VecD[Int]):
+            var freq = self.coords().i2f(i).map_scalar[dtype]()
+            var sizes_real = self.coords().sizes_real().map_scalar[dtype]()
+            var phase = 0 - (freq*shift*2*pi/sizes_real).sum()
+            self.complex[i=i] *= ComplexScalar[dtype](re=cos(phase), im=sin(phase))
+
+        self.complex.iterate[func]()

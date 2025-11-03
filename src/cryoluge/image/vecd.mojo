@@ -254,6 +254,18 @@ struct VecD[
     fn __itruediv__[dtype: DType](mut self: VecD[Scalar[dtype],dim], other: Scalar[dtype]):
         self /= VecD[Scalar[dtype],dim](fill=other)
 
+    fn sum(self: VecD[Int,dim], out result: Int):
+        result = 0
+        @parameter
+        for d in range(dim.rank):
+            result += self[d]
+
+    fn sum[dtype: DType](self: VecD[Scalar[dtype],dim], out result: Scalar[dtype]):
+        result = Scalar[dtype](0)
+        @parameter
+        for d in range(dim.rank):
+            result += self[d]
+
     fn product(self: VecD[Int,dim], out result: Int):
         result = 1
         @parameter

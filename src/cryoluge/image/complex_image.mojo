@@ -4,10 +4,7 @@ from algorithm import vectorize
 from sys import simd_width_of
 
 from cryoluge.io import ByteBuffer
-
-
-# NOTE: coming in mojo stdlib in next release
-alias ComplexScalar = ComplexSIMD[_,1]
+from cryoluge.math import ComplexScalar
 
 
 struct ComplexImage[

@@ -1,5 +1,10 @@
 
 from math import sin, cos, pi
+from complex import ComplexSIMD
+
+
+# NOTE: coming in mojo stdlib in next release
+alias ComplexScalar = ComplexSIMD[_,1]
 
 
 fn is_even(n: Int) -> Bool:
