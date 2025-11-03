@@ -23,6 +23,13 @@ def test_set():
     assert_equal(dict[5].i, 42)
 
 
+def test_get():
+    var dict = MovableDict[Int,Thing]()
+    dict[5] = Thing(42)
+    assert_equal(dict.get(5).value()[].i, 42)
+    assert_true(dict.get(42) is None)
+
+
 def test_pop():
     var dict = MovableDict[Int,Thing]()
     dict[5] = Thing(42)

@@ -37,6 +37,26 @@ struct MovableDict[
         var p = self._dict[key]
         return p[]
 
+    fn get(self, key: K) -> Optional[Pointer[V, __origin_of(self[key])]]:
+        try:
+            ref v = self._dict[key]
+            var p = v.origin_cast[target_mut=False, target_origin=__origin_of(self[key])]()
+            return Pointer(to=p[])
+        except KeyError:
+            return None
+
+    fn get_mut(mut self, key: K) -> Optional[Pointer[V, __origin_of(self[key])]]:
+        try:
+            ref v = self._dict[key]
+            var p = v.origin_cast[target_mut=True, target_origin=__origin_of(self[key])]()
+            return Pointer(to=p[])
+        except KeyError:
+            return None
+
+    # TODO: when pointer v2 in the stdlib ships (next release?),
+    #       try to unify the two above get() impls by using parametric mutability
+    #       Can't seem to find a way to do it now =(
+
     fn __setitem__(mut self, var key: K, var val: V):
 
         # move the value into a pointer
