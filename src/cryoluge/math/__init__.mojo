@@ -4,6 +4,10 @@ from complex import ComplexSIMD
 
 from .dimension import *
 from .vec import *
+from .angles import *
+from .matrix import *
+from .euler import *
+
 
 # NOTE: coming in mojo stdlib in next release
 alias ComplexScalar = ComplexSIMD[_,1]
