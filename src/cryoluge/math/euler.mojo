@@ -1,4 +1,6 @@
 
+from math import sin, acos, asin, atan2, pi
+
 from cryoluge.image import Vec
 
 
@@ -27,6 +29,29 @@ struct EulerAnglesZYZ[dtype: DType](
         self.theta_rad = deg_to_rad(deg=theta_deg)
         self.phi_rad = deg_to_rad(deg=phi_deg)
 
+    fn __init__(out self, *, from_mat: Matrix.D3[dtype]):
+        ref m = from_mat
+        if m[2,2] < 1:
+            if m[2,2] > -1:
+                self.theta_rad = acos(m[2,2])
+                var sin_theta_rad = sin(self.theta_rad)
+                self.psi_rad = atan2(
+                    m[2,1]/sin_theta_rad,
+                    m[2,0]/sin_theta_rad
+                )
+                self.phi_rad = atan2(
+                    m[1,2]/sin_theta_rad,
+                    -m[0,2]/sin_theta_rad
+                )
+            else:
+                self.theta_rad = pi
+                self.psi_rad = 0
+                self.phi_rad = atan2(-m[0,1], -m[0,0])
+        else:
+            self.theta_rad = 0
+            self.psi_rad = 0
+            self.phi_rad = atan2(m[0,1], m[0,0])
+
     fn psi_deg(self, out deg: Scalar[dtype]):
         deg = rad_to_deg(rad=self.psi_rad)
 
@@ -51,3 +76,36 @@ struct EulerAnglesZYZ[dtype: DType](
         var rot_theta = Matrix.D3[dtype](rotate_y_rad=self.theta_rad)
         var rot_phi = Matrix.D3[dtype](rotate_z_rad=self.phi_rad)
         mat = rot_phi*rot_theta*rot_psi
+
+    # math functions
+
+    fn __neg__(self, out result: Self):
+        result = Self(
+            psi_rad = -self.psi_rad,
+            theta_rad = -self.theta_rad,
+            phi_rad = -self.phi_rad
+        )
+
+    fn __add__(self, other: Self, out result: Self):
+        result = Self(
+            psi_rad = self.psi_rad + other.psi_rad,
+            theta_rad = self.theta_rad + other.theta_rad,
+            phi_rad = self.phi_rad + other.phi_rad
+        )
+
+    fn __iadd__(mut self, other: Self):
+        self.psi_rad += other.psi_rad
+        self.theta_rad += other.theta_rad
+        self.phi_rad += other.phi_rad
+
+    fn __sub__(self, other: Self, out result: Self):
+        result = Self(
+            psi_rad = self.psi_rad - other.psi_rad,
+            theta_rad = self.theta_rad - other.theta_rad,
+            phi_rad = self.phi_rad - other.phi_rad
+        )
+
+    fn __isub__(mut self, other: Self):
+        self.psi_rad -= other.psi_rad
+        self.theta_rad -= other.theta_rad
+        self.phi_rad -= other.phi_rad

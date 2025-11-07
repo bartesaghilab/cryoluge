@@ -8,7 +8,9 @@ struct Matrix[
     dtype: DType
 ](
     Copyable,
-    Movable
+    Movable,
+    Writable,
+    Stringable
 ):
     var _values: InlineArray[Scalar[dtype], Self.num_elements]
 
@@ -44,6 +46,18 @@ struct Matrix[
         @parameter
         for c in range(cols):
             self[row, c] = v[c]
+
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write("Matrix[", rows, ", ", cols, "]:")
+        @parameter
+        for r in range(rows):
+            writer.write("\n  ")
+            @parameter
+            for c in range(cols):
+                writer.write("  ", self[r,c])
+
+    fn __str__(self) -> String:
+        return String.write(self)
 
     # setters
 
@@ -119,12 +133,12 @@ struct Matrix[
 
     # math
 
-    fn __mul__(self, rhs: Matrix[cols,rows,dtype], out product: Matrix[rows,rows,dtype]):
-        product = Matrix[rows,rows,dtype](uninitialized=True)
+    fn __mul__[other_cols: Int](self, rhs: Matrix[cols,other_cols,dtype], out product: Matrix[rows,other_cols,dtype]):
+        product = Matrix[rows,other_cols,dtype](uninitialized=True)
         @parameter
         for r in range(rows):
             @parameter
-            for c in range(rows):
+            for c in range(other_cols):
                 var v = Scalar[dtype](0)
                 @parameter
                 for i in range(cols):
