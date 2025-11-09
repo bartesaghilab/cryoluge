@@ -2,7 +2,9 @@
 from io import FileHandle
 from tempfile import NamedTemporaryFile
 
-from testing import assert_equal
+from cryoluge.math import EulerAnglesZYZ
+
+from testing import assert_equal, assert_true
 
 
 def file_handle(tempfile: NamedTemporaryFile) -> ref [tempfile._file_handle] FileHandle:
@@ -23,3 +25,20 @@ def assert_equal_buffers(
             obs[i], exp[i],
             msg=String("Arrays differ at i=", i)
         )
+
+
+def assert_equal_angles[dtype: DType](
+    obs: EulerAnglesZYZ[dtype],
+    exp: EulerAnglesZYZ[dtype],
+    *,
+    eps: Scalar[dtype] = 1e-5
+):
+    var err = (exp - obs).abs().sum_deg()
+    assert_true(
+        err < eps,
+        String("Angles mismatch!\n",
+            "\texpected: ", exp, "\n",
+            "\tobserved: ", obs, "\n",
+            "\t     err: ", err
+        )
+    )

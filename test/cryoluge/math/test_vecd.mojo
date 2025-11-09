@@ -71,3 +71,11 @@ def test_project():
     assert_equal(Vec.D3(x=5, y=42, z=7).project_2(), Vec.D2(x=5, y=42))
     assert_equal(Vec.D3(x=5, y=42, z=7).project[Dimension.D1](), Vec.D1(x=5))
     assert_equal(Vec.D3(x=5, y=42, z=7).project_1(), Vec.D1(x=5))
+
+
+def test_lift():
+
+    assert_equal(Vec.D1(x=5).lift(y=42), Vec.D2(x=5, y=42))
+    assert_equal(Vec.D1(x=5).lift(y=42, z=7), Vec.D3(x=5, y=42, z=7))
+
+    assert_equal(Vec.D2(x=5, y=42).lift(z=7), Vec.D3(x=5, y=42, z=7))

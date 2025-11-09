@@ -90,6 +90,37 @@ struct Vec[
     fn project_1(self, out result: Self.D1[T]):
         return self.project[Dimension.D1]()
 
+    fn lift[
+        higher_dim: Dimension,
+        diff_dim: Dimension
+    ](self: Vec[T,dim], v: Vec[T,diff_dim], out result: Vec[T,higher_dim]):
+        constrained[
+            higher_dim.rank > dim.rank,
+            String("Lifted rank ", higher_dim, " must be higher than vec rank ", dim.rank)
+        ]()
+        alias diff_rank = higher_dim.rank - dim.rank
+        alias exp_diff_dim = Dimension(higher_dim.rank - dim.rank, "Difference")
+        constrained[
+            diff_dim == exp_diff_dim,
+            String("Values rank ", diff_dim, " must be ", exp_diff_dim)
+        ]()
+        result = Vec[T,higher_dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]
+        @parameter
+        for d in range(diff_dim.rank):
+            result[dim.rank + d] = v[d]
+
+    fn lift(self: Vec.D1[T], *, y: T, out result: Vec.D2[T]):
+        result = self.lift[Dimension.D2,Dimension.D1](Vec.D1[T](x=y))
+
+    fn lift(self: Vec.D1[T], *, y: T, z: T, out result: Vec.D3[T]):
+        result = self.lift[Dimension.D3,Dimension.D2](Vec.D2[T](x=y, y=z))
+
+    fn lift(self: Vec.D2[T], *, z: T, out result: Vec.D3[T]):
+        result = self.lift[Dimension.D3,Dimension.D1](Vec.D1[T](x=z))
+
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
     #       since mojo doesn't seem to have traits for their math dunder methods =(
@@ -173,6 +204,18 @@ struct Vec[
 
     fn __isub__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Scalar[dtype]):
         self -= Vec[Scalar[dtype],dim](fill=other)
+
+    fn __rsub__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
+        result = other - self
+
+    fn __rsub__(self: Vec[Int,dim], other: Int, out result: Vec[Int,dim]):
+        result = Vec[Int,dim](fill=other) - other
+
+    fn __rsub__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
+        result = other - self
+
+    fn __rsub__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
+        result = Vec[Scalar[dtype],dim](fill=other) - other
 
     fn __mul__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)
@@ -331,6 +374,18 @@ struct Vec[
         @parameter
         for d in range(dim.rank):
             result[d] = sinc(self[d])
+
+    fn abs(self: Vec[Int,dim], out result: Vec[Int,dim]):
+        @parameter
+        fn func(i: Int) -> Int:
+            return abs(i)
+        result = self.map[mapper=func]()
+
+    fn abs[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
+        @parameter
+        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
+            return abs(i)
+        result = self.map[mapper=func]()
 
 
 fn expect_num_arguments[dim: Dimension, count: Int]():

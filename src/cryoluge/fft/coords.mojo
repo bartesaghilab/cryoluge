@@ -69,7 +69,7 @@ struct FFTCoords[
         for d in range(1, dim.rank):
             v[d] = self.pivot()[d] - 1
 
-    fn needs_conjugation(self, f: Self.Vec) -> Bool:
+    fn needs_conjugation(self, *, f: Self.Vec) -> Bool:
         return f.x() < 0
 
     fn f2i(self, f: Self.Vec, out i: Self.Vec):

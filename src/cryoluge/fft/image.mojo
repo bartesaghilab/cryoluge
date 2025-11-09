@@ -1,5 +1,5 @@
 
-from math import pi, cos, sin
+from math import pi, cos, sin, floor
 
 from cryoluge.math import Dimension, Vec, ComplexScalar, Matrix
 from cryoluge.image import ComplexImage
@@ -57,6 +57,7 @@ struct FFTImage[
 
         dst.complex.iterate[sample]()
 
+    # TODO: separate from iterate()
     fn phase_shift(mut self, shift: Self.Vec[Scalar[dtype]]):
         
         @parameter
@@ -67,3 +68,107 @@ struct FFTImage[
             self.complex[i=i] *= ComplexScalar[dtype](re=cos(phase), im=sin(phase))
 
         self.complex.iterate[func]()
+
+    fn get(
+        self,
+        *,
+        f: Self.Vec[Int],
+        out v: Optional[ComplexScalar[dtype]]
+    ):
+        var conj = self.coords().needs_conjugation(f=f)
+
+        var i: Vec[Int,dim]
+        if conj:
+            i = self.coords().f2i(-f)
+        else:
+            i = self.coords().f2i(f)
+
+        v = self.complex.get(i)
+        if v is not None and conj:
+            v = v.value().conj()
+
+    fn get(
+        self: FFTImage[dim,dtype],
+        *,
+        f_lerp: Self.Vec[Float32],
+    ) -> Optional[ComplexScalar[dtype]]:
+        ref f = f_lerp
+
+        # discretize the frequency coordinates
+        @parameter
+        fn func_start(v: Float32) -> Int:
+            return Int(floor(v))
+        var start = f.map[mapper=func_start]()
+
+        # build the multi-dimensional delta vectors
+        fn build_deltas(out deltas: List[Vec[Int,dim]]):
+            deltas = [
+                Vec[Int,dim](fill=0)
+            ]
+            for d in range(dim.rank):
+                for i in range(len(deltas)):
+                    var delta = deltas[i].copy()
+                    delta[d] = 1
+                    deltas.append(delta^)
+
+        sum = ComplexScalar[dtype](0, 0)
+
+        @parameter
+        for delta in build_deltas():
+            var f_sample = start + materialize[delta]()
+            var v = self.get(f=f_sample)
+            if v is None:
+                return None
+            var dists = (f - f_sample.map_float32()).abs()
+            var weight = Scalar[dtype]((1 - dists).product())
+            sum = sum + v.value()*weight
+
+        return sum
+
+    # TODO: separate from iterate()
+    fn slice(
+        self: FFTImage[Dimension.D3,dtype],
+        *,
+        rot: Matrix.D3[DType.float32],
+        res_limit: Float32,
+        mut to: FFTImage.D2[dtype],
+        out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
+        origin_value: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
+    ):
+        var res_limit2 = (res_limit*self.coords().sizes_real().x())**2
+
+        print('hack', res_limit2)  # TEMP: needed to work around compiler bug
+
+        @parameter
+        fn func(i: to.Vec[Int]):
+            var freq_2d = to.coords().i2f(i)
+            var freq_2d_f = freq_2d.map_float32()
+
+            # TEMP
+            var is_pixel = i == Vec.D2(x=3, y=0)
+            if is_pixel:
+                print('i=', i, '  f=', freq_2d)
+                print('\tdist2 = ', freq_2d_f.len2(), ' <= ', res_limit2)
+
+            if freq_2d_f.len2() <= res_limit2:
+
+                # rotate the sample point into 3d
+                var freq_3d_f = rot*freq_2d_f.lift(z=0)
+
+                if is_pixel:  # TEMP
+                    print('sample: ', freq_2d_f, ' -> ', freq_3d_f)
+
+                # do the linear interpolation
+                var v = self.get(f_lerp=freq_3d_f).or_else(out_of_range)
+
+                # save to the output
+                if to.coords().needs_conjugation(f=freq_2d):
+                    v = v.conj()
+                to.complex[i] = v
+            else:
+                to.complex[i] = out_of_range
+
+        to.complex.iterate[func]()
+
+        # set origin to control the average
+        to.complex[x=0, y=0] = origin_value

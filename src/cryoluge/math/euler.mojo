@@ -31,26 +31,13 @@ struct EulerAnglesZYZ[dtype: DType](
 
     fn __init__(out self, *, from_mat: Matrix.D3[dtype]):
         ref m = from_mat
-        if m[2,2] < 1:
-            if m[2,2] > -1:
-                self.theta_rad = acos(m[2,2])
-                var sin_theta_rad = sin(self.theta_rad)
-                self.psi_rad = atan2(
-                    m[2,1]/sin_theta_rad,
-                    m[2,0]/sin_theta_rad
-                )
-                self.phi_rad = atan2(
-                    m[1,2]/sin_theta_rad,
-                    -m[0,2]/sin_theta_rad
-                )
-            else:
-                self.theta_rad = pi
-                self.psi_rad = 0
-                self.phi_rad = atan2(-m[0,1], -m[0,0])
+        self.theta_rad = acos(m[2,2])
+        if abs(m[0,2]) < 1e-4:
+            self.psi_rad = atan2(m[1,0], m[1,1])
+            self.phi_rad = 0
         else:
-            self.theta_rad = 0
-            self.psi_rad = 0
-            self.phi_rad = atan2(m[0,1], m[0,0])
+            self.psi_rad = atan2(m[2,1], -m[2,0])
+            self.phi_rad = atan2(m[1,2], m[0,2])
 
     fn psi_deg(self, out deg: Scalar[dtype]):
         deg = rad_to_deg(rad=self.psi_rad)
@@ -63,7 +50,7 @@ struct EulerAnglesZYZ[dtype: DType](
 
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(
-            "EulerAnglesZYZ[phi=", self.psi_deg(),
+            "EulerAnglesZYZ[psi=", self.psi_deg(),
             "°, theta=", self.theta_deg(),
             "°, phi=", self.phi_deg(), "°]"
         )
@@ -109,3 +96,16 @@ struct EulerAnglesZYZ[dtype: DType](
         self.psi_rad -= other.psi_rad
         self.theta_rad -= other.theta_rad
         self.phi_rad -= other.phi_rad
+
+    fn abs(self, out result: Self):
+        result = Self(
+            psi_rad = abs(self.psi_rad),
+            theta_rad = abs(self.theta_rad),
+            phi_rad = abs(self.phi_rad)
+        )
+
+    fn sum_rad(self, out result: Scalar[dtype]):
+        result = self.psi_rad + self.theta_rad + self.phi_rad
+
+    fn sum_deg(self, out result: Scalar[dtype]):
+        result = self.psi_deg() + self.theta_deg() + self.phi_deg()
