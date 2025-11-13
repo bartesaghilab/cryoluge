@@ -93,7 +93,7 @@ struct DimensionalBuffer[
         for d in range(dim.rank):
             var coord = i[d]
             var size = self._sizes[d]
-            if coord < size:
+            if coord >= 0 and coord < size:
                 offset += coord*self._strides[d]
             else:
                 return None

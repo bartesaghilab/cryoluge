@@ -76,21 +76,20 @@ struct FFTImage[
         out v: Optional[ComplexScalar[dtype]]
     ):
         var conj = self.coords().needs_conjugation(f=f)
+        var i = self.coords().maybe_f2i(f, needs_conj=conj)
 
-        var i: Vec[Int,dim]
-        if conj:
-            i = self.coords().f2i(-f)
-        else:
-            i = self.coords().f2i(f)
+        if i is None:
+            v = None
+            return
 
-        v = self.complex.get(i)
+        v = self.complex.get(i.value())
         if v is not None and conj:
             v = v.value().conj()
 
     fn get(
         self: FFTImage[dim,dtype],
         *,
-        f_lerp: Self.Vec[Float32],
+        f_lerp: Self.Vec[Float32]
     ) -> Optional[ComplexScalar[dtype]]:
         ref f = f_lerp
 
@@ -100,7 +99,7 @@ struct FFTImage[
             return Int(floor(v))
         var start = f.map[mapper=func_start]()
 
-        # build the multi-dimensional delta vectors
+        # build the multi-dimensional delta vectors (at compile-time)
         fn build_deltas(out deltas: List[Vec[Int,dim]]):
             deltas = [
                 Vec[Int,dim](fill=0)
@@ -116,6 +115,14 @@ struct FFTImage[
         @parameter
         for delta in build_deltas():
             var f_sample = start + materialize[delta]()
+
+            # TEMP: technically, the sample might need conjugation,
+            #       and the coordinate inversion might put it back in-range,
+            #       but csp1 doesn't do that,
+            #       so add another explicit (and unecessary) range check here to match csp1 behavior
+            if not self.coords().f_in_range(f_sample):
+                return None
+            
             var v = self.get(f=f_sample)
             if v is None:
                 return None
@@ -144,19 +151,10 @@ struct FFTImage[
             var freq_2d = to.coords().i2f(i)
             var freq_2d_f = freq_2d.map_float32()
 
-            # TEMP
-            var is_pixel = i == Vec.D2(x=3, y=0)
-            if is_pixel:
-                print('i=', i, '  f=', freq_2d)
-                print('\tdist2 = ', freq_2d_f.len2(), ' <= ', res_limit2)
-
             if freq_2d_f.len2() <= res_limit2:
 
                 # rotate the sample point into 3d
                 var freq_3d_f = rot*freq_2d_f.lift(z=0)
-
-                if is_pixel:  # TEMP
-                    print('sample: ', freq_2d_f, ' -> ', freq_3d_f)
 
                 # do the linear interpolation
                 var v = self.get(f_lerp=freq_3d_f).or_else(out_of_range)

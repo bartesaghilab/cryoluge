@@ -209,13 +209,13 @@ struct Vec[
         result = other - self
 
     fn __rsub__(self: Vec[Int,dim], other: Int, out result: Vec[Int,dim]):
-        result = Vec[Int,dim](fill=other) - other
+        result = Vec[Int,dim](fill=other) - self
 
     fn __rsub__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
         result = other - self
 
     fn __rsub__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
-        result = Vec[Scalar[dtype],dim](fill=other) - other
+        result = Vec[Scalar[dtype],dim](fill=other) - self
 
     fn __mul__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)

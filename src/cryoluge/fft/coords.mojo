@@ -72,11 +72,23 @@ struct FFTCoords[
     fn needs_conjugation(self, *, f: Self.Vec) -> Bool:
         return f.x() < 0
 
+    fn f_in_range(self, f: Self.Vec) -> Bool:
+        @parameter
+        for d in range(dim.rank):
+            if f[d] < self.fmin()[d] or f[d] > self.fmax()[d]:
+                # TODO: do we need to optimize this?? ^^
+                return False
+        return True
+
     fn f2i(self, f: Self.Vec, out i: Self.Vec):
         """
         Converts fourier coordinates to image coordinates.
         Maps negative x fourier coordinates to the positive side.
-        Check `needs_conjugation()` to see if the FFT value at these coords can be used as-is, or not.
+
+        Check `needs_conjugation()` to see if the FFT value at these coords can be used as-is,
+        or if the value needs to be conjugated.
+
+        Precondition: f is in range
         """
 
         i = f.copy()
@@ -86,8 +98,30 @@ struct FFTCoords[
             if i[d] < 0:
                 i[d] += self.sizes_fourier()[d]
 
+    fn maybe_f2i(self, f: Self.Vec, *, needs_conj: Bool = False, out i: Optional[Self.Vec]):
+        """
+        If the Fourier coordinates are in-range, this function converts them to image coordinates.
+        Otherwise, returns None.
+
+        Check `needs_conjugation()` to see if the FFT value at these coords can be used as-is,
+        or if the value needs to be conjugated.
+        """
+
+        var _f = f.copy()
+        if needs_conj:
+            _f = -f
+
+        if self.f_in_range(_f):
+            i = self.f2i(_f)
+        else:
+            i = None
+
     fn i2f(self, i: Self.Vec, out f: Self.Vec):
-        """Converts image coordinates to fourier coordinates."""
+        """
+        Converts image coordinates to fourier coordinates.
+        
+        Precondition: i is in range
+        """
 
         f = i.copy()
 
