@@ -132,7 +132,6 @@ struct FFTImage[
 
         return sum
 
-    # TODO: separate from iterate()
     fn slice(
         self: FFTImage[Dimension.D3,dtype],
         *,
@@ -142,31 +141,63 @@ struct FFTImage[
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
         origin_value: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
     ):
-        var res_limit2 = (res_limit*self.coords().sizes_real().x())**2
+        ref src = self
+        ref dst = to
 
-        print('hack', res_limit2)  # TEMP: needed to work around compiler bug
+        var op = FFTSliceOperator(src, res_limit)
+
+        print(dst.complex.sizes(), op._res_limit2)  # TEMP: work around compiler bug
 
         @parameter
         fn func(i: to.Vec[Int]):
-            var freq_2d = to.coords().i2f(i)
+            dst.complex[i] = op.eval(src, dst, rot, i, out_of_range=out_of_range, origin_value=origin_value)
+
+        to.complex.iterate[func]()
+
+
+struct FFTSliceOperator[dtype: DType]:
+    alias Src = FFTImage[Dimension.D3,dtype]
+    alias Dst = FFTImage[Dimension.D2,dtype]
+
+    var _res_limit2: Float32
+
+    fn __init__(
+        out self,
+        src: Self.Src,
+        res_limit: Float32
+    ):
+        var x_size = Float32(src.coords().sizes_real().x())
+        self._res_limit2 = (res_limit*x_size)**2
+
+    fn eval(
+        self,
+        src: Self.Src,
+        mut dst: Self.Dst,
+        rot: Matrix.D3[DType.float32],
+        i: Vec[Int,Self.Dst.dim],
+        *,
+        out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
+        origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
+        out pixel: ComplexScalar[dtype]
+    ):
+        var freq_2d = dst.coords().i2f(i)
+        if freq_2d == Vec.D2[Int](x=0, y=0):
+            pixel = origin_value
+        else:
+
             var freq_2d_f = freq_2d.map_float32()
 
-            if freq_2d_f.len2() <= res_limit2:
+            if freq_2d_f.len2() <= self._res_limit2:
 
                 # rotate the sample point into 3d
                 var freq_3d_f = rot*freq_2d_f.lift(z=0)
 
                 # do the linear interpolation
-                var v = self.get(f_lerp=freq_3d_f).or_else(out_of_range)
+                var v = src.get(f_lerp=freq_3d_f).or_else(out_of_range)
 
                 # save to the output
-                if to.coords().needs_conjugation(f=freq_2d):
+                if dst.coords().needs_conjugation(f=freq_2d):
                     v = v.conj()
-                to.complex[i] = v
+                pixel = v
             else:
-                to.complex[i] = out_of_range
-
-        to.complex.iterate[func]()
-
-        # set origin to control the average
-        to.complex[x=0, y=0] = origin_value
+                pixel = out_of_range
