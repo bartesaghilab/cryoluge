@@ -12,6 +12,9 @@ struct UnitType(
 
     alias Pix = Self(1, "Pix")
     alias Ang = Self(2, "Ang")
+    alias MM = Self(3, "mm")
+    alias Rad = Self(4, "rad")
+    alias Deg = Self(5, "deg")
 
     fn __eq__(self, other: Self) -> Bool:
         return self.value == other.value
@@ -28,6 +31,11 @@ alias PixFloat32 = Pix[DType.float32,_]
 
 alias Ang = Unit[UnitType.Ang, _, _]
 alias AngFloat32 = Ang[DType.float32,_]
+
+alias MM = Unit[UnitType.MM, _, _]
+
+alias Rad = Unit[UnitType.Ang, _, _]
+alias Deg = Unit[UnitType.Deg, _, _]
 
 
 @register_passable("trivial")
@@ -242,6 +250,9 @@ struct Unit[
     fn clamp(self, *, min: Self.V, max: Self.V) -> Self:
         return self.clamp(min=min).clamp(max=max)
 
+    fn sqrt(self) -> Self:
+        return Self(sqrt(self.value))
+
     # conversions
     # TODO: would these makes sense as extension functions?
 
@@ -252,9 +263,27 @@ struct Unit[
     ):
         ang = Ang(self.value*pixel_size)
 
+    fn to_ang(
+        self: MM[dtype,width],
+        out ang: Ang[dtype,width]
+    ):
+        ang = Ang(self.value*10_000_000)
+
     fn to_pix(
         self: Ang[dtype,width],
         pixel_size: SIMD[dtype,width],
         out pix: Pix[dtype,width]
     ):
         pix = Pix(self.value/pixel_size)
+
+    fn to_deg(
+        self: Rad[dtype,width],
+        out deg: Deg[dtype,width]
+    ):
+        deg = Deg(rad_to_deg(rad=self.value))
+    
+    fn to_rad(
+        self: Deg[dtype,width],
+        out rad: Rad[dtype,width]
+    ):
+        rad = Rad(deg_to_rad(deg=self.value))

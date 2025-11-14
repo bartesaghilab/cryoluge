@@ -1,4 +1,9 @@
 
+from math import sqrt
+
+from cryoluge.math.units import Unit, UnitType
+
+
 alias _TBounds = Copyable & Movable & EqualityComparable & Writable & Stringable
 
 
@@ -124,6 +129,8 @@ struct Vec[
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
     #       since mojo doesn't seem to have traits for their math dunder methods =(
+
+    # TODO: math funcs for units
 
     fn __neg__(self: Vec[Int,dim], out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)
@@ -294,6 +301,29 @@ struct Vec[
     fn __itruediv__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Scalar[dtype]):
         self /= Vec[Scalar[dtype],dim](fill=other)
 
+    fn __pow__(self: Vec[Int,dim], other: Int, out result: Vec[Int,dim]):
+        result = Vec[Int,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]**other
+
+    fn __pow__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
+        result = Vec[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]**other
+
+    fn __ipow__(mut self: Vec[Int,dim], other: Int):
+        @parameter
+        for d in range(dim.rank):
+            self[d] **= other
+
+    fn __ipow__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Scalar[dtype]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] = self[d] ** other
+            # NOTE: **= not implemented for Scalar[dtype] for some reason
+
     fn sum(self: Vec[Int,dim], out result: Int):
         result = 0
         @parameter
@@ -330,11 +360,26 @@ struct Vec[
         for d in range(dim.rank):
             result += self[d]*other[d]
 
+    fn inner_product[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Unit[utype,dtype]):
+        result = Unit[utype,dtype](0)
+        @parameter
+        for d in range(dim.rank):
+            result += self[d]*other[d]
+
     fn len2(self: Vec[Int,dim], out result: Int):
         result = self.inner_product(self)
 
     fn len2[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Scalar[dtype]):
         result = self.inner_product(self)
+
+    fn len2[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Unit[utype,dtype]):
+        result = self.inner_product(self)
+    
+    fn len[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Scalar[dtype]):
+        result = sqrt(self.len2())
+
+    fn len[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Unit[utype,dtype]):
+        result = self.len2().sqrt()
 
     fn map[
         R: _TBounds, //,
@@ -368,6 +413,28 @@ struct Vec[
 
     fn map_float32[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Vec[Float32,dim]):
         result = self.map_scalar[DType.float32]()
+
+    fn map_unit[
+        dtype: DType,
+        utype: UnitType,
+        //,
+        unit: Unit[utype,dtype]
+    ](self: Vec[Scalar[dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        @parameter
+        fn m(v: Scalar[dtype]) -> Unit[utype,dtype]:
+            return Unit[utype,dtype](v)
+        result = self.map[mapper=m]()
+
+    fn map_value[
+        dtype: DType,
+        utype: UnitType
+    ](self: Vec[Unit[utype,dtype],dim], out result: Vec[Scalar[dtype],dim]):
+        @parameter
+        fn m(v: Unit[utype,dtype]) -> Scalar[dtype]:
+            return v.value
+        result = self.map[mapper=m]()
+
+    # TODO: cos,sin
 
     fn sinc(self: Vec[Float32,dim], out result: Vec[Float32,dim]):
         result = Vec[Float32,dim](uninitialized=True)
