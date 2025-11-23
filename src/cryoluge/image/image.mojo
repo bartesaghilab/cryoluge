@@ -9,13 +9,13 @@ struct Image[
 ](Copyable, Movable):
     var _buf: DimensionalBuffer[dim,Self.PixelType]
 
-    alias D1 = Image[Dimension.D1,_]
-    alias D2 = Image[Dimension.D2,_]
-    alias D3 = Image[Dimension.D3,_]
-    alias Vec = Vec[_,dim]
-    alias PixelType = Scalar[dtype]
-    alias PixelVec = SIMD[dtype,_]
-    alias pixel_vec_max_width = simd_width_of[dtype]()
+    comptime D1 = Image[Dimension.D1,_]
+    comptime D2 = Image[Dimension.D2,_]
+    comptime D3 = Image[Dimension.D3,_]
+    comptime Vec = Vec[_,dim]
+    comptime PixelType = Scalar[dtype]
+    comptime PixelVec = SIMD[dtype,_]
+    comptime pixel_vec_max_width = simd_width_of[dtype]()
 
     fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
@@ -35,11 +35,14 @@ struct Image[
     fn num_pixels(self) -> Int:
         return self._buf.num_elements()
 
-    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.Vec[Int]:
+    fn sizes(self) -> ref [origin_of(self._buf._sizes)] Self.Vec[Int]:
         return self._buf.sizes()
 
-    fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
-        return self._buf.span()
+    fn span_bytes(ref self) -> Span[Byte, origin_of(self._buf._buf)]:
+        return self._buf.span_bytes()
+
+    fn span(ref self, *, start: Int = 0) -> Span[Self.PixelType, origin_of(self._buf._buf)]:
+        return self._buf.span(start=start)
 
     fn alignment(self) -> Int:
         return self._buf.alignment()
@@ -108,21 +111,24 @@ struct Image[
     ) raises:
         self._buf.assert_data[err_fn](msg, path, verbose=verbose, eps=eps, overwrite=overwrite)
 
-    fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
+    fn _check_vector_offset[width: Int](self, offset: Int):
+        var bound = self.num_pixels() - width
+        debug_assert(
+            offset <= bound,
+            "offset ", offset, " out of range [0,", bound, "]"
+        )
 
-        # get the address of the pixel at the offset
-        var p = self._buf.unsafe_ptr(offset=offset)
-            .bitcast[Self.PixelType]()
+    fn load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
+        self._check_vector_offset[width](offset)
+        v = self.span(start=offset)
+            .unsafe_ptr()
+            .load[width=width]()
 
-        v = p.load[width=width]()
-
-    fn _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
-
-        # get the address of the pixel at the offset
-        var p = self._buf.unsafe_ptr(offset=offset)
-            .bitcast[Self.PixelType]()
-        
-        p.store[width=width](v)
+    fn store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
+        self._check_vector_offset[width](offset)
+        self.span(start=offset)
+            .unsafe_ptr()
+            .store[width=width](v)
         
     fn pixels_read[
         func: fn[width: Int](Self.PixelVec[width]) capturing,
@@ -131,7 +137,7 @@ struct Image[
 
         @parameter
         fn loader[width: Int](offset: Int):
-            var v = self._load[width](offset)
+            var v = self.load[width](offset)
             func[width](v)
 
         vectorize[loader, width](self.num_pixels())
@@ -143,9 +149,9 @@ struct Image[
 
         @parameter
         fn loader[width: Int](offset: Int):
-            var v = self._load[width](offset)
+            var v = self.load[width](offset)
             func[width](v)
-            self._store[width](offset, v)
+            self.store[width](offset, v)
 
         vectorize[loader, width](self.num_pixels())
 
@@ -200,7 +206,7 @@ struct Image[
 
         return sum/Float64(num_pixels_matched)
 
-    fn mean_variance(self: Image[dim,DType.float32]) -> (Float32, Float32):
+    fn mean_variance(self: Image[dim,DType.float32]) -> Tuple[Float32, Float32]:
         """Returns mean and variance of the entire image, in single precision."""
         return self.mean_variance(mask = AllMask())
 
@@ -210,7 +216,7 @@ struct Image[
         self: Image[dim,DType.float32],
         *,
         mask: M
-    ) -> (Float32, Float32):
+    ) -> Tuple[Float32, Float32]:
         """Returns mean and variance of the masked region, in single precision."""
 
         # since we can't divide by zero

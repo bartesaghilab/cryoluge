@@ -3,18 +3,18 @@ from io import FileDescriptor
 from os import SEEK_CUR, SEEK_SET
 
 
-struct FileReader[
-    mut: Bool, //,
-    origin: Origin[mut]
-](BinaryReader, Movable):
+struct FileReader[origin: Origin](
+    BinaryReader,
+    Movable
+):
     var _fh: Pointer[FileHandle, origin]
     var _fd: FileDescriptor
     var _buf: ByteBuffer
-    var _pos: UInt
-    var _limit: UInt
+    var _pos: Int
+    var _limit: Int
     var _offset: UInt64
 
-    def __init__(out self, ref [origin] fh: FileHandle, *, buf_size: UInt = 16*1024):
+    def __init__(out self, ref [origin] fh: FileHandle, *, buf_size: Int = 16*1024):
         self._fh = Pointer(to=fh)
         self._fd = FileDescriptor(fh._get_raw_fd())
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
@@ -23,10 +23,10 @@ struct FileReader[
         self._limit = 0
         self._offset = 0
 
-    fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> UInt:
+    fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
 
-        var size = UInt(len(buf))
-        var span_out = Span(buf.unsafe_ptr(), size)
+        var size = Int(len(buf))
+        var span_out = Span(ptr=buf.unsafe_ptr(), length=size)
 
         # read whatever's already in the buffer
         var size_buf_remaining = self._limit - self._pos
@@ -35,8 +35,8 @@ struct FileReader[
             if size <= size_buf_remaining:
                 # the buffer already has all we need: read all of it
                 memcpy(
-                    dest=span_out.unsafe_ptr(),
                     src=self._buf._p + self._pos,
+                    dest=span_out.unsafe_ptr(),
                     count=size
                 )
                 self._pos += size
@@ -45,25 +45,28 @@ struct FileReader[
 
             # otherwise, read what we can from the buffer
             memcpy(
-                dest=span_out.unsafe_ptr(),
                 src=self._buf._p + self._pos,
+                dest=span_out.unsafe_ptr(),
                 count=size_buf_remaining
             )
-            span_out = Span(buf.unsafe_ptr() + size_buf_remaining, size - size_buf_remaining)
+            span_out = Span(
+                ptr=buf.unsafe_ptr() + size_buf_remaining,
+                length=size - size_buf_remaining
+            )
 
         # need more: read from the fd into the buffer
-        var size_read = self._fd.read_bytes(self._buf.span())
-        if size_read == 0:
+        var size_read = Int(self._fd.read_bytes(self._buf.span()))
+        if size_read <= 0:
             self._offset += size_buf_remaining
             return size_buf_remaining
         self._pos = 0
         self._limit = size_read
 
         # then copy whatever else we can from the buffer
-        var size_copy = min(size_read, UInt(len(span_out)))
+        var size_copy = min(size_read, len(span_out))
         memcpy(
-            dest=span_out.unsafe_ptr(),
             src=self._buf._p,
+            dest=span_out.unsafe_ptr(),
             count=size_copy
         )
         self._pos += size_copy
@@ -72,11 +75,14 @@ struct FileReader[
 
     fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
 
-        var size = UInt(len(buf))
-        var size_out_read = UInt(0)
+        var size = len(buf)
+        var size_out_read = 0
 
         while size_out_read < size:
-            var span_out = Span(buf.unsafe_ptr() + size_out_read, size - size_out_read)
+            var span_out = Span(
+                ptr=buf.unsafe_ptr() + size_out_read,
+                length=size - size_out_read
+            )
             var size_read = self.read_bytes(span_out)
             if size_read == 0:
                 raise Error(String("Can't read ", size, " bytes: EOF"))
@@ -93,7 +99,7 @@ struct FileReader[
     fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
         
         # make sure the scalar can fit in the buffer, even when empty
-        var size = dtype.size_of()
+        var size = size_of[dtype]()
         debug_assert[assert_mode="safe"](
              size <= self._buf.size(),
              "Buffer too small (", self._buf.size(), " bytes) to read scalar of ", size, " bytes"
@@ -116,8 +122,8 @@ struct FileReader[
                 start=size_buf_remaining,
                 length=Int(self._buf.size() - size_buf_remaining)
             )
-            var size_read = self._fd.read_bytes(span_read)
-            if size_read == 0:
+            var size_read = Int(self._fd.read_bytes(span_read))
+            if size_read <= 0:
                 raise Error(String("Can't read ", dtype, ": EOF"))
 
             self._pos = 0
@@ -129,7 +135,7 @@ struct FileReader[
         self._pos += reader._pos
         self._offset += reader._pos
 
-    fn skip_bytes(mut self, size: UInt) raises:
+    fn skip_bytes(mut self, size: Int) raises:
 
         # if we've already buffered the skip size, just advance the buffer position
         var size_buf_remaining = self._limit - self._pos
@@ -149,7 +155,7 @@ struct FileReader[
         self._offset += size
 
     fn skip_scalar[dtype: DType](mut self) raises:
-        self.skip_bytes(dtype.size_of())
+        self.skip_bytes(size_of[dtype]())
 
     fn offset(self) -> UInt64:
         return self._offset

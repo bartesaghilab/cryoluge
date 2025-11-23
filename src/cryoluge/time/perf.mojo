@@ -3,7 +3,7 @@
 from time import perf_counter_ns
 
 
-alias NS = UInt
+comptime NS = UInt
 """nanoseconds"""
 
 

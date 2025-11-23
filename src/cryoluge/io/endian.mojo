@@ -12,8 +12,8 @@ struct Endian(
 ):
     var value: Int
 
-    alias Big=Endian(0)
-    alias Little=Endian(1)
+    comptime Big=Endian(0)
+    comptime Little=Endian(1)
 
     @staticmethod
     fn native() -> Self:

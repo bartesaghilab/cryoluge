@@ -8,8 +8,8 @@ struct MachineStamp(
 ):
     var value: InlineArray[Byte, 2]
 
-    alias LittleEndian = Self(0x44, 0x44)
-    alias BigEndian = Self(0x11, 0x11)
+    comptime LittleEndian = Self(0x44, 0x44)
+    comptime BigEndian = Self(0x11, 0x11)
 
     fn __init__(out self, a: Byte, b: Byte):
         self.value = InlineArray[Byte, 2](a, b)

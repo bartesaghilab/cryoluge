@@ -11,14 +11,14 @@ struct Mode(
     var name: StaticString
     var dtype: Optional[DType]
 
-    alias Int8 = Self(0, "Int8", DType.int8)
-    alias Int16 = Self(1, "Int16", DType.int16)
-    alias Float32 = Self(2, "Float32", DType.float32)
-    alias ComplexInt16 = Self(3, "ComplexInt16", None)
-    alias ComplexFloat32 = Self(4, "ComplexFloat32", None)
-    alias UInt16 = Self(6, "UInt16", DType.uint16)
-    alias Float16 = Self(12, "Float16", DType.float16)
-    alias Int4 = Self(101, "Int4", None)
+    comptime Int8 = Self(0, "Int8", DType.int8)
+    comptime Int16 = Self(1, "Int16", DType.int16)
+    comptime Float32 = Self(2, "Float32", DType.float32)
+    comptime ComplexInt16 = Self(3, "ComplexInt16", None)
+    comptime ComplexFloat32 = Self(4, "ComplexFloat32", None)
+    comptime UInt16 = Self(6, "UInt16", DType.uint16)
+    comptime Float16 = Self(12, "Float16", DType.float16)
+    comptime Int4 = Self(101, "Int4", None)
 
     @staticmethod
     fn unknown(value: UInt32) -> Self:

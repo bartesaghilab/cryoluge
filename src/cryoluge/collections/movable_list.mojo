@@ -1,5 +1,6 @@
 
 import os
+from memory import alloc, UnsafePointer
 from collections._index_normalization import normalize_index
 
 
@@ -8,14 +9,14 @@ struct MovableList[T: Movable](Sized, Movable):
     A collection type for elements that are Movable, but not Copyable.
     """
 
-    var _data: UnsafePointer[T]
+    var _data: UnsafePointer[T, MutOrigin.external]
     var _capacity: Int
     var _len: Int
 
-    alias DEFAULT_CAPACITY = 4
+    comptime DEFAULT_CAPACITY = 4
 
     fn __init__(out self, *, capacity: Int=Self.DEFAULT_CAPACITY):
-        self._data = UnsafePointer[T]().alloc(capacity)
+        self._data = alloc[T](capacity)
         self._capacity = capacity
         self._len = 0
 
@@ -31,7 +32,7 @@ struct MovableList[T: Movable](Sized, Movable):
         capacity = capacity*2
 
         # allocate new storage space
-        var data = UnsafePointer[T]().alloc(capacity)
+        var data = alloc[T](capacity)
 
         # move old elements over
         for i in range(self._len):
@@ -56,11 +57,11 @@ struct MovableList[T: Movable](Sized, Movable):
         return self._len
 
     fn __getitem__[I: Indexer, //](ref self, idx: I) -> ref [self] T:
-        var normalized_idx = normalize_index["MovableList", assert_always=False](idx, self._len)
+        var normalized_idx = normalize_index["MovableList", assert_always=False](idx, UInt(self._len))
         return (self._data + normalized_idx)[]
 
     fn remove[I: Indexer, //](mut self, idx: I, out item: T):
-        var normalized_idx = normalize_index["MovableList", assert_always=False](idx, self._len)
+        var normalized_idx = normalize_index["MovableList", assert_always=False](idx, UInt(self._len))
         item = (self._data + normalized_idx).take_pointee()
         for i in range(normalized_idx, self._len - 1):
             (self._data + i).init_pointee_move_from(self._data + i + 1)

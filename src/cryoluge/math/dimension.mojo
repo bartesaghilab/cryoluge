@@ -14,9 +14,9 @@ struct Dimension(
     var name: StaticString
 
     # NOTE: mojo's grammar doesn't allow `1D`, `2D`, etc identifiers
-    alias D1 = Self(1, "D1")
-    alias D2 = Self(2, "D2")
-    alias D3 = Self(3, "D3")
+    comptime D1 = Self(1, "D1")
+    comptime D2 = Self(2, "D2")
+    comptime D3 = Self(3, "D3")
 
     fn __eq__(self, rhs: Self) -> Bool:
         return self.rank == rhs.rank

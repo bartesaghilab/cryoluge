@@ -7,7 +7,7 @@ struct MovableOptional[T: Movable](Movable):
     var _has: Bool
     var _v: UnsafeMaybeUninitialized[T]
 
-    alias default_abort_msg = "MovableOptional was None"
+    comptime default_abort_msg = "MovableOptional was None"
 
     fn __init__(out self):
         self._has = False
@@ -48,7 +48,7 @@ struct MovableOptional[T: Movable](Movable):
         if not self._has:
             abort(msg)
 
-    fn value(ref self, *, msg: String = Self.default_abort_msg) -> ref [self._v] T:
+    fn value(ref self, *, msg: String = Self.default_abort_msg) -> ref [self._v._array] T:
         self.has_or_abort(msg)
         return self._v.assume_initialized()
 

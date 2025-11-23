@@ -13,15 +13,15 @@ struct ComplexImage[
 ](Copyable, Movable):
     var _buf: DimensionalBuffer[dim,Self.PixelType]
 
-    alias D1 = ComplexImage[Dimension.D1,_]
-    alias D2 = ComplexImage[Dimension.D2,_]
-    alias D3 = ComplexImage[Dimension.D3,_]
-    alias Vec = Vec[_,dim]
-    alias PixelType = ComplexScalar[dtype]
-    alias PixelVec = ComplexSIMD[dtype,_]
-    alias ScalarType = Scalar[dtype]
-    alias ScalarVec = SIMD[dtype,_]
-    alias pixel_vec_max_width = simd_width_of[dtype]()
+    comptime D1 = ComplexImage[Dimension.D1,_]
+    comptime D2 = ComplexImage[Dimension.D2,_]
+    comptime D3 = ComplexImage[Dimension.D3,_]
+    comptime Vec = Vec[_,dim]
+    comptime PixelType = ComplexScalar[dtype]
+    comptime PixelVec = ComplexSIMD[dtype,_]
+    comptime ScalarType = Scalar[dtype]
+    comptime ScalarVec = SIMD[dtype,_]
+    comptime pixel_vec_max_width = simd_width_of[dtype]()
 
     fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
@@ -62,11 +62,14 @@ struct ComplexImage[
     fn num_pixels(self) -> Int:
         return self._buf.num_elements()
 
-    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._buf._sizes)]] Self.Vec[Int]:
+    fn sizes(self) -> ref [origin_of(self._buf._sizes)] Self.Vec[Int]:
         return self._buf.sizes()
 
-    fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf._buf)]]:
-        return self._buf.span()
+    fn span(ref self, *, start: Int = 0) -> Span[Self.PixelType, origin_of(self._buf._buf)]:
+        return self._buf.span(start=start)
+
+    fn span_bytes(ref self) -> Span[Byte, origin_of(self._buf._buf)]:
+        return self._buf.span_bytes()
 
     fn alignment(self) -> Int:
         return self._buf.alignment()
@@ -135,16 +138,22 @@ struct ComplexImage[
     ) raises:
         self._buf.assert_data[err_fn](msg, path, verbose=verbose, eps=eps, overwrite=overwrite)
 
-    fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
+    fn _check_vector_offset[width: Int](self, offset: Int):
+        var bound = self.num_pixels() - width
+        debug_assert(
+            offset < bound,
+            "offset ", offset, " out of range [0,", bound, ")"
+        )
 
-        # get the address of the pixel at the offset
-        var p = self._buf.unsafe_ptr(offset=offset)
-            .bitcast[Self.ScalarType]()
+    fn _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
 
         # load the interleaved data
         # NOTE: mojo's compiler is smart enough to handle vector operations
         #       on sizes larger than the machine limits, as long as it's a power of 2
-        var interleaved = p.load[width=width*2]()
+        var interleaved = self.span(start=offset)
+            .unsafe_ptr()
+            .bitcast[Self.ScalarType]()
+            .load[width=width*2]()
 
         # de-interleave
         var (real, imag) = interleaved.deinterleave()
@@ -157,15 +166,14 @@ struct ComplexImage[
 
     fn _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
 
-        # get the address of the pixel at the offset
-        var p = self._buf.unsafe_ptr(offset=offset)
-            .bitcast[Self.ScalarType]()
-
         # interleave
         var interleaved = v.re.interleave(v.im)
 
         # store the interleaved data
-        p.store[width=width*2](rebind[Self.ScalarVec[width*2]](interleaved))
+        self.span(start=offset)
+            .unsafe_ptr()
+            .bitcast[Self.ScalarType]()
+            .store[width=width*2](rebind[Self.ScalarVec[width*2]](interleaved))
         
     fn pixels_read[
         func: fn[width: Int](Self.PixelVec[width]) capturing,

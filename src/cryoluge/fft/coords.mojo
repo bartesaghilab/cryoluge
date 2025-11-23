@@ -30,7 +30,7 @@ struct FFTCoords[
 
     var _sizes_real: Pointer[Self.Vec, origin]
 
-    alias Vec = Vec[Int,dim]
+    comptime Vec = Vec[Int,dim]
 
     fn __init__(out self, ref [origin] sizes_real: Self.Vec):
         self._sizes_real = Pointer(to=sizes_real)

@@ -10,7 +10,7 @@ from .euler import *
 
 
 # NOTE: coming in mojo stdlib in next release
-alias ComplexScalar = ComplexSIMD[_,1]
+comptime ComplexScalar = ComplexSIMD[_,1]
 
 
 fn is_even(n: Int) -> Bool:

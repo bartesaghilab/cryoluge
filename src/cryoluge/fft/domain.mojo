@@ -10,8 +10,8 @@ struct CoordDomain(
     var value: Int
     var name: StaticString
     
-    alias Real = CoordDomain(0, "Real")
-    alias Fourier = CoordDomain(1, "Fourier")
+    comptime Real = CoordDomain(0, "Real")
+    comptime Fourier = CoordDomain(1, "Fourier")
 
     fn __eq__(self, other: Self) -> Bool:
         return self.value == other.value

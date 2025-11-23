@@ -45,8 +45,8 @@ struct MaskRegion(
 ):
     var value: Int
     
-    alias Inside = MaskRegion(0)
-    alias Outside = MaskRegion(1)
+    comptime Inside = MaskRegion(0)
+    comptime Outside = MaskRegion(1)
 
     fn __eq__(self, other: Self) -> Bool:
         return self.value == other.value
@@ -110,14 +110,14 @@ struct RadialMask[
     var radius: Scalar[dtype]
     var _r2: Scalar[dtype]
 
-    alias RealInsideExclusive = RadialMask[CoordDomain.Real, MaskRegion.Inside, False, _]
-    alias RealInsideInclusive = RadialMask[CoordDomain.Real, MaskRegion.Inside, True, _]
-    alias RealOutsideExclusive = RadialMask[CoordDomain.Real, MaskRegion.Outside, False, _]
-    alias RealOutsideInclusive = RadialMask[CoordDomain.Real, MaskRegion.Outside, True, _]
-    alias FourierInsideExclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Inside, False, _]
-    alias FourierInsideInclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Inside, True, _]
-    alias FourierOutsideExclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, False, _]
-    alias FourierOutsideInclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, True, _]
+    comptime RealInsideExclusive = RadialMask[CoordDomain.Real, MaskRegion.Inside, False, _]
+    comptime RealInsideInclusive = RadialMask[CoordDomain.Real, MaskRegion.Inside, True, _]
+    comptime RealOutsideExclusive = RadialMask[CoordDomain.Real, MaskRegion.Outside, False, _]
+    comptime RealOutsideInclusive = RadialMask[CoordDomain.Real, MaskRegion.Outside, True, _]
+    comptime FourierInsideExclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Inside, False, _]
+    comptime FourierInsideInclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Inside, True, _]
+    comptime FourierOutsideExclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, False, _]
+    comptime FourierOutsideInclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, True, _]
 
     fn __init__(out self, radius: Scalar[dtype]):
         self.radius = radius
@@ -205,9 +205,9 @@ struct AnnularMask[
     var _r12: Scalar[dtype]
     var _r22: Scalar[dtype]
 
-    alias RealInsideInclusive = AnnularMask[CoordDomain.Real, MaskRegion.Inside, True, True, _]
-    alias FourierInsideInclusive = AnnularMask[CoordDomain.Fourier, MaskRegion.Inside, True, True, _]
-    alias EaseFn = fn[dtype_ease: DType, width: Int](SIMD[dtype_ease,width]) -> SIMD[dtype_ease,width]
+    comptime RealInsideInclusive = AnnularMask[CoordDomain.Real, MaskRegion.Inside, True, True, _]
+    comptime FourierInsideInclusive = AnnularMask[CoordDomain.Fourier, MaskRegion.Inside, True, True, _]
+    comptime EaseFn = fn[dtype_ease: DType, width: Int](SIMD[dtype_ease,width]) -> SIMD[dtype_ease,width]
 
     fn __init__(out self, radius_inner: Scalar[dtype], radius_outer: Scalar[dtype]):
         self.radius_inner = radius_inner
@@ -373,9 +373,9 @@ struct AnnularBlendDirection(
 ):
     var value: Int
     
-    alias In = AnnularBlendDirection(0)
+    comptime In = AnnularBlendDirection(0)
     """Blend from the outer radius towards the inner radius."""
-    alias Out = AnnularBlendDirection(1)
+    comptime Out = AnnularBlendDirection(1)
     """Blend from the inner radius towards the outer radius."""
 
     fn __eq__(self, other: Self) -> Bool:

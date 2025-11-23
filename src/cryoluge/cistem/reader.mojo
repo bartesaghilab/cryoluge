@@ -4,7 +4,7 @@ from cryoluge.collections import KeyableSet
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian
 
 
-alias endian = Endian.Little
+comptime endian = Endian.Little
 
 
 struct Reader[
@@ -13,12 +13,12 @@ struct Reader[
 ](Movable):
     var reader: Pointer[R, origin]
     var parameters: KeyableSet[Parameter]
-    var _num_lines: UInt
+    var _num_lines: Int
     var _cols: List[Parameter]
     var _first_line_offset: UInt64
-    var _col_offsets: Dict[Int64,UInt]
+    var _col_offsets: Dict[Int64,Int]
     var _line_buf: ByteBuffer
-    var _next_line: UInt
+    var _next_line: Int
 
     fn __init__(
         out self,
@@ -49,7 +49,7 @@ struct Reader[
         var num_lines = self.reader[].read_i32[endian]()
         if num_lines < 0:
             raise Error(String("Invalid number of lines: ", num_lines))
-        self._num_lines = UInt(num_lines)
+        self._num_lines = Int(num_lines)
 
         # read the column definitions
         self._cols = List[Parameter](capacity=Int(num_cols))
@@ -90,30 +90,30 @@ struct Reader[
         self._next_line = 0
 
         # compute the line size and column offsets
-        var line_size = UInt(0)
-        self._col_offsets = Dict[Int64,UInt]()
+        var line_size = 0
+        self._col_offsets = Dict[Int64,Int]()
         for col in self._cols:
             self._col_offsets[col.id] = line_size
-            line_size += col.dtype().size_of()
+            line_size += col.type.size.value()
         self._line_buf = ByteBuffer(line_size)
 
-    fn num_lines(self) -> UInt:
+    fn num_lines(self) -> Int:
         return self._num_lines
 
-    fn line_size(self) -> UInt:
+    fn line_size(self) -> Int:
         return self._line_buf.size()
 
-    fn cols(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._cols)]] List[Parameter]:
+    fn cols(self) -> ref [origin_of(self._cols)] List[Parameter]:
         return self._cols
 
     fn has_parameter[param: Parameter](self) -> Bool:
         return self._col_offsets.get(param.id) is not None
 
-    fn seek(mut self, linei: UInt) raises:
+    fn seek(mut self, linei: Int) raises:
         self.reader[].seek_to(self._first_line_offset + UInt64(linei*self._line_buf.size()))
         self._next_line = linei
 
-    fn next_line(self) -> UInt:
+    fn next_line(self) -> Int:
         return self._next_line
 
     fn eof(self) -> Bool:
@@ -127,7 +127,7 @@ struct Reader[
    
     fn get_parameter[
         param: Parameter,
-        dtype: DType=param.dtype()
+        dtype: DType=param.type.dtype.value()
     ](self, out v: Scalar[dtype]) raises:
 
         # lookup the parameter offset, if any
@@ -145,10 +145,10 @@ struct Reader[
         # matches the given dtype at type-checking time,
         # so explicitly check that the types match during function instantiation
         constrained[
-            param.dtype() == dtype,
+            param.type.dtype.value() == dtype,
             String(
                 "Expected parameter type with dtype=", dtype,
-                ", but ", param.type.name, " has dtype=", param.dtype()
+                ", but ", param.type.name, " has dtype=", param.type.dtype.value()
             )
         ]()
         v = reader.read_scalar[dtype, endian]()

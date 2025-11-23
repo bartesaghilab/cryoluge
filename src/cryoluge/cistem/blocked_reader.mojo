@@ -2,7 +2,7 @@
 from cryoluge.collections import MovableList, Keyable
 
 
-alias endian = Endian.Little
+comptime endian = Endian.Little
 
 
 @fieldwise_init
@@ -23,7 +23,7 @@ struct Block(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComparab
     fn __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
 
-    alias Key = Int64
+    comptime Key = Int64
     fn key(self) -> Int64:
         return self.id
 
@@ -96,7 +96,7 @@ struct BlockedReader[
             self._block_reader_indices[block.id] = len(self._block_readers)
             self._block_readers.append(block_reader^)
 
-    fn blocks(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._blocks_present)]] List[Block]:
+    fn blocks(ref self) -> ref [origin_of(self._blocks_present)] List[Block]:
         return self._blocks_present
 
     fn seek(mut self, block: Block) raises -> ref [self._block_readers] Reader[R, origin]:

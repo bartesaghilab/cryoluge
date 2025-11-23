@@ -13,11 +13,10 @@ channels = [
 [dependencies]
 # TEMP: use nightly for now, since many things aren't working correctly in the 25.5 stable release
 #       see releases here: https://prefix.dev/channels/max-nightly/packages/mojo
-#mojo = "==0.25.6.0.dev2025091805"
-mojo = "==0.25.6.0"
+mojo = "==0.25.7.0"
 
 [tasks]
 build_dir = "rm -rf build 2> /dev/null; mkdir -p build"
 build_pkg = { cmd = "mojo package -o build/cryoluge.mojopkg src/cryoluge", depends-on = ["build_dir"] }
-test = { cmd = "mojo test -I build -D ASSERT=all test", depends-on = ["build_pkg"] }
+test = { cmd = "mojo run -I build -D ASSERT=all --debug-level line-tables test/suite.mojo", depends-on = ["build_pkg"] }
 # NOTE: `mojo test` doesn't seem to support `-flag=value` syntax, only `-flag value`

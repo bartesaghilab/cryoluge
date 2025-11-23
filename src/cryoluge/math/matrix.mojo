@@ -14,8 +14,8 @@ struct Matrix[
 ):
     var _values: InlineArray[Scalar[dtype], Self.num_elements]
 
-    alias num_elements = rows*cols
-    alias D3 = Matrix[3,3,_]
+    comptime num_elements = rows*cols
+    comptime D3 = Matrix[3,3,_]
 
     fn __init__(out self, *, uninitialized: Bool):
         self._values = InlineArray[Scalar[dtype], Self.num_elements](uninitialized=uninitialized)

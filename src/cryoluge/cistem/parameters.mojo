@@ -1,4 +1,6 @@
 
+from sys import size_of
+
 from cryoluge.collections import Keyable
 
 
@@ -21,12 +23,9 @@ struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComp
     fn __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
 
-    alias Key = Int64
-    fn key(self) -> Int64:
+    comptime Key = Int64
+    fn key(self) -> Self.Key:
         return self.id
-
-    fn dtype(self) -> DType:
-        return self.type.dtype.value()
 
 
 @fieldwise_init
@@ -34,18 +33,19 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equality
     var id: UInt8
     var name: StaticString
     var dtype: Optional[DType]
+    var size: Optional[Int]
 
-    alias text = Self(1, "text", None)
-    alias int = Self(2, "int", DType.int32)
-    alias float = Self(3, "float", DType.float32)
-    alias bool = Self(4, "bool", DType.bool)
-    alias long = Self(5, "long", DType.int64)
-    alias double = Self(6, "double", DType.float64)
-    alias byte = Self(7, "byte", DType.uint8)
-    alias vary = Self(8, "vary", None)
-    alias uint = Self(9, "uint", DType.uint32)
+    comptime text = Self(1, "text")
+    comptime int = Self.of[DType.int32](2, "int")
+    comptime float = Self.of[DType.float32](3, "float")
+    comptime bool = Self.of[DType.bool](4, "bool")
+    comptime long = Self.of[DType.int64](5, "long")
+    comptime double = Self.of[DType.float64](6, "double")
+    comptime byte = Self.of[DType.uint8](7, "byte")
+    comptime vary = Self(8, "vary")
+    comptime uint = Self.of[DType.uint32](9, "uint")
 
-    alias all = List[Self](
+    comptime all = List[Self](
         Self.text,
         Self.int,
         Self.float,
@@ -56,6 +56,13 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equality
         Self.vary,
         Self.uint
     )
+
+    fn __init__(out self, id: UInt8, name: StaticString):
+        self = Self(id, name, None, None)
+
+    @staticmethod
+    fn of[dtype: DType](id: UInt8, name: StaticString, out self: Self):
+        self = Self(id, name, dtype, size_of[dtype]())
 
     @staticmethod
     fn get(id: UInt8) -> Optional[Self]:
@@ -77,43 +84,43 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equality
 
 struct CistemParameters:
 
-    alias position_in_stack = Parameter(1 << 0, "position_in_stack", ParameterType.uint)
-    alias image_is_active = Parameter(1 << 1, "image_is_active", ParameterType.int)
-    alias psi = Parameter(1 << 2, "psi", ParameterType.float)
-    alias x_shift = Parameter(1 << 3, "x_shift", ParameterType.float)
-    alias y_shift = Parameter(1 << 4, "y_shift", ParameterType.float)
-    alias defocus_1 = Parameter(1 << 5, "defocus_1", ParameterType.float)
-    alias defocus_2 = Parameter(1 << 6, "defocus_2", ParameterType.float)
-    alias defocus_angle = Parameter(1 << 7, "defocus_angle", ParameterType.float)
-    alias phase_shift = Parameter(1 << 8, "phase_shift", ParameterType.float)
-    alias occupancy = Parameter(1 << 9, "occupancy", ParameterType.float)
-    alias logp = Parameter(1 << 10, "logp", ParameterType.float)
-    alias sigma = Parameter(1 << 11, "sigma", ParameterType.float)
-    alias score = Parameter(1 << 12, "score", ParameterType.float)
-    alias score_change = Parameter(1 << 13, "score_change", ParameterType.float)
-    alias pixel_size = Parameter(1 << 14, "pixel_size", ParameterType.float)
-    alias microscope_voltage = Parameter(1 << 15, "microscope_voltage", ParameterType.float)
-    alias microscope_cs = Parameter(1 << 16, "microscope_cs", ParameterType.float)
-    alias amplitude_contrast = Parameter(1 << 17, "amplitude_contrast", ParameterType.float)
-    alias beam_tilt_x = Parameter(1 << 18, "beam_tilt_x", ParameterType.float)
-    alias beam_tilt_y = Parameter(1 << 19, "beam_tilt_y", ParameterType.float)
-    alias image_shift_x = Parameter(1 << 20, "image_shift_x", ParameterType.float)
-    alias image_shift_y = Parameter(1 << 21, "image_shift_y", ParameterType.float)
-    alias theta = Parameter(1 << 22, "theta", ParameterType.float)
-    alias phi = Parameter(1 << 23, "phi", ParameterType.float)
-    alias stack_filename = Parameter(1 << 24, "stack_filename", ParameterType.text)
-    alias original_image_filename = Parameter(1 << 25, "original_image_filename", ParameterType.text)
-    alias reference_3d_filename = Parameter(1 << 26, "reference_3d_filename", ParameterType.text)
-    alias best_2d_class = Parameter(1 << 27, "best_2d_class", ParameterType.int)
-    alias beam_tilt_group = Parameter(1 << 28, "beam_tilt_group", ParameterType.int)
-    alias particle_group = Parameter(1 << 29, "particle_group", ParameterType.int)
-    alias pre_exposure = Parameter(1 << 30, "pre_exposure", ParameterType.float)
-    alias total_exposure = Parameter(1 << 31, "total_exposure", ParameterType.float)
-    alias assigned_subset = Parameter(1 << 32, "assigned_subset", ParameterType.int)
-    alias original_x_position = Parameter(1 << 33, "original_x_position", ParameterType.float)
-    alias original_y_position = Parameter(1 << 34, "original_y_position", ParameterType.float)
+    comptime position_in_stack = Parameter(1 << 0, "position_in_stack", ParameterType.uint)
+    comptime image_is_active = Parameter(1 << 1, "image_is_active", ParameterType.int)
+    comptime psi = Parameter(1 << 2, "psi", ParameterType.float)
+    comptime x_shift = Parameter(1 << 3, "x_shift", ParameterType.float)
+    comptime y_shift = Parameter(1 << 4, "y_shift", ParameterType.float)
+    comptime defocus_1 = Parameter(1 << 5, "defocus_1", ParameterType.float)
+    comptime defocus_2 = Parameter(1 << 6, "defocus_2", ParameterType.float)
+    comptime defocus_angle = Parameter(1 << 7, "defocus_angle", ParameterType.float)
+    comptime phase_shift = Parameter(1 << 8, "phase_shift", ParameterType.float)
+    comptime occupancy = Parameter(1 << 9, "occupancy", ParameterType.float)
+    comptime logp = Parameter(1 << 10, "logp", ParameterType.float)
+    comptime sigma = Parameter(1 << 11, "sigma", ParameterType.float)
+    comptime score = Parameter(1 << 12, "score", ParameterType.float)
+    comptime score_change = Parameter(1 << 13, "score_change", ParameterType.float)
+    comptime pixel_size = Parameter(1 << 14, "pixel_size", ParameterType.float)
+    comptime microscope_voltage = Parameter(1 << 15, "microscope_voltage", ParameterType.float)
+    comptime microscope_cs = Parameter(1 << 16, "microscope_cs", ParameterType.float)
+    comptime amplitude_contrast = Parameter(1 << 17, "amplitude_contrast", ParameterType.float)
+    comptime beam_tilt_x = Parameter(1 << 18, "beam_tilt_x", ParameterType.float)
+    comptime beam_tilt_y = Parameter(1 << 19, "beam_tilt_y", ParameterType.float)
+    comptime image_shift_x = Parameter(1 << 20, "image_shift_x", ParameterType.float)
+    comptime image_shift_y = Parameter(1 << 21, "image_shift_y", ParameterType.float)
+    comptime theta = Parameter(1 << 22, "theta", ParameterType.float)
+    comptime phi = Parameter(1 << 23, "phi", ParameterType.float)
+    comptime stack_filename = Parameter(1 << 24, "stack_filename", ParameterType.text)
+    comptime original_image_filename = Parameter(1 << 25, "original_image_filename", ParameterType.text)
+    comptime reference_3d_filename = Parameter(1 << 26, "reference_3d_filename", ParameterType.text)
+    comptime best_2d_class = Parameter(1 << 27, "best_2d_class", ParameterType.int)
+    comptime beam_tilt_group = Parameter(1 << 28, "beam_tilt_group", ParameterType.int)
+    comptime particle_group = Parameter(1 << 29, "particle_group", ParameterType.int)
+    comptime pre_exposure = Parameter(1 << 30, "pre_exposure", ParameterType.float)
+    comptime total_exposure = Parameter(1 << 31, "total_exposure", ParameterType.float)
+    comptime assigned_subset = Parameter(1 << 32, "assigned_subset", ParameterType.int)
+    comptime original_x_position = Parameter(1 << 33, "original_x_position", ParameterType.float)
+    comptime original_y_position = Parameter(1 << 34, "original_y_position", ParameterType.float)
 
-    alias _all = List[Parameter](
+    comptime _all = List[Parameter](
         Self.position_in_stack,
         Self.image_is_active,
         Self.psi,

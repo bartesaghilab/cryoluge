@@ -1,4 +1,6 @@
 
+from sys import size_of
+
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian, require_endian
 from cryoluge.image import Image, Vec
 
@@ -10,10 +12,10 @@ from cryoluge.image import Image, Vec
 # https://www.ccpem.ac.uk/mrc_format/mrc2014.php
 
 
-alias _header_size = 1024
+comptime _header_size = 1024
 
 # only support little endian MRC files, for now
-alias _endian = Endian.Little
+comptime _endian = Endian.Little
 
 
 struct Reader[
@@ -51,7 +53,7 @@ struct Reader[
         var mode_value = r.read_u32[_endian]()
         return Mode.find(mode_value)
 
-    fn size(self) raises -> (UInt32, UInt32, UInt32):
+    fn size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
         var r = BytesReader(self._header.span(), pos=_word_offset(1))
         var nx = r.read_u32[_endian]()
         var ny = r.read_u32[_endian]()
@@ -88,7 +90,7 @@ struct Reader[
         if img.sizes() != size:
             raise Error("Image should have size ", size, ", but instead it has size ", img.sizes())
         self._seek_pixels()
-        self._reader[].read_bytes_exact(img.span())
+        self._reader[].read_bytes_exact(img.span_bytes())
 
     fn read_3d_int8(self, mut img: Image.D3[DType.int8]) raises:
         self.read_3d[DType.int8](img)
@@ -110,8 +112,8 @@ struct Reader[
             raise Error("z=", z, " is out of range [0,", sz, ")")
 
         self._seek_pixels()
-        self._reader[].seek_by(Int64(size.x())*Int64(size.y())*Int64(z)*dtype.size_of())
-        self._reader[].read_bytes_exact(img.span())
+        self._reader[].seek_by(Int64(size.x())*Int64(size.y())*Int64(z)*size_of[dtype]())
+        self._reader[].read_bytes_exact(img.span_bytes())
 
     fn read_2d_int8(self, mut img: Image.D2[DType.int8], *, z: UInt32=0) raises:
         self.read_2d[DType.int8](img, z=z)
@@ -122,9 +124,9 @@ struct Reader[
     # TODO: other supported dtypes
 
 
-fn _word_offset(word_number: Int) -> UInt:
+fn _word_offset(word_number: Int) -> Int:
     # words are numbered starting at 1 (sigh) and have 4 bytes each
-    return (UInt(word_number) - 1)*4
+    return (word_number - 1)*4
 
 
 fn _unsupported_mode[mode: Mode]():

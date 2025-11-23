@@ -4,7 +4,7 @@ from math import sqrt
 from cryoluge.math.units import Unit, UnitType
 
 
-alias _TBounds = Copyable & Movable & EqualityComparable & Writable & Stringable
+comptime _TBounds = Copyable & Movable & EqualityComparable & Writable & Stringable
 
 
 struct Vec[
@@ -19,9 +19,9 @@ struct Vec[
 ):
     var _values: InlineArray[T,dim.rank]
 
-    alias D1 = Vec[_,Dimension.D1]
-    alias D2 = Vec[_,Dimension.D2]
-    alias D3 = Vec[_,Dimension.D3]
+    comptime D1 = Vec[_,Dimension.D1]
+    comptime D2 = Vec[_,Dimension.D2]
+    comptime D3 = Vec[_,Dimension.D3]
 
     fn __init__(out self, *, x: T):
         expect_num_arguments[dim, 1]()
@@ -103,8 +103,8 @@ struct Vec[
             higher_dim.rank > dim.rank,
             String("Lifted rank ", higher_dim, " must be higher than vec rank ", dim.rank)
         ]()
-        alias diff_rank = higher_dim.rank - dim.rank
-        alias exp_diff_dim = Dimension(higher_dim.rank - dim.rank, "Difference")
+        comptime diff_rank = higher_dim.rank - dim.rank
+        comptime exp_diff_dim = Dimension(higher_dim.rank - dim.rank, "Difference")
         constrained[
             diff_dim == exp_diff_dim,
             String("Values rank ", diff_dim, " must be ", exp_diff_dim)

@@ -17,14 +17,14 @@ struct FFTImage[
     var sizes_real: Vec[Int,dim]
     var complex: ComplexImage[dim,dtype]
 
-    alias D1 = FFTImage[Dimension.D1,_]
-    alias D2 = FFTImage[Dimension.D2,_]
-    alias D3 = FFTImage[Dimension.D3,_]
-    alias Vec = ComplexImage[dim,dtype].Vec
-    alias PixelType = ComplexImage[dim,dtype].PixelType
-    alias PixelVec = ComplexImage[dim,dtype].PixelVec
-    alias ScalarType = ComplexImage[dim,dtype].ScalarType
-    alias ScalarVec = ComplexImage[dim,dtype].ScalarVec
+    comptime D1 = FFTImage[Dimension.D1,_]
+    comptime D2 = FFTImage[Dimension.D2,_]
+    comptime D3 = FFTImage[Dimension.D3,_]
+    comptime Vec = ComplexImage[dim,dtype].Vec
+    comptime PixelType = ComplexImage[dim,dtype].PixelType
+    comptime PixelVec = ComplexImage[dim,dtype].PixelVec
+    comptime ScalarType = ComplexImage[dim,dtype].ScalarType
+    comptime ScalarVec = ComplexImage[dim,dtype].ScalarVec
 
     fn __init__(out self, sizes_real: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self.sizes_real = sizes_real.copy()
@@ -35,7 +35,7 @@ struct FFTImage[
         ref real = of
         self = Self(real.sizes(), alignment=alignment)
 
-    fn coords(self) -> FFTCoords[dim, origin=__origin_of(self.sizes_real)]:
+    fn coords(self) -> FFTCoords[dim, origin=origin_of(self.sizes_real)]:
         return FFTCoords(self.sizes_real)
 
     fn crop(self, *, mut to: Self):
@@ -156,8 +156,8 @@ struct FFTImage[
 
 
 struct FFTSliceOperator[dtype: DType]:
-    alias Src = FFTImage[Dimension.D3,dtype]
-    alias Dst = FFTImage[Dimension.D2,dtype]
+    comptime Src = FFTImage[Dimension.D3,dtype]
+    comptime Dst = FFTImage[Dimension.D2,dtype]
 
     var _res_limit2: Float32
 

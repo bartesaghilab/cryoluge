@@ -14,9 +14,10 @@ struct MovableDict[
     # This struct won't be the most efficient implementation,
     # since it does a heap allocation for every insertion,
     # but it's probably good enough for now.
-    var _dict: Dict[K,UnsafePointer[V],H]
+    var _dict: Dict[K,Self.ValuePtr,H]
 
-    alias initial_capacity = 8
+    comptime initial_capacity = 8
+    comptime ValuePtr = UnsafePointer[V, MutOrigin.external]
 
     fn __init__(out self):
         self = Self(capacity=Self.initial_capacity)
@@ -31,36 +32,26 @@ struct MovableDict[
         # coerce the capacity to a power of two
         cap = next_power_of_two(cap)
 
-        self._dict = Dict[K,UnsafePointer[V],H](power_of_two_initial_capacity=cap)
+        self._dict = Dict[K,Self.ValuePtr,H](power_of_two_initial_capacity=cap)
 
     fn __getitem__(ref self, key: K) raises -> ref [self._dict.__getitem__(key)] V:
         var p = self._dict[key]
         return p[]
 
-    fn get(self, key: K) -> Optional[Pointer[V, __origin_of(self[key])]]:
+    fn get[origin: Origin](ref [origin] self, key: K) -> Optional[Pointer[V, origin]]:
         try:
             ref v = self._dict[key]
-            var p = v.origin_cast[target_mut=False, target_origin=__origin_of(self[key])]()
+            var p = v
+                .unsafe_mut_cast[origin.mut]()
+                .unsafe_origin_cast[origin]()
             return Pointer(to=p[])
         except KeyError:
             return None
-
-    fn get_mut(mut self, key: K) -> Optional[Pointer[V, __origin_of(self[key])]]:
-        try:
-            ref v = self._dict[key]
-            var p = v.origin_cast[target_mut=True, target_origin=__origin_of(self[key])]()
-            return Pointer(to=p[])
-        except KeyError:
-            return None
-
-    # TODO: when pointer v2 in the stdlib ships (next release?),
-    #       try to unify the two above get() impls by using parametric mutability
-    #       Can't seem to find a way to do it now =(
 
     fn __setitem__(mut self, var key: K, var val: V):
 
         # move the value into a pointer
-        var p = UnsafePointer[V]().alloc(1)
+        var p = alloc[V](1)
         p.init_pointee_move(val^)
 
         # then move the pointer into the dict
@@ -91,7 +82,7 @@ struct MovableDict[
             self[key.copy()] = func()
         return self._dict.get(key).value()[]
 
-    fn keys(self) -> _DictKeyIter[K,UnsafePointer[V],H,__origin_of(self._dict)]:
+    fn keys(self) -> _DictKeyIter[K,Self.ValuePtr,H,origin_of(self._dict)]:
         return self._dict.keys()
 
     fn key_list(self) -> List[K]:

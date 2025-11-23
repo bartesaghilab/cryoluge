@@ -20,8 +20,8 @@ struct DimensionalBuffer[
     """the element strides, not the byte strides"""
     var _buf: ByteBuffer
 
-    alias Vec = Vec[_,dim]
-    alias _elem_size = size_of[T]()
+    comptime Vec = Vec[_,dim]
+    comptime _elem_size = size_of[T]()
 
     fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self._sizes = sizes.copy()
@@ -50,28 +50,26 @@ struct DimensionalBuffer[
     fn num_elements(self) -> Int:
         return self._sizes.product()
 
-    fn sizes(self) -> ref [ImmutableOrigin.cast_from[__origin_of(self._sizes)]] Self.Vec[Int]:
+    fn sizes(self) -> ref [origin_of(self._sizes)] Self.Vec[Int]:
         return self._sizes
 
-    fn span(self) -> Span[Byte, MutableOrigin.cast_from[__origin_of(self._buf)]]:
-        return self._buf.span()
+    fn span_bytes(ref self, *, start: Int = 0) -> Span[Byte, origin_of(self._buf)]:
+        return self._buf.span(start=start)
+    
+    fn span(ref self, *, start: Int = 0) -> Span[T, origin_of(self._buf)]:
+        return Span[T](
+            ptr=self._buf.span(start=size_of[T]()*start)
+                .unsafe_ptr()
+                .bitcast[T](),
+            length=self.num_elements() - start
+        )
 
     fn alignment(self) -> Int:
         return self._buf.alignment()
 
-    fn _start(self) -> UnsafePointer[T]:
-        return self._buf._p.bitcast[T]()
-
-    fn unsafe_ptr(self, *, offset: Int = 0) -> UnsafePointer[T]:
-        debug_assert(
-            offset >= 0 and offset < self.num_elements(),
-            "Offset ", offset, " out of range [0,", self.num_elements(), ")"
-        )
-        return self._start() + offset
-
     fn _offset(self, i: Self.Vec[Int], out offset: Int):
         
-        alias d_names = InlineArray[String, 3]("x", "y", "z")
+        comptime d_names = InlineArray[String, 3]("x", "y", "z")
 
         offset = 0
 
@@ -108,7 +106,7 @@ struct DimensionalBuffer[
 
     fn __getitem__(self, *, i: Int, out v: T):
         self._check_offset(i)
-        v = (self._start() + i)[].copy()
+        v = self.span()[i].copy()
 
     fn __getitem__(self, i: Self.Vec[Int], out v: T):
         v = self[i=self._offset(i)]
@@ -127,7 +125,7 @@ struct DimensionalBuffer[
 
     fn __setitem__(mut self, *, i: Int, v: T):
         self._check_offset(i)
-        (self._start() + i)[] = v.copy()
+        self.span()[i] = v.copy()
 
     fn __setitem__(mut self, i: Self.Vec[Int], v: T):
         self[i=self._offset(i)] = v
@@ -283,9 +281,9 @@ struct DimensionalBuffer[
         if verbose:
             print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
 
-    fn _render_samples[samples: Int, T: Stringable & Copyable & Movable](
+    fn _render_samples[samples: Int, S: Stringable & Copyable & Movable](
         self: DimensionalBuffer[dim,T],
-        data: InlineArray[T,samples]
+        data: InlineArray[S,samples]
     ) -> String:
         var msg = "[ "
         @parameter
@@ -360,14 +358,14 @@ struct DimensionalBuffer[
 
         if overwrite:
             memcpy(
-                dest=self._start(),
                 src=exp_data.unsafe_ptr(),
+                dest=self.span().unsafe_ptr(),
                 count=self.num_elements()
             )
 
     # TEMP
     fn assert_data[err_fn: ErrFnFloat32 = err_rel](
-        self: DimensionalBuffer[dim,ComplexFloat32],
+        mut self: DimensionalBuffer[dim,ComplexFloat32],
         msg: String,
         path: String,
         *,
@@ -425,8 +423,8 @@ struct DimensionalBuffer[
 
         if overwrite:
             memcpy(
-                dest=self._start(),
                 src=exp_data.unsafe_ptr(),
+                dest=self.span().unsafe_ptr(),
                 count=self.num_elements()
             )
 
@@ -461,7 +459,7 @@ fn err_rel(obs: Float32, exp: Float32) -> Float32:
     else:
         return err_abs(obs, exp)/abs(exp)
 
-alias ErrFnFloat32 = fn(Float32, Float32) -> Float32
+comptime ErrFnFloat32 = fn(Float32, Float32) -> Float32
 
 # TEMP
 fn _err[err_fn: ErrFnFloat32](obs: Float32, exp: Float32) -> Float32:

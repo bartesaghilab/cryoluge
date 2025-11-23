@@ -10,11 +10,11 @@ struct UnitType(
     var value: Int
     var name: StaticString
 
-    alias Pix = Self(1, "Pix")
-    alias Ang = Self(2, "Ang")
-    alias MM = Self(3, "mm")
-    alias Rad = Self(4, "rad")
-    alias Deg = Self(5, "deg")
+    comptime Pix = Self(1, "Pix")
+    comptime Ang = Self(2, "Ang")
+    comptime MM = Self(3, "mm")
+    comptime Rad = Self(4, "rad")
+    comptime Deg = Self(5, "deg")
 
     fn __eq__(self, other: Self) -> Bool:
         return self.value == other.value
@@ -26,16 +26,16 @@ struct UnitType(
         return String.write(self)
 
 
-alias Pix = Unit[UnitType.Pix, _, _]
-alias PixFloat32 = Pix[DType.float32,_]
+comptime Pix = Unit[UnitType.Pix, _, _]
+comptime PixFloat32 = Pix[DType.float32,_]
 
-alias Ang = Unit[UnitType.Ang, _, _]
-alias AngFloat32 = Ang[DType.float32,_]
+comptime Ang = Unit[UnitType.Ang, _, _]
+comptime AngFloat32 = Ang[DType.float32,_]
 
-alias MM = Unit[UnitType.MM, _, _]
+comptime MM = Unit[UnitType.MM, _, _]
 
-alias Rad = Unit[UnitType.Ang, _, _]
-alias Deg = Unit[UnitType.Deg, _, _]
+comptime Rad = Unit[UnitType.Ang, _, _]
+comptime Deg = Unit[UnitType.Deg, _, _]
 
 
 @register_passable("trivial")
@@ -53,7 +53,7 @@ struct Unit[
 ):
     var value: Self.V
 
-    alias V = SIMD[dtype, width]
+    comptime V = SIMD[dtype, width]
 
     @always_inline
     fn __init__(out self, value: Self.V):
