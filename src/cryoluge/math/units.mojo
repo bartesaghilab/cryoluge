@@ -1,4 +1,7 @@
 
+from math import sin, cos, pi as pi_std
+
+
 @fieldwise_init
 struct UnitType(
     ImplicitlyCopyable,
@@ -10,11 +13,12 @@ struct UnitType(
     var value: Int
     var name: StaticString
 
-    comptime Pix = Self(1, "Pix")
+    comptime Px = Self(1, "Px")
     comptime Ang = Self(2, "Ang")
     comptime MM = Self(3, "mm")
-    comptime Rad = Self(4, "rad")
-    comptime Deg = Self(5, "deg")
+    comptime Rad = Self(4, "Rad")
+    comptime Deg = Self(5, "Deg")
+    comptime Hz = Self(6, "Hz")
 
     fn __eq__(self, other: Self) -> Bool:
         return self.value == other.value
@@ -26,16 +30,20 @@ struct UnitType(
         return String.write(self)
 
 
-comptime Pix = Unit[UnitType.Pix, _, _]
-comptime PixFloat32 = Pix[DType.float32,_]
+comptime Px = Unit[UnitType.Px, _, _]
+comptime PxFloat32 = Px[DType.float32,_]
 
 comptime Ang = Unit[UnitType.Ang, _, _]
 comptime AngFloat32 = Ang[DType.float32,_]
 
 comptime MM = Unit[UnitType.MM, _, _]
 
-comptime Rad = Unit[UnitType.Ang, _, _]
+comptime Rad = Unit[UnitType.Rad, _, _]
 comptime Deg = Unit[UnitType.Deg, _, _]
+
+comptime Hz = Unit[UnitType.Hz, _, _]
+
+comptime pi[dtype: DType, width: Int = 1] = Rad[dtype,width](pi_std)
 
 
 @register_passable("trivial")
@@ -257,7 +265,7 @@ struct Unit[
     # TODO: would these makes sense as extension functions?
 
     fn to_ang(
-        self: Pix[dtype,width],
+        self: Px[dtype,width],
         pixel_size: SIMD[dtype,width],
         out ang: Ang[dtype,width]
     ):
@@ -269,12 +277,12 @@ struct Unit[
     ):
         ang = Ang(self.value*10_000_000)
 
-    fn to_pix(
+    fn to_px(
         self: Ang[dtype,width],
         pixel_size: SIMD[dtype,width],
-        out pix: Pix[dtype,width]
+        out px: Px[dtype,width]
     ):
-        pix = Pix(self.value/pixel_size)
+        px = Px(self.value/pixel_size)
 
     fn to_deg(
         self: Rad[dtype,width],
@@ -287,3 +295,35 @@ struct Unit[
         out rad: Rad[dtype,width]
     ):
         rad = Rad(deg_to_rad(deg=self.value))
+
+    # angles
+
+    fn normalize_minus_pi_to_pi(
+        self: Rad[dtype,1],
+        out result: Rad[dtype,1]
+    ):
+        result = Rad(normalize_minus_pi_to_pi(rad=self.value))
+
+    fn cos(
+        self: Rad[dtype,width],
+        out result: SIMD[dtype,width]
+    ):
+        result = cos(self.value)
+    
+    fn cos(
+        self: Deg[dtype,width],
+        out result: SIMD[dtype,width]
+    ):
+        result = self.to_rad().cos()
+
+    fn sin(
+        self: Rad[dtype,width],
+        out result: SIMD[dtype,width]
+    ):
+        result = sin(self.value)
+
+    fn sin(
+        self: Deg[dtype,width],
+        out result: SIMD[dtype,width]
+    ):
+        result = self.to_rad().sin()
