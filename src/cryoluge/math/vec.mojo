@@ -313,6 +313,12 @@ struct Vec[
         for d in range(dim.rank):
             result[d] = self[d]**other
 
+    fn __pow__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Int, out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]**other
+
     fn __ipow__(mut self: Vec[Int,dim], other: Int):
         @parameter
         for d in range(dim.rank):
@@ -324,6 +330,11 @@ struct Vec[
             self[d] = self[d] ** other
             # NOTE: **= not implemented for Scalar[dtype] for some reason
 
+    fn __ipow__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Int):
+        @parameter
+        for d in range(dim.rank):
+            self[d] **= other
+
     fn sum(self: Vec[Int,dim], out result: Int):
         result = 0
         @parameter
@@ -332,6 +343,12 @@ struct Vec[
 
     fn sum[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Scalar[dtype]):
         result = Scalar[dtype](0)
+        @parameter
+        for d in range(dim.rank):
+            result += self[d]
+
+    fn sum[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Unit[utype,dtype]):
+        result = Unit[utype,dtype](0)
         @parameter
         for d in range(dim.rank):
             result += self[d]
@@ -367,13 +384,15 @@ struct Vec[
             result += self[d]*other[d]
 
     fn len2(self: Vec[Int,dim], out result: Int):
-        result = self.inner_product(self)
+        # NOTE: this returns a higher-precision result than the inner product, for some reason
+        #       `x**2` is probably higher-precision than `x*x`
+        result = (self**2).sum()
 
     fn len2[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Scalar[dtype]):
-        result = self.inner_product(self)
+        result = (self**2).sum()
 
     fn len2[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Unit[utype,dtype]):
-        result = self.inner_product(self)
+        result = (self**2).sum()
     
     fn len[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Scalar[dtype]):
         result = sqrt(self.len2())

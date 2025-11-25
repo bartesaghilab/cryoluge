@@ -4,6 +4,7 @@ from complex import ComplexScalar
 
 from cryoluge.math import Vec
 from cryoluge.math.units import UnitType, Unit, Px, Ang, MM, Rad, Deg, pi, Hz
+from cryoluge.fft import FFTCoords
 
 
 struct CTF[dtype: DType](
@@ -15,6 +16,7 @@ struct CTF[dtype: DType](
     var spherical_aberration_px: Px[dtype]
     var _defocus_px: Vec.D2[Px[dtype]]
     var astigmatism_azimuth_rad: Rad[dtype]
+    var pixel_size: Scalar[dtype]
     var additional_phase_shift_rad: Rad[dtype]
     var amplitude_contrast_term_rad: Rad[dtype]
     var _beam_tilt_rad: Rad[dtype]
@@ -47,6 +49,7 @@ struct CTF[dtype: DType](
         self._defocus_px = defocus_a.map[mapper=to_px]()
 
         self.astigmatism_azimuth_rad = astigmatism_azimuth_rad
+        self.pixel_size = pixel_size
         self.additional_phase_shift_rad = additional_phase_shift_rad
 
         # handle amplitude contrast
@@ -131,7 +134,7 @@ struct CTF[dtype: DType](
     ):
         particle_shift_px = self._particle_shift_px*(azimuth_rad - self.particle_shift_azimuth_rad).cos()
 
-    fn evaluate(
+    fn eval(
         self,
         *,
         spatial_freq2_hz: Hz[dtype],
@@ -150,15 +153,26 @@ struct CTF[dtype: DType](
 
         return -(phase_shift_rad + self.low_resolution_contrast*(1 - phase_shift_rad/threshold)).sin()
 
-    fn evaluate(
+    fn eval(
         self,
         *,
         dist: Vec.D2[Scalar[dtype]],
         out result: Scalar[dtype]
     ):
-        result = self.evaluate(
+        result = self.eval(
             spatial_freq2_hz=Hz(dist.len2()),
             azimuth_rad=_azimuth_rad(dist)
+        )
+
+    fn eval(
+        self,
+        *,
+        f: Vec.D2[Int],
+        sizes_real: Vec.D2[Int],
+        out result: Scalar[dtype]
+    ):
+        result = self.eval(
+            dist=FFTCoords(sizes_real).freqs[dtype](f=f)
         )
 
     fn evaluate_beam_tilt_phase_shift(

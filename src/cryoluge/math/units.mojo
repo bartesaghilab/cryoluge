@@ -19,6 +19,7 @@ struct UnitType(
     comptime Rad = Self(4, "Rad")
     comptime Deg = Self(5, "Deg")
     comptime Hz = Self(6, "Hz")
+    comptime KDa = Self(7, "kDa")
 
     fn __eq__(self, other: Self) -> Bool:
         return self.value == other.value
@@ -31,17 +32,12 @@ struct UnitType(
 
 
 comptime Px = Unit[UnitType.Px, _, _]
-comptime PxFloat32 = Px[DType.float32,_]
-
 comptime Ang = Unit[UnitType.Ang, _, _]
-comptime AngFloat32 = Ang[DType.float32,_]
-
 comptime MM = Unit[UnitType.MM, _, _]
-
 comptime Rad = Unit[UnitType.Rad, _, _]
 comptime Deg = Unit[UnitType.Deg, _, _]
-
 comptime Hz = Unit[UnitType.Hz, _, _]
+comptime KDa = Unit[UnitType.KDa, _, _]
 
 comptime pi[dtype: DType, width: Int = 1] = Rad[dtype,width](pi_std)
 
@@ -295,6 +291,12 @@ struct Unit[
         out rad: Rad[dtype,width]
     ):
         rad = Rad(deg_to_rad(deg=self.value))
+
+    fn to_ang3(
+        self: KDa[dtype,width],
+        out ang: Ang[dtype,width]
+    ):
+        ang = Ang(self.value*1000/0.81)
 
     # angles
 

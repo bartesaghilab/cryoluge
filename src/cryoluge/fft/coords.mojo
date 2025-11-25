@@ -132,3 +132,18 @@ struct FFTCoords[
             if i[d] >= self.pivot()[d]:
                 f[d] = i[d] - self.sizes_fourier()[d]
         # TODO: is the compiler smart enough to lift the function calls outside of the loop?
+
+    fn freqs[dtype: DType](
+        self,
+        *,
+        f: Vec[Int,dim],
+        out freqs: Vec[Scalar[dtype],dim]
+    ):
+        var f_dt = f.map_scalar[dtype]()
+        var sizes_real_dt = self.sizes_real().map_scalar[dtype]()
+        # TODO: doing the div is higher precision, but doesn't match csp1,
+        #       since the int truncation is extremely sensitive to roundoff error
+        # freq2 = (f_dt/sizes_real_dt).len2()
+        # TODO: see if pre-calculating the voxel sizes and doing a mult (instead of a div) is significantly faster
+        var sizes_voxel = 1/sizes_real_dt
+        freqs = f_dt*sizes_voxel

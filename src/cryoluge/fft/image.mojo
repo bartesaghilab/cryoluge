@@ -3,6 +3,7 @@ from math import pi, cos, sin, floor
 
 from cryoluge.math import Dimension, Vec, ComplexScalar, Matrix
 from cryoluge.image import ComplexImage
+from cryoluge.ctf import CTF
 
 
 struct FFTImage[
@@ -132,72 +133,212 @@ struct FFTImage[
 
         return sum
 
-    fn slice(
-        self: FFTImage[Dimension.D3,dtype],
-        *,
-        rot: Matrix.D3[DType.float32],
-        res_limit: Float32,
-        mut to: FFTImage.D2[dtype],
-        out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
-        origin_value: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
-    ):
-        ref src = self
-        ref dst = to
 
-        var op = FFTSliceOperator(src, res_limit)
-
-        print(dst.complex.sizes(), op._res_limit2)  # TEMP: work around compiler bug
-
-        @parameter
-        fn func(i: to.Vec[Int]):
-            dst.complex[i] = op.eval(src, dst, rot, i, out_of_range=out_of_range, origin_value=origin_value)
-
-        to.complex.iterate[func]()
-
-
-struct FFTSliceOperator[dtype: DType]:
+struct SliceOperator[
+    dtype: DType,
+    src_origin: Origin[mut=False]
+]:
     comptime Src = FFTImage[Dimension.D3,dtype]
     comptime Dst = FFTImage[Dimension.D2,dtype]
 
+    var _src: Pointer[Self.Src, src_origin]
     var _res_limit2: Float32
 
     fn __init__(
         out self,
-        src: Self.Src,
+        ref [src_origin] src: Self.Src,
         res_limit: Float32
     ):
+        self._src = Pointer(to=src)
+
         var x_size = Float32(src.coords().sizes_real().x())
         self._res_limit2 = (res_limit*x_size)**2
 
     fn eval(
         self,
-        src: Self.Src,
         mut dst: Self.Dst,
         rot: Matrix.D3[DType.float32],
-        i: Vec[Int,Self.Dst.dim],
         *,
+        f: Vec[Int,Self.Dst.dim],
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
         origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
         out pixel: ComplexScalar[dtype]
     ):
-        var freq_2d = dst.coords().i2f(i)
-        if freq_2d == Vec.D2[Int](x=0, y=0):
+        ref src = self._src[]
+
+        if f == Vec.D2[Int](x=0, y=0):
             pixel = origin_value
         else:
 
-            var freq_2d_f = freq_2d.map_float32()
+            var f_f = f.map_float32()
 
-            if freq_2d_f.len2() <= self._res_limit2:
+            if f_f.len2() <= self._res_limit2:
 
                 # rotate the sample point into 3d
-                var freq_3d_f = rot*freq_2d_f.lift(z=0)
+                var freq_3d_f = rot*f_f.lift(z=0)
 
                 # do the linear interpolation
                 var v = src.get(f_lerp=freq_3d_f).or_else(out_of_range)
 
                 # save to the output
-                if dst.coords().needs_conjugation(f=freq_2d):
+                if dst.coords().needs_conjugation(f=f):
                     v = v.conj()
                 pixel = v
             else:
                 pixel = out_of_range
+
+    fn eval(
+        self,
+        mut dst: Self.Dst,
+        rot: Matrix.D3[DType.float32],
+        *,
+        i: Vec[Int,Self.Dst.dim],
+        out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
+        origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
+        out pixel: ComplexScalar[dtype]
+    ):
+        var f = dst.coords().i2f(i)
+        pixel = self.eval(dst, rot, f=f, out_of_range=out_of_range, origin_value=origin_value)
+
+    fn apply(
+        self,
+        *,
+        mut to: FFTImage.D2[dtype],
+        rot: Matrix.D3[DType.float32],
+        out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
+        origin_value: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
+    ):
+        @parameter
+        fn func(i: to.Vec[Int]):
+            to.complex[i] = self.eval(to, rot, i=i, out_of_range=out_of_range, origin_value=origin_value)
+
+        to.complex.iterate[func]()
+
+
+struct WhitenOperator[
+    dim: Dimension,
+    dtype: DType,
+    sum_dtype: DType=dtype
+]:
+    var shells: FourierShells[dim]
+    var res_limit: Int
+    var _sum: List[Scalar[sum_dtype]]
+    var _count: List[Int]
+
+    fn __init__(
+        out self,
+        shells: FourierShells[dim],
+        *,
+        res_limit: Optional[Int] = None
+    ):
+        self.shells = shells.copy()
+        self.res_limit = res_limit.or_else(shells.count)
+        self._sum = List[Scalar[sum_dtype]](length=shells.count, fill=0)
+        self._count = List[Int](length=shells.count, fill=0)
+
+    fn reset(mut self):
+        for shelli in range(self.shells.count):
+            self._sum[shelli] = 0
+            self._count[shelli] = 0
+
+    fn collect_statistics(mut self, *, f: Vec[Int,dim], v: ComplexScalar[dtype]):
+        var dist2 = v.squared_norm()
+        if dist2 > 0:
+            # TODO: NEXTTIME: the counts (and sums) are wrong! find out why! (is shelli off? is freq2 off?)
+            var shelli = self.shells.shelli[dtype](f=f)
+            if shelli <= self.res_limit:
+                self._sum[shelli] += Scalar[sum_dtype](dist2)
+                self._count[shelli] += 1
+
+    fn normalize(mut self):
+        for shelli in range(self.shells.count):
+            if self._count[shelli] > 0:
+                self._sum[shelli] = sqrt(self._sum[shelli]/Scalar[sum_dtype](self._count[shelli]))
+
+    fn eval(self, *, f: Vec[Int,dim], v: ComplexScalar[dtype], out result: ComplexScalar[dtype]):
+        var shelli = self.shells.shelli[dtype](f=f)
+        if shelli <= self.res_limit and self._count[shelli] > 0:
+            var sum = Scalar[dtype](self._sum[shelli])
+            result = ComplexScalar[dtype](re=v.re/sum, im=v.im/sum)
+        else:
+            result = ComplexScalar[dtype](0, 0)
+
+    fn apply(mut self, mut image: FFTImage[dim,dtype]):
+
+        self.reset()
+
+        @parameter
+        fn func1(i: Vec[Int,dim]):
+            var v = image.complex[i=i]
+            var f = image.coords().i2f(i)
+            self.collect_statistics(f=f, v=v)
+
+        image.complex.iterate[func1]()
+
+        self.normalize()
+
+        @parameter
+        fn func2(i: Vec[Int,dim]):
+            var v = image.complex[i=i]
+            var f = image.coords().i2f(i)
+            image.complex[i=i] = self.eval(f=f, v=v)
+
+        image.complex.iterate[func2]()
+
+
+struct WeightBySSNROperator[
+    dtype: DType,
+    ssnr_origin: Origin[mut=False]
+]:
+    var sizes_real: Vec.D2[Int]
+    var ctf: CTF[dtype]
+    var shells: FourierShells[Dimension.D2]
+    var ssnr: Pointer[SSNR[dtype], ssnr_origin]
+    var _scale_factor: Scalar[dtype]
+
+    fn __init__(
+        out self,
+        *,
+        sizes_real: Vec.D2[Int],
+        ctf: CTF[dtype],
+        shells: FourierShells[Dimension.D2],
+        ref [ssnr_origin] ssnr: SSNR[dtype]
+    ):
+        self.sizes_real = sizes_real.copy()
+        self.ctf = ctf.copy()
+        self.shells = shells.copy()
+        self.ssnr = Pointer(to=ssnr)
+
+        # compute the scale factor        
+        var particle_diameter2_px = ssnr.particle_diameter_a.to_px(ctf.pixel_size)**2
+        var particle_area2_px = pi*particle_diameter2_px/4
+        self._scale_factor = particle_area2_px.value/sizes_real.x()/sizes_real.y()
+
+    fn eval(
+        self,
+        *,
+        f: Vec.D2[Int],
+        v: ComplexScalar[dtype],
+        out result: ComplexScalar[dtype]
+    ):
+        ref ssnr = self.ssnr[]
+
+        var ctf2 = self.ctf.eval(f=f, sizes_real=self.sizes_real)**2
+        var freq2 = FFTCoords(self.sizes_real).freqs[dtype](f=f).len2()
+        var shelli = self.shells.shelli[dtype](f=f)
+
+        result = v
+
+        # TODO: magic number?
+        if freq2 <= 0.25:
+            result *= sqrt(1 + ctf2*abs(ssnr[shelli])*self._scale_factor)
+
+    fn apply(self, mut image: FFTImage[Dimension.D2,dtype]):
+        
+        @parameter
+        fn func(i: Vec.D2[Int]):
+            var v = image.complex[i=i]
+            var f = image.coords().i2f(i)
+            image.complex[i=i] = self.eval(f=f, v=v)
+
+        image.complex.iterate[func]()
