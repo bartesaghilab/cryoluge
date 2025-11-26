@@ -1,7 +1,7 @@
 
 from math import sqrt
 
-from cryoluge.math.units import Unit, UnitType
+from cryoluge.math.units import Unit, UnitType, Ang, Px
 
 
 comptime _TBounds = Copyable & Movable & EqualityComparable & Writable & Stringable
@@ -144,6 +144,12 @@ struct Vec[
         for d in range(dim.rank):
             result[d] = -self[d]
 
+    fn __neg__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = -self[d]
+
     fn __add__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)
         @parameter
@@ -162,6 +168,30 @@ struct Vec[
     fn __add__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
         result = self + Vec[Scalar[dtype],dim](fill=other)
 
+    fn __add__[utype: UnitType, dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] + other[d]
+
+    fn __add__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] + other[d]
+
+    fn __add__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] + other[d]
+
+    fn __add__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self + Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __add__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self + Unit[utype,dtype](other)
+
     fn __iadd__(mut self: Vec[Int,dim], other: Vec[Int,dim]):
         @parameter
         for d in range(dim.rank):
@@ -177,6 +207,22 @@ struct Vec[
 
     fn __iadd__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Scalar[dtype]):
         self += Vec[Scalar[dtype],dim](fill=other)
+
+    fn __iadd__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] += other[d]
+
+    fn __iadd__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] += other[d]
+
+    fn __iadd__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype]):
+        self += Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __iadd__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype]):
+        self += Unit[utype,dtype](other)
 
     fn __sub__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)
@@ -196,6 +242,24 @@ struct Vec[
     fn __sub__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
         result = self - Vec[Scalar[dtype],dim](fill=other)
 
+    fn __sub__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] - other[d]
+
+    fn __sub__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] - other[d]
+
+    fn __sub__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self - Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __sub__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self - Unit[utype,dtype](other)
+
     fn __isub__(mut self: Vec[Int,dim], other: Vec[Int,dim]):
         @parameter
         for d in range(dim.rank):
@@ -212,17 +276,36 @@ struct Vec[
     fn __isub__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Scalar[dtype]):
         self -= Vec[Scalar[dtype],dim](fill=other)
 
+    fn __isub__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] -= other[d]
+
+    fn __isub__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] -= other[d]
+
+    fn __isub__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype]):
+        self -= Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __isub__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype]):
+        self -= Unit[utype,dtype](other)
+
     fn __rsub__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
         result = other - self
 
     fn __rsub__(self: Vec[Int,dim], other: Int, out result: Vec[Int,dim]):
         result = Vec[Int,dim](fill=other) - self
 
-    fn __rsub__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
-        result = other - self
-
     fn __rsub__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
         result = Vec[Scalar[dtype],dim](fill=other) - self
+
+    fn __rsub__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](fill=other) - self
+
+    fn __rsub__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = Unit[utype,dtype](other) - self
 
     fn __mul__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)
@@ -242,6 +325,30 @@ struct Vec[
     fn __mul__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
         result = self * Vec[Scalar[dtype],dim](fill=other)
 
+    fn __mul__[utype: UnitType, dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] * other[d]
+
+    fn __mul__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] * other[d]
+
+    fn __mul__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d] * other[d]
+
+    fn __mul__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self * Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __mul__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self * Unit[utype,dtype](other)
+
     fn __imul__(mut self: Vec[Int,dim], other: Vec[Int,dim]):
         @parameter
         for d in range(dim.rank):
@@ -257,6 +364,22 @@ struct Vec[
 
     fn __imul__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Scalar[dtype]):
         self += Vec[Scalar[dtype],dim](fill=other)
+
+    fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] *= other[d]
+
+    fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] *= other[d]
+
+    fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype]):
+        self += Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype]):
+        self += Unit[utype,dtype](other)
 
     fn __floordiv__(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)
@@ -284,14 +407,38 @@ struct Vec[
     fn __truediv__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
         result = self/Vec[Scalar[dtype],dim](fill=other)
 
-    fn __rtruediv__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
-        result = Vec[Scalar[dtype],dim](uninitialized=True)
+    fn __truediv__[utype: UnitType, dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
-            result[d] = other[d]/self[d]
+            result[d] = self[d]/other[d]
+
+    fn __truediv__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]/other[d]
+
+    fn __truediv__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = self[d]/other[d]
+
+    fn __truediv__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self/Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __truediv__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = self/Unit[utype,dtype](other)
 
     fn __rtruediv__[dtype: DType](self: Vec[Scalar[dtype],dim], other: Scalar[dtype], out result: Vec[Scalar[dtype],dim]):
         result = Vec[Scalar[dtype],dim](fill=other)/self
+
+    fn __rtruediv__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = Vec[Unit[utype,dtype],dim](fill=other)/self
+
+    fn __rtruediv__[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype], out result: Vec[Unit[utype,dtype],dim]):
+        result = Unit[utype,dtype](other)/self
 
     fn __itruediv__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Vec[Scalar[dtype],dim]):
         @parameter
@@ -300,6 +447,22 @@ struct Vec[
 
     fn __itruediv__[dtype: DType](mut self: Vec[Scalar[dtype],dim], other: Scalar[dtype]):
         self /= Vec[Scalar[dtype],dim](fill=other)
+
+    fn __itruediv__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Unit[utype,dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] /= other[d]
+
+    fn __itruediv__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim]):
+        @parameter
+        for d in range(dim.rank):
+            self[d] /= other[d]
+
+    fn __itruediv__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Unit[utype,dtype]):
+        self /= Vec[Unit[utype,dtype],dim](fill=other)
+
+    fn __itruediv__[utype: UnitType, dtype: DType](mut self: Vec[Unit[utype,dtype],dim], other: Scalar[dtype]):
+        self /= Unit[utype,dtype](other)
 
     fn __pow__(self: Vec[Int,dim], other: Int, out result: Vec[Int,dim]):
         result = Vec[Int,dim](uninitialized=True)
@@ -399,6 +562,26 @@ struct Vec[
 
     fn len[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Unit[utype,dtype]):
         result = self.len2().sqrt()
+    
+    fn sinc(self: Vec[Float32,dim], out result: Vec[Float32,dim]):
+        result = Vec[Float32,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = sinc(self[d])
+
+    fn abs(self: Vec[Int,dim], out result: Vec[Int,dim]):
+        @parameter
+        fn func(i: Int) -> Int:
+            return abs(i)
+        result = self.map[mapper=func]()
+
+    fn abs[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
+        @parameter
+        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
+            return abs(i)
+        result = self.map[mapper=func]()
+
+    # mappings
 
     fn map[
         R: _TBounds, //,
@@ -434,14 +617,22 @@ struct Vec[
         result = self.map_scalar[DType.float32]()
 
     fn map_unit[
-        dtype: DType,
         utype: UnitType,
-        //,
-        unit: Unit[utype,dtype]
+        dtype: DType
     ](self: Vec[Scalar[dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
         @parameter
         fn m(v: Scalar[dtype]) -> Unit[utype,dtype]:
             return Unit[utype,dtype](v)
+        result = self.map[mapper=m]()
+
+    fn map_unit[
+        dst_utype: UnitType,
+        src_utype: UnitType,
+        dtype: DType
+    ](self: Vec[Unit[src_utype,dtype],dim], out result: Vec[Unit[dst_utype,dtype],dim]):
+        @parameter
+        fn m(v: Unit[src_utype,dtype]) -> Unit[dst_utype,dtype]:
+            return Unit[dst_utype,dtype](v.value)
         result = self.map[mapper=m]()
 
     fn map_value[
@@ -453,25 +644,25 @@ struct Vec[
             return v.value
         result = self.map[mapper=m]()
 
-    # TODO: cos,sin
-
-    fn sinc(self: Vec[Float32,dim], out result: Vec[Float32,dim]):
-        result = Vec[Float32,dim](uninitialized=True)
+    fn map_px[dtype: DType](
+        self: Vec[Ang[dtype],dim],
+        pixel_size: Scalar[dtype],
+        out result: Vec[Px[dtype],dim]
+    ):
         @parameter
-        for d in range(dim.rank):
-            result[d] = sinc(self[d])
+        fn m(v: Ang[dtype]) -> Px[dtype]:
+            return v.to_px(pixel_size)
+        result = self.map[mapper=m]()
 
-    fn abs(self: Vec[Int,dim], out result: Vec[Int,dim]):
+    fn map_ang[dtype: DType](
+        self: Vec[Px[dtype],dim],
+        pixel_size: Scalar[dtype],
+        out result: Vec[Ang[dtype],dim]
+    ):
         @parameter
-        fn func(i: Int) -> Int:
-            return abs(i)
-        result = self.map[mapper=func]()
-
-    fn abs[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
-        @parameter
-        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
-            return abs(i)
-        result = self.map[mapper=func]()
+        fn m(v: Px[dtype]) -> Ang[dtype]:
+            return v.to_ang(pixel_size)
+        result = self.map[mapper=m]()
 
 
 fn expect_num_arguments[dim: Dimension, count: Int]():

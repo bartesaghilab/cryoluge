@@ -175,7 +175,19 @@ struct CTF[dtype: DType](
             dist=FFTCoords(sizes_real).freqs[dtype](f=f)
         )
 
-    fn evaluate_beam_tilt_phase_shift(
+    fn eval(
+        self,
+        *,
+        i: Vec.D2[Int],
+        sizes_real: Vec.D2[Int],
+        out result: Scalar[dtype]
+    ):
+        result = self.eval(
+            f=FFTCoords(sizes_real).i2f(i),
+            sizes_real=sizes_real
+        )
+
+    fn eval_beam_tilt_phase_shift(
         self,
         *,
         spatial_freq2_hz: Hz[dtype],
@@ -192,15 +204,38 @@ struct CTF[dtype: DType](
         )
         result = ComplexScalar[dtype](phase_shift_rad.cos(), phase_shift_rad.sin())
 
-    fn evaluate_beam_tilt_phase_shift(
+    fn eval_beam_tilt_phase_shift(
         self,
         *,
         dist: Vec.D2[Scalar[dtype]],
         out result: ComplexScalar[dtype]
     ):
-        result = self.evaluate_beam_tilt_phase_shift(
+        result = self.eval_beam_tilt_phase_shift(
             spatial_freq2_hz=Hz(dist.len2()),
             azimuth_rad=_azimuth_rad(dist)
+        )
+
+    fn eval_beam_tilt_phase_shift(
+        self,
+        *,
+        f: Vec.D2[Int],
+        sizes_real: Vec.D2[Int],
+        out result: ComplexScalar[dtype]
+    ):
+        result = self.eval_beam_tilt_phase_shift(
+            dist=FFTCoords(sizes_real).freqs[dtype](f=f)
+        )
+
+    fn eval_beam_tilt_phase_shift(
+        self,
+        *,
+        i: Vec.D2[Int],
+        sizes_real: Vec.D2[Int],
+        out result: ComplexScalar[dtype]
+    ):
+        result = self.eval_beam_tilt_phase_shift(
+            f=FFTCoords(sizes_real).i2f(i),
+            sizes_real=sizes_real
         )
 
 

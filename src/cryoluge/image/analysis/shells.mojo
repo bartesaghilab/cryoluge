@@ -2,6 +2,7 @@
 from math import sqrt
 
 from cryoluge.math import Dimension, Vec
+from cryoluge.fft import FFTCoords
 
 
 @fieldwise_init

@@ -6,6 +6,9 @@ from cryoluge.math import Dimension, Vec, sinc, clamp
 from cryoluge.fft import FFTCoords, FFTImage, CoordDomain, constrain_coord_domain
 
 
+# TODO: refactor to use px units?
+
+
 trait MaskReal:
     fn includes[
         dim: Dimension
@@ -305,6 +308,8 @@ struct AnnularMask[
                 return r2 >= self._r12
         else:
             return unrecognized_mask_region[region,Bool]()
+
+    # TODO: refactor into image operators?
 
     fn blend[
         dir: AnnularBlendDirection,
