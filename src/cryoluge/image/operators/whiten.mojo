@@ -27,11 +27,11 @@ struct WhitenOperator[
         self.real_sizes = real_sizes.copy()
         self.shells = shells.copy()
         self.res_limit = res_limit.or_else(shells.count)
-        self._sum = List[Scalar[sum_dtype]](length=shells.count, fill=0)
-        self._count = List[Int](length=shells.count, fill=0)
+        self._sum = List[Scalar[sum_dtype]](length=len(shells), fill=0)
+        self._count = List[Int](length=len(shells), fill=0)
 
     fn reset(mut self):
-        for shelli in range(self.shells.count):
+        for shelli in range(len(self._sum)):
             self._sum[shelli] = 0
             self._count[shelli] = 0
 
@@ -44,7 +44,7 @@ struct WhitenOperator[
                 self._count[shelli] += 1
 
     fn normalize(mut self):
-        for shelli in range(self.shells.count):
+        for shelli in range(len(self._sum)):
             if self._count[shelli] > 0:
                 self._sum[shelli] = sqrt(self._sum[shelli]/Scalar[sum_dtype](self._count[shelli]))
 
