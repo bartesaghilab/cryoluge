@@ -3,38 +3,39 @@ from cryoluge.math import Dimension, Vec, Matrix
 from cryoluge.fft import FFTImage
 
 
-struct SliceOperator[
-    dtype: DType,
-    src_origin: Origin[mut=False]
-]:
+struct SliceOperator[dtype: DType](
+    Copyable,
+    Movable
+):
+
     comptime Src = FFTImage[Dimension.D3,dtype]
     comptime Dst = FFTImage[Dimension.D2,dtype]
 
-    var _src: Pointer[Self.Src, src_origin]
+    var _dst_sizes_real: Vec.D2[Int]
     var _res_limit2: Float32
 
     fn __init__(
         out self,
-        ref [src_origin] src: Self.Src,
+        *,
+        src_sizes_real: Vec.D3[Int],
+        dst_sizes_real: Vec.D2[Int],
         res_limit: Float32
     ):
-        self._src = Pointer(to=src)
+        self._dst_sizes_real = dst_sizes_real.copy()
 
-        var x_size = Float32(src.coords().sizes_real().x())
+        var x_size = Float32(src_sizes_real.x())
         self._res_limit2 = (res_limit*x_size)**2
 
     fn eval(
         self,
-        mut dst: Self.Dst,
-        rot: Matrix.D3[DType.float32],
         *,
+        src: Self.Src,
+        rot: Matrix.D3[DType.float32],
         f: Vec[Int,Self.Dst.dim],
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
         origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
         out pixel: ComplexScalar[dtype]
     ):
-        ref src = self._src[]
-
         if f == Vec.D2[Int](x=0, y=0):
             pixel = origin_value
         else:
@@ -50,7 +51,7 @@ struct SliceOperator[
                 var v = src.get(f_lerp=freq_3d_f).or_else(out_of_range)
 
                 # save to the output
-                if dst.coords().needs_conjugation(f=f):
+                if FFTCoords(self._dst_sizes_real).needs_conjugation(f=f):
                     v = v.conj()
                 pixel = v
             else:
@@ -58,20 +59,27 @@ struct SliceOperator[
 
     fn eval(
         self,
-        mut dst: Self.Dst,
-        rot: Matrix.D3[DType.float32],
         *,
+        src: Self.Src,
+        rot: Matrix.D3[DType.float32],
         i: Vec[Int,Self.Dst.dim],
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
         origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
         out pixel: ComplexScalar[dtype]
     ):
-        var f = dst.coords().i2f(i)
-        pixel = self.eval(dst, rot, f=f, out_of_range=out_of_range, origin_value=origin_value)
+        var f = FFTCoords(self._dst_sizes_real).i2f(i)
+        pixel = self.eval(
+            src=src,
+            rot=rot,
+            f=f,
+            out_of_range=out_of_range,
+            origin_value=origin_value
+        )
 
     fn apply(
         self,
         *,
+        src: Self.Src,
         mut to: FFTImage.D2[dtype],
         rot: Matrix.D3[DType.float32],
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
@@ -79,6 +87,12 @@ struct SliceOperator[
     ):
         @parameter
         fn func(i: to.Vec[Int]):
-            to.complex[i] = self.eval(to, rot, i=i, out_of_range=out_of_range, origin_value=origin_value)
+            to.complex[i] = self.eval(
+                src=src,
+                rot=rot,
+                i=i,
+                out_of_range=out_of_range,
+                origin_value=origin_value
+            )
 
         to.complex.iterate[func]()

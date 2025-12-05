@@ -4,7 +4,10 @@ from cryoluge.math.units import Rad, pi
 from cryoluge.fft import FFTCoords
 
 
-struct PhaseShiftOperator[dtype: DType, dim: Dimension]:
+struct PhaseShiftOperator[dtype: DType, dim: Dimension](
+    Copyable,
+    Movable
+):
 
     var sizes_real: Vec[Int,dim]
     var shifts: Vec[Rad[dtype],dim]
