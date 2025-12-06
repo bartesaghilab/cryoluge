@@ -58,6 +58,8 @@ struct FFTImage[
 
         dst.complex.iterate[sample]()
 
+        _ = dst  # TEMP: need to extend lifetime of ref to avoid compiler bug
+
     fn get(
         self,
         *,
@@ -118,5 +120,7 @@ struct FFTImage[
             var dists = (f - f_sample.map_float32()).abs()
             var weight = Scalar[dtype]((1 - dists).product())
             sum = sum + v.value()*weight
+
+        _ = f  # TEMP: need to extend lifetime of reference to avoid compiler bug
 
         return sum
