@@ -147,3 +147,11 @@ struct FFTCoords[
         # TODO: see if pre-calculating the voxel sizes and doing a mult (instead of a div) is significantly faster
         var sizes_voxel = 1/sizes_real_dt
         freqs = f_dt*sizes_voxel
+
+    fn freqs[dtype: DType](
+        self,
+        *,
+        i: Vec[Int,dim],
+        out freqs: Vec[Scalar[dtype],dim]
+    ):
+        freqs = self.freqs[dtype](f=self.i2f(i))
