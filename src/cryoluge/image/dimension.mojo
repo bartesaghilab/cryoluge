@@ -21,10 +21,14 @@ struct DimensionalBuffer[
     """the element strides, not the byte strides"""
     var _buf: ByteBuffer
 
+    comptime D1 = DimensionalBuffer[Dimension.D1,_]
+    comptime D2 = DimensionalBuffer[Dimension.D2,_]
+    comptime D3 = DimensionalBuffer[Dimension.D3,_]
     comptime Vec = Vec[_,dim]
     comptime _elem_size = size_of[T]()
 
     fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
+        """WARNING: produces un-initialized memory."""
         self._sizes = sizes.copy()
         @parameter
         if dim == Dimension.D1:

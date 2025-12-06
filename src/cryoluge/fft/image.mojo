@@ -28,11 +28,13 @@ struct FFTImage[
     comptime ScalarVec = ComplexImage[dim,dtype].ScalarVec
 
     fn __init__(out self, sizes_real: Self.Vec[Int], *, alignment: Optional[Int] = None):
+        """WARNING: produces un-initialized memory."""
         self.sizes_real = sizes_real.copy()
         var fft_coords = FFTCoords(sizes_real)
         self.complex = ComplexImage[dim,dtype](fft_coords.sizes_fourier(), alignment=alignment)
 
     fn __init__(out self, *, of: Image[dim,dtype], alignment: Optional[Int] = None):
+        """WARNING: produces un-initialized memory."""
         ref real = of
         self = Self(real.sizes(), alignment=alignment)
 

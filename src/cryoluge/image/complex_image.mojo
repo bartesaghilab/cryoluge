@@ -24,6 +24,7 @@ struct ComplexImage[
     comptime pixel_vec_max_width = simd_width_of[dtype]()
 
     fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
+        """WARNING: produces un-initialized memory."""
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
         # NOTE: This implementation uses an interleaved ordering for complex components.
         #       ie, Array-of-Structures (AoS):
@@ -46,15 +47,6 @@ struct ComplexImage[
         #       so AoS layout works best here.
         #       But, as with all things HPC, we should benchmark and be sure.
         #       For what it's worth, fftw uses the AoS layout, so that's probably good enough for us too.
-
-    fn __init__(out self, *, sx: Int, alignment: Optional[Int] = None):
-        self = Self(Self.Vec(x=sx), alignment=alignment)
-
-    fn __init__(out self, *, sx: Int, sy: Int, alignment: Optional[Int] = None):
-        self = Self(Self.Vec(x=sx, y=sy), alignment=alignment)
-
-    fn __init__(out self, *, sx: Int, sy: Int, sz: Int, alignment: Optional[Int] = None):
-        self = Self(Self.Vec(x=sx, y=sy, z=sz), alignment=alignment)
 
     fn rank(self) -> Int:
         return self._buf.rank()
