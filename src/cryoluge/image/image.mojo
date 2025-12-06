@@ -142,6 +142,18 @@ struct Image[
 
         vectorize[loader, width](self.num_pixels())
 
+    fn pixels_write[
+        func: fn[width: Int](out p: Self.PixelVec[width]) capturing,
+        width: Int = Self.pixel_vec_max_width
+    ](mut self):
+
+        @parameter
+        fn loader[width: Int](offset: Int):
+            var v = func[width]()
+            self.store[width](offset, v)
+
+        vectorize[loader, width](self.num_pixels())
+
     fn pixels_read_write[
         func: fn[width: Int](mut p: Self.PixelVec[width]) capturing,
         width: Int = Self.pixel_vec_max_width
@@ -159,9 +171,11 @@ struct Image[
 
         @always_inline
         @parameter
-        fn func[width: Int](mut p: Self.PixelVec[width]):
+        fn func[width: Int](out p: Self.PixelVec[width]):
             p = v
-            
+
+        self.pixels_write[func]()
+    
     fn copy(self, *, center: Self.Vec[Int], padding: Self.PixelType, mut to: Self):
 
         @parameter
