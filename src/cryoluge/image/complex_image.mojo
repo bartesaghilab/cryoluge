@@ -98,7 +98,11 @@ struct ComplexImage[
 
     fn get(self, i: Self.Vec[Int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
-    
+
+    @always_inline
+    fn get[*, or_else: Self.PixelType](self, i: Self.Vec[Int], out v: Self.PixelType):
+        v = self._buf.get[or_else=or_else](i)
+
     fn iterate[
         func: fn (i: Self.Vec[Int]) capturing
     ](self):

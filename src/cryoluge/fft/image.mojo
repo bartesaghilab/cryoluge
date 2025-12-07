@@ -62,67 +62,82 @@ struct FFTImage[
 
         _ = dst  # TEMP: need to extend lifetime of ref to avoid compiler bug
 
-    fn get(
+    fn get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
         self,
         *,
         f: Self.Vec[Int],
-        out v: Optional[ComplexScalar[dtype]]
+        out v: ComplexScalar[dtype]
     ):
-        var conj = self.coords().needs_conjugation(f=f)
-        var i = self.coords().maybe_f2i(f, needs_conj=conj)
+        # NOTE: manually inlining all the FFTCoords operations here and simplifying
+        #       can't seem to beat the compiler's optimizations, so go mojo! =D
+        if self.coords().needs_conjugation(f=f):
+            var i = self.coords().f2i_flipped(f)
+            v = self.complex.get[or_else=or_else](i).conj()
+        else:
+            var i = self.coords().f2i(f)
+            v = self.complex.get[or_else=or_else](i)
 
-        if i is None:
-            v = None
-            return
-
-        v = self.complex.get(i.value())
-        if v is not None and conj:
-            v = v.value().conj()
-
-    fn get(
+    fn get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
         self: FFTImage[dim,dtype],
         *,
-        f_lerp: Self.Vec[Float32]
-    ) -> Optional[ComplexScalar[dtype]]:
-        ref f = f_lerp
-
-        # discretize the frequency coordinates
+        f_lerp: Self.Vec[Float32],
+        out pixel: ComplexScalar[dtype]
+    ):
+        # discretize the frequency coordinates, and keep track of distances
+        var start = Vec[Int,dim](uninitialized=True)
+        var dists = Vec[Float32,dim](uninitialized=True)
         @parameter
-        fn func_start(v: Float32) -> Int:
-            return Int(floor(v))
-        var start = f.map[mapper=func_start]()
+        for d in range(dim.rank):
+            var floor = floor(f_lerp[d])
+            start[d] = Int(floor)
+            dists[d] = f_lerp[d] - floor
 
         # build the multi-dimensional delta vectors (at compile-time)
-        fn build_deltas(out deltas: List[Vec[Int,dim]]):
-            deltas = [
-                Vec[Int,dim](fill=0)
-            ]
+        fn build_deltas(out deltas: List[Delta[dim]]):
+            deltas = [Delta[dim]()]
             for d in range(dim.rank):
                 for i in range(len(deltas)):
                     var delta = deltas[i].copy()
-                    delta[d] = 1
+                    delta.flip(d)
                     deltas.append(delta^)
 
-        sum = ComplexScalar[dtype](0, 0)
+        pixel = ComplexScalar[dtype](0, 0)
 
         @parameter
         for delta in build_deltas():
-            var f_sample = start + materialize[delta]()
+            var f_sample = start + materialize[delta.pos]()
+            var v = self.get[or_else=or_else](f=f_sample)
+            var weight = Scalar[dtype]((dists*materialize[delta.dir]() + materialize[delta.pos_f]()).product())
+            pixel = pixel + v*weight
 
-            # TEMP: technically, the sample might need conjugation,
-            #       and the coordinate inversion might put it back in-range,
-            #       but csp1 doesn't do that,
-            #       so add another explicit (and unecessary) range check here to match csp1 behavior
-            if not self.coords().f_in_range(f_sample):
-                return None
-            
-            var v = self.get(f=f_sample)
-            if v is None:
-                return None
-            var dists = (f - f_sample.map_float32()).abs()
-            var weight = Scalar[dtype]((1 - dists).product())
-            sum = sum + v.value()*weight
 
-        _ = f  # TEMP: need to extend lifetime of reference to avoid compiler bug
+@fieldwise_init
+struct Delta[dim: Dimension](
+    Copyable,
+    Movable,
+    EqualityComparable,
+    Writable,
+    Stringable
+):
+    var pos: Vec[Int,dim]
+    var pos_f: Vec[Float32,dim]
+    var dir: Vec[Float32,dim]
 
-        return sum
+    fn __init__(out self):
+        self.pos = Vec[Int,dim](fill=0)
+        self.pos_f = Vec[Float32,dim](fill=1)
+        self.dir = Vec[Float32,dim](fill=-1)
+
+    fn flip(mut self, d: Int):
+        self.pos[d] = 1
+        self.pos_f[d] = 0
+        self.dir[d] = 1
+
+    fn __eq__(self, rhs: Self) -> Bool:
+        return self.pos == rhs.pos
+
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write("Delta[pos=", self.pos, ", pos_f=", self.pos_f, ", dir=", self.dir, "]")
+
+    fn __str__(self) -> String:
+        return String.write(self)

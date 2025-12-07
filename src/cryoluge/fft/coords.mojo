@@ -35,51 +35,83 @@ struct FFTCoords[
     fn __init__(out self, ref [origin] sizes_real: Self.Vec):
         self._sizes_real = Pointer(to=sizes_real)
 
+    @always_inline
     fn sizes_real(self) -> ref [origin] Self.Vec:
         return self._sizes_real[]
 
+    @always_inline
+    fn size_fourier[d: Int](self, out size_fourier: Int):
+        @parameter
+        if d == 0:
+            size_fourier = (self.sizes_real()[d] >> 1) + 1
+        else:
+            size_fourier = self.sizes_real()[d]
+
     fn sizes_fourier(self, out sizes_fourier: Self.Vec):
-        sizes_fourier = self.sizes_real().copy()
-        sizes_fourier.x() = self.sizes_real().x()//2 + 1
-        # NOTE: all the higher dimensions should stay the same
+        sizes_fourier = Self.Vec(uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            sizes_fourier[d] = self.size_fourier[d]()
 
-    fn pivot(self, out v: Self.Vec):
+    @always_inline
+    fn _pivot[d: Int](self, out pivot: Int):
         """The first image index that maps to a negative frequency."""
-        v = Self.Vec(uninitialized=True)
-        v[0] = 0  # not used: can be an arbitrary value
         @parameter
-        for d in range(1, dim.rank):
-            v[d] = self.sizes_real()[d]//2
-            if is_odd(self.sizes_real()[d]):
-                v[d] += 1
+        if d == 0:
+            constrained[False, "No pivot for x"]()
+            pivot = 0
+        else:
+            pivot = (self.sizes_real()[d] + 1) >> 1
+    
+    @always_inline
+    fn fmin[d: Int](self, out fmin: Int):
+        @parameter
+        if d == 0:
+            fmin = 1 - self.size_fourier[d]()
+        else:
+            fmin = self._pivot[d]() - self.sizes_real()[d]
 
-    fn fmin(self, out v: Self.Vec):
+    @always_inline
+    fn fmin(self, out fmin: Self.Vec):
         """Returns the lower bound (inclusive) on fourier coordinates."""
-        v = Self.Vec(uninitialized=True)
-        v[0] = 1 - self.sizes_fourier()[0]
+        fmin = Self.Vec(uninitialized=True)
         @parameter
-        for d in range(1, dim.rank):
-            v[d] = self.pivot()[d] - self.sizes_real()[d]
+        for d in range(dim.rank):
+            fmin[d] = self.fmin[d]()
 
-    fn fmax(self, out v: Self.Vec):
+    @always_inline
+    fn fmax[d: Int](self, out fmax: Int):
+        @parameter
+        if d == 0:
+            fmax = self.size_fourier[d]() - 1
+        else:
+            fmax = self._pivot[d]() - 1
+
+    @always_inline
+    fn fmax(self, out fmax: Self.Vec):
         """Returns the upper bound (inclusive) on fourier coordinates."""
-        v = Self.Vec(uninitialized=True)
-        v[0] = self.sizes_fourier()[0] - 1
+        fmax = Self.Vec(uninitialized=True)
         @parameter
-        for d in range(1, dim.rank):
-            v[d] = self.pivot()[d] - 1
+        for d in range(dim.rank):
+            fmax[d] = self.fmax[d]()
 
+    @always_inline
     fn needs_conjugation(self, *, f: Self.Vec) -> Bool:
         return f.x() < 0
 
+    @always_inline
+    fn f_in_range[d: Int](self, f: Int, out in_range: Bool):
+        in_range = f >= self.fmin[d]() and f <= self.fmax[d]()
+
+    @always_inline
     fn f_in_range(self, f: Self.Vec) -> Bool:
         @parameter
         for d in range(dim.rank):
-            if f[d] < self.fmin()[d] or f[d] > self.fmax()[d]:
-                # TODO: do we need to optimize this?? ^^
+            if not self.f_in_range[d](f[d]):
                 return False
         return True
 
+    @always_inline
     fn f2i(self, f: Self.Vec, out i: Self.Vec):
         """
         Converts fourier coordinates to image coordinates.
@@ -91,13 +123,27 @@ struct FFTCoords[
         Precondition: f is in range
         """
 
-        i = f.copy()
+        i = Self.Vec(uninitialized=True)
 
         @parameter
         for d in range(dim.rank):
-            if i[d] < 0:
-                i[d] += self.sizes_fourier()[d]
+            if f[d] < 0:
+                i[d] = f[d] + self.size_fourier[d]()
+            else:
+                i[d] = f[d]
 
+    @always_inline
+    fn f2i_flipped(self, f: Self.Vec, out i: Self.Vec):
+
+        i = Self.Vec(uninitialized=True)
+
+        @parameter
+        for d in range(dim.rank):
+            if f[d] > 0:
+                i[d] = self.size_fourier[d]() - f[d]
+            else:
+                i[d] = -f[d]
+    
     fn maybe_f2i(self, f: Self.Vec, *, needs_conj: Bool = False, out i: Optional[Self.Vec]):
         """
         If the Fourier coordinates are in-range, this function converts them to image coordinates.
@@ -116,6 +162,7 @@ struct FFTCoords[
         else:
             i = None
 
+    @always_inline
     fn i2f(self, i: Self.Vec, out f: Self.Vec):
         """
         Converts image coordinates to fourier coordinates.
@@ -129,9 +176,8 @@ struct FFTCoords[
         # but apply the transformation to y,z
         @parameter
         for d in range(1, dim.rank):
-            if i[d] >= self.pivot()[d]:
-                f[d] = i[d] - self.sizes_fourier()[d]
-        # TODO: is the compiler smart enough to lift the function calls outside of the loop?
+            if i[d] >= self._pivot[d]():
+                f[d] -= self.size_fourier[d]()
 
     fn freqs[dtype: DType](
         self,

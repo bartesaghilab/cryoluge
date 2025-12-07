@@ -103,12 +103,14 @@ struct DimensionalBuffer[
         
         return offset
 
+    @always_inline
     fn _check_offset(self, i: Int):
         debug_assert(
             i >= 0 and i < self.num_elements(),
             "i=", i, " out of range [0,", self.num_elements(), ")"
         )
 
+    @always_inline
     fn __getitem__(self, *, i: Int, out v: T):
         self._check_offset(i)
         v = self.span()[i].copy()
@@ -152,6 +154,21 @@ struct DimensionalBuffer[
         if offset is None:
             return None
         return self[i=offset.value()]
+
+    @always_inline
+    fn get[*, or_else: T](self, i: Self.Vec[Int], out v: T):
+
+        var offset: Int = 0
+
+        @parameter
+        for d in range(dim.rank):
+            if i[d] >= 0 and i[d] < self._sizes[d]:
+                offset += i[d]*self._strides[d]
+            else:
+                v = materialize[or_else]()
+                return
+
+        v = self[i=offset]
 
     fn iterate[
         func: fn (i: Self.Vec[Int]) capturing

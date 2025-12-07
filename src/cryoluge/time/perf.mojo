@@ -90,7 +90,7 @@ struct Benchmark(
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(
             "Benchmark["
-            "  runs=", self.runs,
+            "runs=", self.runs,
             ", elapsed=", self.timed.elapsed_s(), " s",
             ", s/r=", self.s_per_run(),
             " s, r/s=", self.runs_per_s(),
