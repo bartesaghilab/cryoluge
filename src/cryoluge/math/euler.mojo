@@ -133,3 +133,10 @@ struct EulerAnglesZYZ[dtype: DType](
 
     fn sum_deg(self, out result: Scalar[dtype]):
         result = self.psi_deg() + self.theta_deg() + self.phi_deg()
+
+    fn dists(self, other: Self, out dists: Self):
+        dists = Self(
+            psi_rad = angle_dist(rad_a=self.psi_rad, rad_b=other.psi_rad),
+            theta_rad = angle_dist(rad_a=self.theta_rad, rad_b=other.theta_rad),
+            phi_rad = angle_dist(rad_a=self.phi_rad, rad_b=other.phi_rad)
+        )

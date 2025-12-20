@@ -37,6 +37,7 @@ def main():
 
         suite._register_tests[cryoluge_tests.fft.coords.funcs]()
         suite._register_tests[cryoluge_tests.fft.fft.funcs]()
+        suite._register_tests[cryoluge_tests.fft.image.funcs]()
 
         suite._register_tests[cryoluge_tests.mrc.mrc_reader.funcs]()
 

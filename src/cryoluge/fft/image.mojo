@@ -70,41 +70,37 @@ struct FFTImage[
     ):
         # NOTE: manually inlining all the FFTCoords operations here and simplifying
         #       can't seem to beat the compiler's optimizations, so go mojo! =D
-        if self.coords().needs_conjugation(f=f):
-            var i = self.coords().f2i_flipped(f)
-            v = self.complex.get[or_else=or_else](i).conj()
+        var i = self.coords().maybe_f2i(f)
+        if i is None:
+            v = materialize[or_else]()
         else:
-            var i = self.coords().f2i(f)
-            v = self.complex.get[or_else=or_else](i)
+            v = self.complex.get[or_else=or_else](i.value())
+            if self.coords().needs_conjugation(f=f):
+                v = v.conj()
 
-    fn get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
-        self: FFTImage[dim,dtype],
+    fn get[
         *,
-        f_lerp: Self.Vec[Float32],
+        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
+        dtype_coords: DType = DType.float32
+    ](
+        self,
+        *,
+        f_lerp: Self.Vec[Scalar[dtype_coords]],
         out pixel: ComplexScalar[dtype]
     ):
         # discretize the frequency coordinates, and keep track of distances
         var start = Vec[Int,dim](uninitialized=True)
-        var dists = Vec[Float32,dim](uninitialized=True)
+        var dists = Vec[Scalar[dtype_coords],dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             var floor = floor(f_lerp[d])
             start[d] = Int(floor)
             dists[d] = f_lerp[d] - floor
 
-        # build the multi-dimensional delta vectors (at compile-time)
-        fn build_deltas(out deltas: List[Delta[dim]]):
-            deltas = [Delta[dim]()]
-            for d in range(dim.rank):
-                for i in range(len(deltas)):
-                    var delta = deltas[i].copy()
-                    delta.flip(d)
-                    deltas.append(delta^)
-
         pixel = ComplexScalar[dtype](0, 0)
 
         @parameter
-        for delta in build_deltas():
+        for delta in Delta[dim,dtype_coords].build():
             var f_sample = start + materialize[delta.pos]()
             var v = self.get[or_else=or_else](f=f_sample)
             var weight = Scalar[dtype]((dists*materialize[delta.dir]() + materialize[delta.pos_f]()).product())
@@ -112,26 +108,57 @@ struct FFTImage[
 
 
 @fieldwise_init
-struct Delta[dim: Dimension](
+struct Delta[
+    dim: Dimension,
+    dtype: DType
+](
     Copyable,
     Movable,
     EqualityComparable,
     Writable,
     Stringable
 ):
+    var d: Int
     var pos: Vec[Int,dim]
-    var pos_f: Vec[Float32,dim]
-    var dir: Vec[Float32,dim]
+    """[0], unless flipped, then 1@d."""
+    var pos_f: Vec[Scalar[dtype],dim]
+    """[1], unless flipped, then 0@d."""
+    var dir: Vec[Scalar[dtype],dim]
+    """[-1], unless flipped, then 1@d."""
+
+    @staticmethod
+    fn build(out deltas: List[Delta[dim,dtype]]):
+        deltas = [Delta[dim,dtype]()]
+        for d in range(dim.rank):
+            for i in range(len(deltas)):
+                var delta = deltas[i].copy()
+                delta.d = d
+                delta.flip()
+                deltas.append(delta^)
+
+    @staticmethod
+    fn dir_pos[num_samples: Int](
+        deltas: List[Delta[dim,dtype]],
+        out dir_pos: Tuple[SIMD[dtype,num_samples], SIMD[dtype,num_samples]]
+    ):
+        var dir = SIMD[dtype,num_samples](0)
+        var pos = SIMD[dtype,num_samples](0)
+        for s in range(num_samples):
+            ref delta = deltas[s]
+            dir[s] = delta.dir[delta.d]
+            pos[s] = delta.pos[delta.d]
+        dir_pos = (dir, pos)
 
     fn __init__(out self):
+        self.d = 0
         self.pos = Vec[Int,dim](fill=0)
-        self.pos_f = Vec[Float32,dim](fill=1)
-        self.dir = Vec[Float32,dim](fill=-1)
+        self.pos_f = Vec[Scalar[dtype],dim](fill=1)
+        self.dir = Vec[Scalar[dtype],dim](fill=-1)
 
-    fn flip(mut self, d: Int):
-        self.pos[d] = 1
-        self.pos_f[d] = 0
-        self.dir[d] = 1
+    fn flip(mut self):
+        self.pos[self.d] = 1
+        self.pos_f[self.d] = 0
+        self.dir[self.d] = 1
 
     fn __eq__(self, rhs: Self) -> Bool:
         return self.pos == rhs.pos
