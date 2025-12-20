@@ -5,7 +5,7 @@ from complex import ComplexFloat32
 from memory import bitcast, memcpy
 
 from cryoluge.math import Dimension, Vec, unrecognized_dimension, expect_at_least_rank
-from cryoluge.math.error import err, err_rel, err_abs, is_err_small, ErrFnFloat32
+from cryoluge.math.error import err, err_rel, err_abs, is_err_small, ErrFn
 from cryoluge.io import FileReader, Endian, ByteBuffer
 
 
@@ -197,16 +197,16 @@ struct DimensionalBuffer[
             unrecognized_dimension[dim]()
 
     # TEMP
-    fn assert_info[samples: Int, err_fn: ErrFnFloat32 = err_rel](
-        self: DimensionalBuffer[dim,Float32],
+    fn assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+        self: DimensionalBuffer[dim,Scalar[dtype]],
         msg: String,
         sizes: Self.Vec[Int],
-        head: InlineArray[Float32, samples],
-        tail: InlineArray[Float32, samples],
+        head: InlineArray[Scalar[dtype], samples],
+        tail: InlineArray[Scalar[dtype], samples],
         hash: UInt64,
         *,
         verbose: Bool = False,
-        eps: Float32 = 1e-5
+        eps: Scalar[dtype] = 1e-5
     ):
 
         # check the sizes
@@ -222,8 +222,8 @@ struct DimensionalBuffer[
         )
         var obs_head = self._sample[samples](0)
         var obs_tail = self._sample[samples](self.num_elements() - samples)
-        var err_head = err[err_fn](obs_head, head)
-        var err_tail = err[err_fn](obs_tail, tail)
+        var err_head = err[dtype,err_fn](obs_head, head)
+        var err_tail = err[dtype,err_fn](obs_tail, tail)
         debug_assert(
             is_err_small(err_head, eps=eps) and is_err_small(err_tail, eps=eps),
             msg, ": Samples don't match!:",
@@ -249,16 +249,16 @@ struct DimensionalBuffer[
             print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
 
     # TEMP
-    fn assert_info[samples: Int, err_fn: ErrFnFloat32 = err_rel](
-        self: DimensionalBuffer[dim,ComplexFloat32],
+    fn assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+        self: DimensionalBuffer[dim,ComplexScalar[dtype]],
         msg: String,
         sizes: Self.Vec[Int],
-        head: InlineArray[ComplexFloat32, samples],
-        tail: InlineArray[ComplexFloat32, samples],
+        head: InlineArray[ComplexScalar[dtype], samples],
+        tail: InlineArray[ComplexScalar[dtype], samples],
         hash: UInt64,
         *,
         verbose: Bool = False,
-        eps: Float32 = 1e-5
+        eps: Scalar[dtype] = 1e-5
     ):
 
         # check the sizes
@@ -274,8 +274,8 @@ struct DimensionalBuffer[
         )
         var obs_head = self._sample[samples](0)
         var obs_tail = self._sample[samples](self.num_elements() - samples)
-        var err_head = err[err_fn](obs_head, head)
-        var err_tail = err[err_fn](obs_tail, tail)
+        var err_head = err[dtype,err_fn](obs_head, head)
+        var err_tail = err[dtype,err_fn](obs_tail, tail)
         debug_assert(
             is_err_small(err_head, eps=eps) and is_err_small(err_tail, eps=eps),
             msg, ": Samples don't match!:",
@@ -324,24 +324,24 @@ struct DimensionalBuffer[
             data[s] = self[i=i+s]
 
     # TEMP
-    fn assert_data[err_fn: ErrFnFloat32 = err_rel](
-        mut self: DimensionalBuffer[dim,Float32],
+    fn assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+        mut self: DimensionalBuffer[dim,Scalar[dtype]],
         msg: String,
         path: String,
         *,
         verbose: Bool = False,
-        eps: Float32 = 1e-5,
+        eps: Scalar[dtype] = 1e-5,
         overwrite: Bool = False
     ):
 
         # read the file
-        var exp_data = List[Float32]()
+        var exp_data = List[Scalar[dtype]]()
         try:
             with open(path, "r") as f:
                 var reader = FileReader(f)
                 self._assert_sizes(msg, reader)
                 for _ in range(self.num_elements()):
-                    exp_data.append(reader.read_f32[Endian.Little]())
+                    exp_data.append(reader.read_scalar[dtype,Endian.Little]())
         except:
             debug_assert(False, msg, ": Failed to open data file")
 
@@ -353,7 +353,7 @@ struct DimensionalBuffer[
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
-            if not is_err_small(err[err_fn](obs, exp), eps=eps):
+            if not is_err_small(err[dtype,err_fn](obs, exp), eps=eps):
                 mismatches.append(i.copy())
 
         self.iterate[func]()
@@ -365,7 +365,7 @@ struct DimensionalBuffer[
         if len(mismatches) > 0:
             var obs = self[i=mismatches[0]]
             var exp = exp_data[self._offset(mismatches[0])]
-            var err = err[err_fn](obs, exp)
+            var err = err[dtype,err_fn](obs, exp)
             debug_assert(
                 False,
                 msg, ": Found ", len(mismatches), " mismatched pixels:",
@@ -386,26 +386,26 @@ struct DimensionalBuffer[
             )
 
     # TEMP
-    fn assert_data[err_fn: ErrFnFloat32 = err_rel](
-        mut self: DimensionalBuffer[dim,ComplexFloat32],
+    fn assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+        mut self: DimensionalBuffer[dim,ComplexScalar[dtype]],
         msg: String,
         path: String,
         *,
         verbose: Bool = False,
-        eps: Float32 = 1e-5,
+        eps: Scalar[dtype] = 1e-5,
         overwrite: Bool = False
     ):
 
         # read the file
-        var exp_data = List[ComplexFloat32]()
+        var exp_data = List[ComplexScalar[dtype]]()
         try:
             with open(path, "r") as f:
                 var reader = FileReader(f)
                 self._assert_sizes(msg, reader)
                 for _ in range(self.num_elements()):
-                    exp_data.append(ComplexFloat32(
-                        reader.read_f32[Endian.Little](),
-                        reader.read_f32[Endian.Little]()
+                    exp_data.append(ComplexScalar[dtype](
+                        reader.read_scalar[dtype,Endian.Little](),
+                        reader.read_scalar[dtype,Endian.Little]()
                     ))
         except:
             debug_assert(False, msg, ": Failed to open data file")
@@ -418,7 +418,7 @@ struct DimensionalBuffer[
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
-            if not is_err_small(err[err_fn](obs, exp), eps=eps):
+            if not is_err_small(err[dtype,err_fn](obs, exp), eps=eps):
                 mismatches.append(i.copy())
 
         self.iterate[func]()
@@ -430,7 +430,7 @@ struct DimensionalBuffer[
         if len(mismatches) > 0:
             var obs = self[i=mismatches[0]]
             var exp = exp_data[self._offset(mismatches[0])]
-            var err = err[err_fn](obs, exp)
+            var err = err[dtype,err_fn](obs, exp)
             debug_assert(
                 False,
                 msg, ": Found ", len(mismatches), " mismatched pixels:",

@@ -5,6 +5,7 @@ from sys import simd_width_of
 
 from cryoluge.io import ByteBuffer
 from cryoluge.math import Dimension, ComplexScalar
+from cryoluge.math.error import ErrFn, err_rel
 
 
 struct ComplexImage[
@@ -123,16 +124,16 @@ struct ComplexImage[
         self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose, eps=eps)
 
     # TEMP
-    fn assert_data[err_fn: ErrFnFloat32 = err_rel](
-        mut self: ComplexImage[dim,DType.float32],
+    fn assert_data[err_fn: ErrFn[dtype] = err_rel[dtype]](
+        mut self,
         msg: String,
         path: String,
         *,
         verbose: Bool = False,
-        eps: Float32 = 1e-5,
+        eps: Scalar[dtype] = 1e-5,
         overwrite: Bool = False
     ) raises:
-        self._buf.assert_data[err_fn](msg, path, verbose=verbose, eps=eps, overwrite=overwrite)
+        self._buf.assert_data[dtype,err_fn](msg, path, verbose=verbose, eps=eps, overwrite=overwrite)
 
     fn _check_vector_offset[width: Int](self, offset: Int):
         var bound = self.num_pixels() - width
