@@ -9,17 +9,6 @@ from cryoluge_testlib import assert_equal_buffers
 comptime funcs = __functions_in_module()
 
 
-def write_buf(mut buf: ByteBuffer, bytes: Span[Byte]):
-    var src = bytes
-    var size = len(src)
-    var dst = buf.span(length=size)
-    debug_assert(
-        size <= len(dst),
-        "Buffer overflow: write=", size, ", capacity=", len(dst)
-    )
-    dst.copy_from(src)
-
-
 def test_read_scalars():
 
     var buf = ByteBuffer(8)
@@ -101,3 +90,13 @@ def test_read_scalars():
     ))
     assert_equal(reader.read_f64[Endian.Big](), Float64(1.2345678987654321e16))
 
+
+def write_buf(mut buf: ByteBuffer, bytes: Span[Byte]):
+    var src = bytes
+    var size = len(src)
+    var dst = buf.span(length=size)
+    debug_assert(
+        size <= len(dst),
+        "Buffer overflow: write=", size, ", capacity=", len(dst)
+    )
+    dst.copy_from(src)
