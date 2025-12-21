@@ -29,17 +29,18 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Dimension]:
         self,
         *,
         i: Vec[Int,dim],
+        sizes_real: Vec[Int,dim],
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
-        result = self.phase_shift_op.eval(i=i, v=v)
+        result = self.phase_shift_op.eval(i=i, sizes_real=sizes_real, v=v)
 
     fn apply(
         self,
-        mut image: ComplexImage[dim,dtype]
+        mut img: FFTImage[dim,dtype]
     ):
         @parameter
         fn func(i: Vec[Int,dim]):
-            image[i=i] = self.eval(i=i, v=image[i=i])
+            img.complex[i=i] = self.eval(i=i, sizes_real=img.sizes_real, v=img.complex[i=i])
 
-        image.iterate[func]()
+        img.complex.iterate[func]()

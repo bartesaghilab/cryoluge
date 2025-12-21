@@ -1,33 +1,30 @@
 
 from cryoluge.math import Dimension, Vec
 from cryoluge.math.units import Rad, pi
-from cryoluge.fft import FFTCoords
+from cryoluge.fft import FFTCoords, FFTImage
 
 
 struct PhaseShiftOperator[dtype: DType, dim: Dimension](
     Copyable,
     Movable
 ):
-
-    var sizes_real: Vec[Int,dim]
-    var _shifts_2pi: Vec[Rad[dtype],dim]
+    var _shifts_2pi_norm: Vec[Rad[dtype],dim]
 
     fn __init__(
         out self,
         sizes_real: Vec[Int,dim],
         shifts: Vec[Rad[dtype],dim]
     ):
-        self.sizes_real = sizes_real.copy()
-        self._shifts_2pi = shifts.copy()*2*pi[dtype].value
+        self._shifts_2pi_norm = shifts.copy()*2*pi[dtype].value/sizes_real.map_scalar[dtype]()
 
     fn eval(
         self,
         *,
-        freqs: Vec[Scalar[dtype],dim],
+        f: Vec[Scalar[dtype],dim],
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
-        var phase = (self._shifts_2pi*freqs).sum()
+        var phase = (self._shifts_2pi_norm*f).sum()
         result = v*ComplexScalar[dtype](re=phase.cos(), im=-phase.sin())
 
     fn eval(
@@ -37,35 +34,25 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
-        var freqs = FFTCoords(self.sizes_real).freqs[dtype](f=f)
-        result = self.eval(freqs=freqs, v=v)
-
-    fn eval(
-        self,
-        *,
-        f: Vec[Scalar[dtype],dim],
-        v: ComplexScalar[dtype],
-        out result: ComplexScalar[dtype]
-    ):
-        var freqs = FFTCoords(self.sizes_real).freqs[dtype](f=f)
-        result = self.eval(freqs=freqs, v=v)
+        result = self.eval(f=f.map_scalar[dtype](), v=v)
 
     fn eval(
         self,
         *,
         i: Vec[Int,dim],
+        sizes_real: Vec[Int,dim],
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
-        var f = FFTCoords(self.sizes_real).i2f(i)
+        var f = FFTCoords(sizes_real).i2f(i)
         result = self.eval(f=f, v=v)
 
     fn apply(
         self,
-        mut image: ComplexImage[dim,dtype]
+        mut img: FFTImage[dim,dtype]
     ):
         @parameter
         fn func(i: Vec[Int,dim]):
-            image[i=i] = self.eval(i=i, v=image[i=i])
+            img.complex[i=i] = self.eval(i=i, sizes_real=img.sizes_real, v=img.complex[i=i])
 
-        image.iterate[func]()
+        img.complex.iterate[func]()
