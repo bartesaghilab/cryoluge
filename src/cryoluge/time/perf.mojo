@@ -115,7 +115,6 @@ struct Profiler(
     fn counter(mut self, name: String) -> ref [self._counters] ProfilerCounter:
         var i = self._lookup.get(name)
         if i is None:
-            print("add counter", name)  # TEMP
             i = len(self._counters)
             self._counters.append(ProfilerCounter(name))
             self._lookup[name] = i.value()
