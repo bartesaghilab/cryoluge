@@ -12,13 +12,18 @@ struct PrecomputedFFTInterpolation[
     dtype: DType,
     *,
     dtype_coords: DType = DType.float32
-]:
+](Movable):
     var _sizes_real: Vec[Int,dim]
     var _samples: DimensionalBuffer[dim,Self.Pixel]
 
     comptime deltas = Delta[dim,dtype_coords].build()
     comptime num_samples = len(Self.deltas)
     comptime Pixel = ComplexSIMD[dtype,Self.num_samples]
+    comptime EmptySamples[c: ComplexSIMD[dtype,1]] = ComplexSIMD[dtype,Self.num_samples](
+        re=SIMD[dtype,Self.num_samples](c.re),
+        im=SIMD[dtype,Self.num_samples](c.im)
+    )
+    comptime Selector = SIMD[DType.bool,Self.num_samples]
 
     fn __init__(out self, img: FFTImage[dim,dtype]):
 
@@ -94,25 +99,57 @@ struct PrecomputedFFTInterpolation[
             var floor = floor(f[d])
             start[d] = Int(floor)
             dists[d] = f[d] - floor
-        # TODO: can we vectorize this?
 
         # load the samples
         var i = self._f2i(start)
         var samples = self._samples.get(i)
-        if samples is None:
-            return materialize[or_else]()
-        
-        # compute the sample weights based on the distances
-        var weights = SIMD[dtype,Self.num_samples](0)
-        @parameter
-        for s in range(Self.num_samples):
-            var dir = materialize[Self.deltas[s].dir]()
-            var pos = materialize[Self.deltas[s].pos_f]()
-            weights[s] = Scalar[dtype]((dists*dir + pos).product())
-        # TODO: can we vectorize this?
+           .or_else(Self.EmptySamples[or_else])
 
-        # compute the weighted sum
+        # apply sample weights based on the distances
+        @parameter
+        for d in range(dim.rank):
+            var t = SIMD[dtype,Self.num_samples](dists[d])
+            var omt = SIMD[dtype,Self.num_samples](1 - dists[d])
+            comptime selector = Self.make_selector(d)
+            var w = selector.select(omt, t)
+            samples.re *= w
+            samples.im *= w
+
+        # the final interpolated pixel is the sum of the weighted samples
         v = ComplexScalar[dtype](
-            re = (samples.value().re * weights).reduce_add(),
-            im = (samples.value().im * weights).reduce_add()
+            re = samples.re.reduce_add(),
+            im = samples.im.reduce_add()
         )
+
+    @staticmethod
+    fn make_selector(d: Int, out selector: Self.Selector):
+                    
+        comptime t = False
+        comptime omt = True
+        var s0 = SIMD[DType.bool,2](omt, t)
+
+        @parameter
+        if dim.rank == 1:
+            selector = rebind[Self.Selector](s0)
+        elif dim.rank == 2:
+            if d == 0:
+                selector = rebind[Self.Selector](s0.join(s0))
+            elif d == 1:
+                selector = rebind[Self.Selector](s0.interleave(s0))
+            else:
+                selector = abort[Self.Selector]("d exceeds rank 2")
+        elif dim.rank == 3:
+            if d == 0:
+                var s1 = s0.join(s0)
+                selector = rebind[Self.Selector](s1.join(s1))
+            elif d == 1:
+                var s1 = s0.interleave(s0)
+                selector = rebind[Self.Selector](s1.join(s1))
+            elif d == 2:
+                var s1 = s0.interleave(s0)
+                selector = rebind[Self.Selector](s1.interleave(s1))
+            else:
+                selector = abort[Self.Selector]("d exceeds rank 3")
+        else:
+            constrained[False, String("unrecognized dimension: ", dim)]()
+            selector = abort[Self.Selector]()

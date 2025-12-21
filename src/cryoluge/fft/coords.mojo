@@ -169,6 +169,7 @@ struct FFTCoords[
             if i[d] >= self._pivot[d]():
                 f[d] -= self.size_fourier[d]()
 
+    @always_inline
     fn freqs[dtype: DType](
         self,
         *,
