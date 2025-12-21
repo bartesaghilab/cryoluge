@@ -177,13 +177,20 @@ struct FFTCoords[
         out freqs: Vec[Scalar[dtype],dim]
     ):
         var f_dt = f.map_scalar[dtype]()
+        freqs = self.freqs(f=f_dt)
+
+    @always_inline
+    fn freqs[dtype: DType](
+        self,
+        *,
+        f: Vec[Scalar[dtype],dim],
+        out freqs: Vec[Scalar[dtype],dim]
+    ):
         var sizes_real_dt = self.sizes_real().map_scalar[dtype]()
-        # TODO: doing the div is higher precision, but doesn't match csp1,
-        #       since the int truncation is extremely sensitive to roundoff error
-        # freq2 = (f_dt/sizes_real_dt).len2()
-        # TODO: see if pre-calculating the voxel sizes and doing a mult (instead of a div) is significantly faster
+        # NOTE: multipliying by the reciprical is measurably faster than just doing division
+        #       and also matches the roundoff error of csp1
         var sizes_voxel = 1/sizes_real_dt
-        freqs = f_dt*sizes_voxel
+        freqs = f*sizes_voxel
 
     fn freqs[dtype: DType](
         self,

@@ -43,6 +43,16 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
     fn eval(
         self,
         *,
+        f: Vec[Scalar[dtype],dim],
+        v: ComplexScalar[dtype],
+        out result: ComplexScalar[dtype]
+    ):
+        var freqs = FFTCoords(self.sizes_real).freqs[dtype](f=f)
+        result = self.eval(freqs=freqs, v=v)
+
+    fn eval(
+        self,
+        *,
         i: Vec[Int,dim],
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
