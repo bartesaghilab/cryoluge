@@ -12,12 +12,14 @@ struct FFTCoords[
     """
     Keeps track of coordinate spaces related to FFTs.
 
-    Follows the "standard" order: For 1D transforms, where A contains the FFT of n real values:
+    Follows the "standard" order:
+
+    For 1D transforms, where A contains the FFT of n real values:
         A contains n/2+1 elements
         A[0] contains the zero-frequency term
         A[1:n/2] contains the positive-frequency terms, in order of ascending frequency
 
-    In higher dimensions, where A[d] contains the d dimension:
+    In higher dimensions, where A[d] contains the d>1 dimension of n real values:
         A[d] contains n elements
         A[d][0] contains the zero-frequency term
         if n is even:
@@ -132,19 +134,7 @@ struct FFTCoords[
             else:
                 i[d] = f[d]
 
-    @always_inline
-    fn f2i_flipped(self, f: Self.Vec, out i: Self.Vec):
-
-        i = Self.Vec(uninitialized=True)
-
-        @parameter
-        for d in range(dim.rank):
-            if f[d] > 0:
-                i[d] = self.size_fourier[d]() - f[d]
-            else:
-                i[d] = -f[d]
-    
-    fn maybe_f2i(self, f: Self.Vec, *, needs_conj: Bool = False, out i: Optional[Self.Vec]):
+    fn maybe_f2i(self, f: Self.Vec, *, out i: Optional[Self.Vec]):
         """
         If the Fourier coordinates are in-range, this function converts them to image coordinates.
         Otherwise, returns None.
@@ -154,7 +144,7 @@ struct FFTCoords[
         """
 
         var _f = f.copy()
-        if needs_conj:
+        if self.needs_conjugation(f=f):
             _f = -f
 
         if self.f_in_range(_f):
@@ -201,3 +191,136 @@ struct FFTCoords[
         out freqs: Vec[Scalar[dtype],dim]
     ):
         freqs = self.freqs[dtype](f=self.i2f(i))
+
+
+struct FFTCoordsFull[
+    dim: Dimension,
+    origin: Origin[mut=False]
+](
+    Copyable,
+    Movable
+):
+    """
+    A tool to handle FFT coordinate spaces that store both negative and positive x freqencies.
+
+    For 1D transforms, where A contains the FFT of n real values:
+        A contains n/2*2+1 elements
+        A[0] contains the zero-frequency term
+        A[1:n/2] contains the positive-frequency terms, in order of ascending frequency
+        A[n/2+1:n/2*2+1) contains the negative-frequency terms, in order of ascending frequency
+    
+    In higher dimensions, the coordinates are handled the same as in FFTCoords
+    """
+
+    var _sizes_real: Pointer[Self.Vec, origin]
+
+    comptime Vec = Vec[Int,dim]
+
+    fn __init__(out self, ref [origin] sizes_real: Self.Vec):
+        self._sizes_real = Pointer(to=sizes_real)
+
+    fn _half(self) -> FFTCoords[dim,origin]:
+        return FFTCoords[dim,origin](self._sizes_real[])
+
+    @always_inline
+    fn sizes_real(self) -> ref [origin] Self.Vec:
+        return self._sizes_real[]
+
+    @always_inline
+    fn size_fourier[d: Int](self, out size_fourier: Int):
+        @parameter
+        if d == 0:
+            size_fourier = self.sizes_real()[d] | 0b1
+        else:
+            size_fourier = self._half().size_fourier[d]()
+
+    fn sizes_fourier(self, out sizes_fourier: Self.Vec):
+        sizes_fourier = Self.Vec(uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            sizes_fourier[d] = self.size_fourier[d]()
+
+    @always_inline
+    fn _pivot[d: Int](self, out pivot: Int):
+        """The first image index that maps to a negative frequency."""
+        @parameter
+        if d == 0:
+            pivot = (self.sizes_real()[d] >> 1) + 1
+        else:
+            pivot = self._half()._pivot[d]()
+    
+    @always_inline
+    fn fmin[d: Int](self, out fmin: Int):
+        fmin = self._half().fmin[d]()
+
+    @always_inline
+    fn fmin(self, out fmin: Self.Vec):
+        """Returns the lower bound (inclusive) on fourier coordinates."""
+        fmin = self._half().fmin()
+
+    @always_inline
+    fn fmax[d: Int](self, out fmax: Int):
+        fmax = self._half().fmax[d]()
+
+    @always_inline
+    fn fmax(self, out fmax: Self.Vec):
+        """Returns the upper bound (inclusive) on fourier coordinates."""
+        fmax = self._half().fmax()
+
+    @always_inline
+    fn f_in_range[d: Int](self, f: Int, out in_range: Bool):
+        in_range = self._half().f_in_range[d](f)
+
+    @always_inline
+    fn f_in_range(self, f: Self.Vec) -> Bool:
+        return self._half().f_in_range(f)
+
+    @always_inline
+    fn f2i(self, f: Self.Vec, out i: Self.Vec):
+        """
+        Converts fourier coordinates to image coordinates.
+        
+        Precondition: f is in range
+        """
+
+        i = Self.Vec(uninitialized=True)
+
+        @parameter
+        for d in range(dim.rank):
+            if f[d] < 0:
+                i[d] = f[d] + self.size_fourier[d]()
+            else:
+                i[d] = f[d]
+    
+    @always_inline
+    fn i2f(self, i: Self.Vec, out f: Self.Vec):
+        """
+        Converts image coordinates to fourier coordinates.
+        
+        Precondition: i is in range
+        """
+
+        f = Self.Vec(uninitialized=True)
+
+        @parameter
+        for d in range(0, dim.rank):
+            if i[d] >= self._pivot[d]():
+                f[d] = i[d] - self.size_fourier[d]()
+            else:
+                f[d] = i[d]
+
+    fn freqs[dtype: DType](
+        self,
+        *,
+        f: Vec[Int,dim],
+        out freqs: Vec[Scalar[dtype],dim]
+    ):
+        freqs = self._half().freqs[dtype](f=f)
+
+    fn freqs[dtype: DType](
+        self,
+        *,
+        i: Vec[Int,dim],
+        out freqs: Vec[Scalar[dtype],dim]
+    ):
+        freqs = self._half().freqs[dtype](i=i)
