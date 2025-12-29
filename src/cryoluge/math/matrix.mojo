@@ -163,3 +163,27 @@ struct Matrix[
             for i in range(dim.rank):
                 v += self[d,i]*vec[i]
             result[d] = v
+
+    # conversion
+
+    fn map[
+        out_dtype: DType,
+        //,
+        mapper: fn(Scalar[dtype]) capturing -> Scalar[out_dtype]
+    ](self, out mat: Matrix[rows,cols,out_dtype]):
+        mat = Matrix[rows,cols,out_dtype](uninitialized=True)
+        @parameter
+        for i in range(Self.num_elements):
+            mat._values[i] = mapper(self._values[i])
+
+    fn map_scalar[out_dtype: DType](self, out result: Matrix[rows,cols,out_dtype]):
+        @parameter
+        fn func(v: Scalar[dtype], out mapped: Scalar[out_dtype]):
+            mapped = Scalar[out_dtype](v)
+        result = self.map[mapper=func]()
+    
+    fn map_float32(self: Matrix[rows,cols,DType.float32], out result: Matrix[rows,cols,DType.float32]):
+        result = self.map_scalar[DType.float32]()
+
+    fn map_float64(self: Matrix[rows,cols,DType.float64], out result: Matrix[rows,cols,DType.float64]):
+        result = self.map_scalar[DType.float64]()

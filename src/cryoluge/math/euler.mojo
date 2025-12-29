@@ -2,6 +2,7 @@
 from math import sin, acos, asin, atan2, pi
 
 from cryoluge.image import Vec
+from cryoluge.math import normalize_minus_pi_to_pi, normalize_0_to_2pi
 
 
 struct EulerAnglesZYZ[dtype: DType](
@@ -18,6 +19,11 @@ struct EulerAnglesZYZ[dtype: DType](
     @staticmethod
     fn zero(out self: Self):
         self = Self(psi_rad=0, theta_rad=0, phi_rad=0)
+
+    fn __init__(out self, *, fill: Scalar[dtype]):
+        self.psi_rad = fill
+        self.theta_rad = fill
+        self.phi_rad = fill
 
     fn __init__(out self, *, psi_rad: Scalar[dtype], theta_rad: Scalar[dtype], phi_rad: Scalar[dtype]):
         self.psi_rad = psi_rad
@@ -88,6 +94,16 @@ struct EulerAnglesZYZ[dtype: DType](
         var rot_phi = Matrix.D3[dtype](rotate_z_rad=self.phi_rad)
         mat = rot_phi*rot_theta*rot_psi
 
+    fn normalize(mut self):
+        self.psi_rad = normalize_minus_pi_to_pi(rad=self.psi_rad)
+        self.theta_rad = normalize_minus_pi_to_pi(rad=self.theta_rad)
+        self.phi_rad = normalize_minus_pi_to_pi(rad=self.phi_rad)
+
+    fn normalize_positive(mut self):
+        self.psi_rad = normalize_0_to_2pi(rad=self.psi_rad)
+        self.theta_rad = normalize_0_to_2pi(rad=self.theta_rad)
+        self.phi_rad = normalize_0_to_2pi(rad=self.phi_rad)
+
     # math functions
 
     fn __neg__(self, out result: Self):
@@ -120,6 +136,48 @@ struct EulerAnglesZYZ[dtype: DType](
         self.psi_rad -= other.psi_rad
         self.theta_rad -= other.theta_rad
         self.phi_rad -= other.phi_rad
+
+    fn __mul__(self, other: Self, out result: Self):
+        result = Self(
+            psi_rad = self.psi_rad * other.psi_rad,
+            theta_rad = self.theta_rad * other.theta_rad,
+            phi_rad = self.phi_rad * other.phi_rad
+        )
+
+    fn __imul__(mut self, other: Self):
+        self.psi_rad *= other.psi_rad
+        self.theta_rad *= other.theta_rad
+        self.phi_rad *= other.phi_rad
+
+    fn __mul__(self, other: Scalar[dtype], out result: Self):
+        result = self * Self(fill=other)
+
+    fn __rmul__(self, other: Scalar[dtype], out result: Self):
+        result = self * other
+
+    fn __imul__(mut self, other: Scalar[dtype]):
+        self *= Self(fill=other)
+
+    fn __truediv__(self, other: Self, out result: Self):
+        result = Self(
+            psi_rad = self.psi_rad / other.psi_rad,
+            theta_rad = self.theta_rad / other.theta_rad,
+            phi_rad = self.phi_rad / other.phi_rad
+        )
+
+    fn __itruediv__(mut self, other: Self):
+        self.psi_rad /= other.psi_rad
+        self.theta_rad /= other.theta_rad
+        self.phi_rad /= other.phi_rad
+
+    fn __truediv__(self, other: Scalar[dtype], out result: Self):
+        result = self / Self(fill=other)
+
+    fn __rtruediv__(self, other: Scalar[dtype], out result: Self):
+        result = self / other
+
+    fn __itruediv__(mut self, other: Scalar[dtype]):
+        self /= Self(fill=other)
 
     fn abs(self, out result: Self):
         result = Self(
