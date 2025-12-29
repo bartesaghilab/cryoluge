@@ -24,7 +24,7 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
-        var phase = (self._shifts_2pi_norm*f).sum()
+        var phase = self._shifts_2pi_norm.inner_product(f)
         result = v*ComplexScalar[dtype](re=phase.cos(), im=-phase.sin())
 
     fn eval(

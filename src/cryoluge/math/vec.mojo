@@ -546,6 +546,9 @@ struct Vec[
         for d in range(dim.rank):
             result += self[d]*other[d]
 
+    fn inner_product[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], other: Vec[Scalar[dtype],dim], out result: Unit[utype,dtype]):
+        result = self.inner_product(other.map_unit[utype]())
+
     fn len2(self: Vec[Int,dim], out result: Int):
         # NOTE: this returns a higher-precision result than the inner product, for some reason
         #       `x**2` is probably higher-precision than `x*x`
