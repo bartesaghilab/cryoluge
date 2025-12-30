@@ -1,5 +1,6 @@
 
 from math import sqrt
+from utils.numerics import isnan
 
 from cryoluge.math.units import Unit, UnitType, Ang, Px
 
@@ -125,6 +126,12 @@ struct Vec[
 
     fn lift(self: Vec.D2[T], *, z: T, out result: Vec.D3[T]):
         result = self.lift[Dimension.D3,Dimension.D1](Vec.D1[T](x=z))
+
+    fn has_nan[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim.rank):
+            result = result or isnan(self[d])
 
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
@@ -618,6 +625,12 @@ struct Vec[
 
     fn map_float32[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Vec[Float32,dim]):
         result = self.map_scalar[DType.float32]()
+
+    fn map_float64(self: Vec[Int,dim], out result: Vec[Float64,dim]):
+        result = self.map_scalar[DType.float64]()
+
+    fn map_float64[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Vec[Float64,dim]):
+        result = self.map_scalar[DType.float64]()
 
     fn map_unit[
         utype: UnitType,

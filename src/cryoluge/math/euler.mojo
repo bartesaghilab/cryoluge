@@ -198,3 +198,28 @@ struct EulerAnglesZYZ[dtype: DType](
             theta_rad = angle_dist(rad_a=self.theta_rad, rad_b=other.theta_rad),
             phi_rad = angle_dist(rad_a=self.phi_rad, rad_b=other.phi_rad)
         )
+
+    # conversions
+
+    fn map_rad[
+        out_dtype: DType,
+        //,
+        mapper: fn(Scalar[dtype]) capturing -> Scalar[out_dtype]
+    ](self, out result: EulerAnglesZYZ[out_dtype]):
+        result = EulerAnglesZYZ[out_dtype](
+            psi_rad=mapper(self.psi_rad),
+            theta_rad=mapper(self.theta_rad),
+            phi_rad=mapper(self.phi_rad)
+        )
+
+    fn map_rad_scalar[out_dtype: DType](self, out result: EulerAnglesZYZ[out_dtype]):
+        @parameter
+        fn func(v: Scalar[dtype], out mapped: Scalar[out_dtype]):
+            mapped = Scalar[out_dtype](v)
+        result = self.map_rad[mapper=func]()
+
+    fn map_float32(self, out result: EulerAnglesZYZ[DType.float32]):
+        result = self.map_rad_scalar[DType.float32]()
+
+    fn map_float64(self, out result: EulerAnglesZYZ[DType.float64]):
+        result = self.map_rad_scalar[DType.float64]()
