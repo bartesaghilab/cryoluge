@@ -24,6 +24,9 @@ struct Vec[
     comptime D2 = Vec[_,Dimension.D2]
     comptime D3 = Vec[_,Dimension.D3]
 
+    fn __init__(out self, v: InlineArray[T,dim.rank]):
+        self._values = v
+
     fn __init__(out self, *, x: T):
         expect_num_arguments[dim, 1]()
         self._values = InlineArray[T,dim.rank](x.copy())
@@ -35,6 +38,33 @@ struct Vec[
     fn __init__(out self, *, x: T, y: T, z: T):
         expect_num_arguments[dim, 3]()
         self._values = InlineArray[T,dim.rank](x.copy(), y.copy(), z.copy())
+
+    fn __init__(out self, *, x: T, y: T, z: T, w: T):
+        expect_num_arguments[dim, 4]()
+        self._values = InlineArray[T,dim.rank](x.copy(), y.copy(), z.copy(), w.copy())
+
+    # tragically, there seems to be no way to `constrained` the length of a varargs (ie, `*v: T`),
+    # so these overloads seem like the best we can do for now for higher-dimensional initializers
+
+    fn __init__(out self, *, d1: T, d2: T, d3: T, d4: T, d5: T):
+        expect_num_arguments[dim, 5]()
+        self._values = InlineArray[T,dim.rank](d1.copy(), d2.copy(), d3.copy(), d4.copy(), d5.copy())
+
+    fn __init__(out self, *, d1: T, d2: T, d3: T, d4: T, d5: T, d6: T):
+        expect_num_arguments[dim, 6]()
+        self._values = InlineArray[T,dim.rank](d1.copy(), d2.copy(), d3.copy(), d4.copy(), d5.copy(), d6.copy())
+
+    fn __init__(out self, *, d1: T, d2: T, d3: T, d4: T, d5: T, d6: T, d7: T):
+        expect_num_arguments[dim, 7]()
+        self._values = InlineArray[T,dim.rank](d1.copy(), d2.copy(), d3.copy(), d4.copy(), d5.copy(), d6.copy(), d7.copy())
+
+    fn __init__(out self, *, d1: T, d2: T, d3: T, d4: T, d5: T, d6: T, d7: T, d8: T):
+        expect_num_arguments[dim, 8]()
+        self._values = InlineArray[T,dim.rank](d1.copy(), d2.copy(), d3.copy(), d4.copy(), d5.copy(), d6.copy(), d7.copy(), d8.copy())
+
+    fn __init__(out self, *, d1: T, d2: T, d3: T, d4: T, d5: T, d6: T, d7: T, d8: T, d9: T):
+        expect_num_arguments[dim, 9]()
+        self._values = InlineArray[T,dim.rank](d1.copy(), d2.copy(), d3.copy(), d4.copy(), d5.copy(), d6.copy(), d7.copy(), d8.copy(), d9.copy())
 
     fn __init__(out self, *, fill: T):
         self._values = InlineArray[T,dim.rank](fill=fill)
