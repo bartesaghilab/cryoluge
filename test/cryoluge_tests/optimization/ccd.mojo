@@ -3,7 +3,7 @@ from testing import assert_equal, assert_true, assert_false
 
 from cryoluge.math import Dimension, Vec
 from cryoluge.math.error import err_abs
-from cryoluge.optimization import ObjectiveInfo, Coord, Coords, Value, GoldenSectionLineSearch, ccd, CCDMinimizer
+from cryoluge.optimization import ObjectiveInfo, Coord, Coords, Value, BrentLineSearch, ccd, CCDMinimizer
 
 from cryoluge_testlib import assert_equal_float
 
@@ -27,7 +27,8 @@ def test_quadratic():
         fx = rebind[Value[info]]( (x[0] - 5)**2 + 42 )
 
     var result = ccd[f](
-        line_search = GoldenSectionLineSearch(
+        line_search = BrentLineSearch(
+            max_iterations = 10,
             min_interval_width = 1e-2
         ),
         x_start = Coords[info](x=0),
@@ -54,7 +55,8 @@ def test_biquadratic():
         fx = rebind[Value[info]]( (x[0] - 5)**2 + (x[1] + 7)**2 + 42 )
 
     var result = ccd[f](
-        line_search = GoldenSectionLineSearch(
+        line_search = BrentLineSearch(
+            max_iterations = 10,
             min_interval_width = 1e-2
         ),
         x_start = Coords[info](fill=0),
@@ -82,7 +84,8 @@ def test_minimizer():
         fx = rebind[Value[info]]( (x[0] - 5)**2 + (x[1] + 7)**2 + 42 )
 
     var result = CCDMinimizer[dtype](
-        line_search = GoldenSectionLineSearch(
+        line_search = BrentLineSearch(
+            max_iterations = 10,
             min_interval_width = 1e-2
         ),
         max_iterations = 10,

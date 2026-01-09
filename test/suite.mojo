@@ -43,6 +43,7 @@ def main():
         suite._register_tests[cryoluge_tests.mrc.mrc_reader.funcs]()
 
         suite._register_tests[cryoluge_tests.optimization.golden_section.funcs]()
+        suite._register_tests[cryoluge_tests.optimization.brent.funcs]()
         suite._register_tests[cryoluge_tests.optimization.ccd.funcs]()
 
     except e:

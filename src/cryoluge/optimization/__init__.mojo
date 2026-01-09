@@ -2,6 +2,7 @@
 from cryoluge.math import Dimension, Vec
 
 from ._golden_section import *
+from ._brent import *
 from ._ccd import *
 
 
