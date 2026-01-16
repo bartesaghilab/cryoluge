@@ -35,7 +35,8 @@ fn ccd[
             var line_result = line_search.minimize[line=line](
                 x_start = x_here[d],
                 x_min = x_min[d],
-                x_max = x_max[d]
+                x_max = x_max[d],
+                fx_start = fx_here
             )
             x_next[d] = line_result.x
             fx_next = line_result.fx

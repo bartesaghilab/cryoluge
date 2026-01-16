@@ -11,6 +11,7 @@ fn brent[
     x_max: Coord[info],
     max_iterations: Int,
     min_interval_width: Coord[info],
+    fx_start: Optional[Value[info]] = None,
     out result: LineSearchResult[info]
 ):
 
@@ -25,15 +26,19 @@ fn brent[
     var x_lo = x_start  # w
     var x_mid = x_start  # x
     var x_hi = x_start  # v
-    var f_lo = objective_line(x_lo)
-    var f_mid = objective_line(x_mid)
-    var f_hi = objective_line(x_hi)
+    var f_lo: Value[info]
+    if fx_start is not None:
+        f_lo = fx_start.value()
+    else:
+        f_lo = objective_line(x_lo)
+    var f_mid = f_lo
+    var f_hi = f_lo
 
-    # print('brent:')  # TEMP
+    # print('brent:')  # DEBUG
 
     for _ in range(max_iterations):
 
-        # TEMP
+        # DEBUG
         # print('\tIteration:', i)
         # print('\t\tI=[', i_min, ',', i_max, ']')
         # print('\t\tx=[', x_lo, ', ', x_mid, ', ', x_hi, ']')
@@ -59,29 +64,29 @@ fn brent[
             # yup: should work
             step = num/denom/2
 
-            # print('\t\tparabolic step=', step, 'num=', num, 'denom=', denom)  # TEMP
+            # print('\t\tparabolic step=', step, 'num=', num, 'denom=', denom)  # DEBUG
 
             # make sure the step is in range
             x_next = x_lo + step
-            # print('\t\t\tcheck x=', x_next)  # TEMP
+            # print('\t\t\tcheck x=', x_next)  # DEBUG
             if x_next < i_min or x_next > i_max:
 
                 # nope: get the next point using golden section instead
                 step = _golden_section_step[info](x_mid=x_lo, i_min=i_min, i_max=i_max)
 
-                # print('\t\t\tout of range! golden section step=', step)  # TEMP
+                # print('\t\t\tout of range! golden section step=', step)  # DEBUG
 
         else:
 
             # nope: get the next point using golden section instead
             step = _golden_section_step[info](x_mid=x_lo, i_min=i_min, i_max=i_max)
 
-            # print('\t\tgolden section step=', step)  # TEMP
+            # print('\t\tgolden section step=', step)  # DEBUG
 
         var x_next = x_lo + step
         var f_next = objective_line(x_next)
 
-        # print('\t\tnext', 'x=', x_next, 'f=', f_next)  # TEMP
+        # print('\t\tnext', 'x=', x_next, 'f=', f_next)  # DEBUG
 
         # update the interval
         if f_next > f_lo:
@@ -177,6 +182,7 @@ struct BrentLineSearch[
         x_start: Coord[info],
         x_min: Coord[info],
         x_max: Coord[info],
+        fx_start: Optional[Value[info]] = None,
         out result: LineSearchResult[info]
     ):
         result = brent[line](
@@ -184,5 +190,6 @@ struct BrentLineSearch[
             x_min = x_min,
             x_max = x_max,
             max_iterations = self.max_iterations,
-            min_interval_width = Coord[info](self.min_interval_width)
+            min_interval_width = Coord[info](self.min_interval_width),
+            fx_start = fx_start
         )

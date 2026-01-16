@@ -92,6 +92,7 @@ struct GoldenSectionLineSearch[
         x_start: Coord[info],  # NOTE: not used
         x_min: Coord[info],
         x_max: Coord[info],
+        fx_start: Optional[Value[info]] = None,  # NOTE: not used
         out result: LineSearchResult[info]
     ):
         result = golden_section[line](

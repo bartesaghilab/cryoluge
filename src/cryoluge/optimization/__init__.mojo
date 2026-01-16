@@ -4,6 +4,7 @@ from cryoluge.math import Dimension, Vec
 from ._golden_section import *
 from ._brent import *
 from ._ccd import *
+from ._powell import *
 
 
 @fieldwise_init
@@ -93,5 +94,6 @@ trait LineSearch:
         x_start: Coord[info],
         x_min: Coord[info],
         x_max: Coord[info],
+        fx_start: Optional[Value[info]] = None,
         out result: LineSearchResult[info]
     ): ...
