@@ -69,6 +69,10 @@ struct Unit[
         self.value = SIMD[dtype,width](value)
 
     @always_inline
+    fn __init__[other_dtype: DType](out self, other: Unit[utype,other_dtype]):
+        self.value = SIMD[dtype,width](other.value)
+
+    @always_inline
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(self.value)
 

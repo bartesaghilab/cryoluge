@@ -650,6 +650,19 @@ struct Vec[
             return Scalar[dst](v)
         result = self.map[mapper=scalar]()
 
+    fn map_scalar[
+        dtype_dst: DType,
+        utype: UnitType,
+        dtype_src: DType
+    ](
+        self: Vec[Unit[utype,dtype_src],dim],
+        out result: Vec[Unit[utype,dtype_dst],dim]
+    ):
+        @parameter
+        fn scalar(v: Unit[utype,dtype_src]) -> Unit[utype,dtype_dst]:
+            return Unit[utype,dtype_dst](v.value)
+        result = self.map[mapper=scalar]()
+
     fn map_float32(self: Vec[Int,dim], out result: Vec[Float32,dim]):
         result = self.map_scalar[DType.float32]()
 
