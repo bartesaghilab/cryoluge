@@ -189,18 +189,18 @@ struct Image[
 
     # TODO: move these function to struct extension functions? when that gets released?
 
-    fn mean(self: Image[dim,DType.float32]) -> Float64:
-        """Returns mean of the entire image, in double precision."""
+    fn mean(self: Image[dim,dtype]) -> Scalar[dtype]:
+        """Returns mean of the entire image."""
         return self.mean(mask = AllMask())
 
     fn mean[
         M: MaskReal, //
     ](
-        self: Image[dim,DType.float32],
+        self: Image[dim,dtype],
         *,
         mask: M
-    ) -> Float64:
-        """Returns mean of the masked region, in double precision."""
+    ) -> Scalar[dtype]:
+        """Returns mean of the masked region."""
 
         # since we can't divide by zero
         if self.num_pixels() <= 0:
@@ -219,20 +219,20 @@ struct Image[
 
         self.iterate[func]()
 
-        return sum/Float64(num_pixels_matched)
+        return Scalar[dtype](sum/Float64(num_pixels_matched))
 
-    fn mean_variance(self: Image[dim,DType.float32]) -> Tuple[Float32, Float32]:
-        """Returns mean and variance of the entire image, in single precision."""
+    fn mean_variance(self: Image[dim,dtype]) -> Tuple[Scalar[dtype], Scalar[dtype]]:
+        """Returns mean and variance of the entire image."""
         return self.mean_variance(mask = AllMask())
 
     fn mean_variance[
         M: MaskReal, //
     ](
-        self: Image[dim,DType.float32],
+        self: Image[dim,dtype],
         *,
         mask: M
-    ) -> Tuple[Float32, Float32]:
-        """Returns mean and variance of the masked region, in single precision."""
+    ) -> Tuple[Scalar[dtype], Scalar[dtype]]:
+        """Returns mean and variance of the masked region."""
 
         # since we can't divide by zero
         if self.num_pixels() <= 0:
@@ -261,9 +261,9 @@ struct Image[
         self.iterate[func]()
 
         var n = Float64(num_pixels_matched)
-        var mean = Float32(sum/n)
+        var mean = Scalar[dtype](sum/n)
         # TODO: this is higher-precision, but doesn't match the original csp
         #var variance = abs(Float32( sum_of_squares/n - (sum/n)*(sum/n) ))
         # TEMP: for now, do the lower-precision thing, to match the original csp exactly
-        var variance = abs(Float32( sum_of_squares/n - Float64(mean*mean) ))
+        var variance = abs(Scalar[dtype]( sum_of_squares/n - Float64(mean*mean) ))
         return (mean, variance)
