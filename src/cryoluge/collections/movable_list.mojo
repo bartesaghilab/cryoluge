@@ -4,7 +4,11 @@ from memory import alloc, UnsafePointer
 from collections._index_normalization import normalize_index
 
 
-struct MovableList[T: Movable](Sized, Movable):
+struct MovableList[T: Movable](
+    Sized,
+    Movable,
+    Iterable
+):
     """
     A collection type for elements that are Movable, but not Copyable.
     """
@@ -14,6 +18,9 @@ struct MovableList[T: Movable](Sized, Movable):
     var _len: Int
 
     comptime DEFAULT_CAPACITY = 4
+    comptime IteratorType[
+        iterable_mut: Bool, //, iterable_origin: Origin[iterable_mut]
+    ]: Iterator = _MovableListIter[T, iterable_origin]
 
     fn __init__(out self, *, capacity: Int=Self.DEFAULT_CAPACITY):
         self._data = alloc[T](capacity)
@@ -78,3 +85,47 @@ struct MovableList[T: Movable](Sized, Movable):
             if predicate(self[i]):
                 return i
         return None
+
+    fn __iter__(ref self) -> _MovableListIter[T,origin_of(self)]:
+        return _MovableListIter(self)
+
+
+struct _MovableListIter[
+    mut: Bool,
+    //,
+    T: Movable,
+    origin: Origin[mut]
+](
+    Copyable,
+    Movable,
+    Iterable,
+    Iterator
+):
+    var _list: Pointer[MovableList[T],origin]
+    var _index: Int
+
+    comptime Element = Pointer[T,origin]
+    comptime IteratorType[
+        iterable_mut: Bool, //, iterable_origin: Origin[iterable_mut]
+    ]: Iterator = Self
+
+    fn __init__(out self, ref [origin] list: MovableList[T]):
+        self._list = Pointer(to=list)
+        self._index = 0
+
+    fn __iter__(ref self) -> Self:
+        return self.copy()
+
+    @always_inline
+    fn __has_next__(self) -> Bool:
+        return self._index < len(self._list[])
+
+    @always_inline
+    fn __next_ref__(mut self) -> ref [origin] T:
+        ref item = self._list[][self._index]
+        self._index += 1
+        return item
+
+    @always_inline
+    fn __next__(mut self: Self) -> Self.Element:
+        return Pointer(to=self.__next_ref__())

@@ -129,3 +129,20 @@ def test_first():
     assert_equal(list.first[is_n[7]]().value(), 2)
     assert_equal(list.first[is_n[8]]().value(), 3)
     assert_true(list.first[is_n[9]]() is None)
+
+
+def test_iterataion():
+
+    var list = MovableList[Thing]()
+    list.append(Thing(5))
+    list.append(Thing(6))
+    list.append(Thing(7))
+
+    var iterated = List[Int]()
+    for thing in list:
+        iterated.append(thing.i)
+
+    assert_equal(iterated[0], 5)
+    assert_equal(iterated[1], 6)
+    assert_equal(iterated[2], 7)
+    assert_equal(len(iterated), 3)
