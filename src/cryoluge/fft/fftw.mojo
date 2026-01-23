@@ -64,7 +64,9 @@ struct FFTPlan[
     dim: Dimension,
     dtype: DType,
     direction: FFTDirection
-]:
+](
+    Movable
+):
     var _fftw: OwnedDLHandle
     var _plan: Self.PlanPtr
     var _info_real: _ImageInfo[dim]
@@ -323,7 +325,9 @@ struct _ImageInfo[
 struct FFTPlans[
     dtype: DType,
     dim: Dimension
-]:
+](
+    Movable
+):
     var alignment: Int
     var sizes_real: Vec[Int,dim]
     var sizes_fourier: Vec[Int,dim]

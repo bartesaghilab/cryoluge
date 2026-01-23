@@ -10,7 +10,9 @@ struct WhitenOperator[
     dim: Dimension,
     dtype: DType,
     sum_dtype: DType=dtype
-]:
+](
+    Movable
+):
     var real_sizes: Vec[Int,dim]
     var shells: FourierShells[dim]
     var res_limit: Int
