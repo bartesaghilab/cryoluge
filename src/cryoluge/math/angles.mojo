@@ -34,5 +34,13 @@ fn angle_dist[dtype: DType, size: Int](*, rad_a: SIMD[dtype,size], rad_b: SIMD[d
         dist = pi - dist
 
 
+fn angle_dist[dtype: DType, size: Int](*, deg_a: SIMD[dtype,size], deg_b: SIMD[dtype,size], out dist: SIMD[dtype,size]):
+    dist_rad = angle_dist(
+        rad_a = deg_to_rad(deg=deg_a),
+        rad_b = deg_to_rad(deg=deg_b)
+    )
+    dist = rad_to_deg(rad=dist_rad)
+
+
 # TODO: use units?
 # TODO: overloads of trig fns for Deg,Rad units?

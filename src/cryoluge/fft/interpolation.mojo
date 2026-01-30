@@ -11,7 +11,7 @@ struct PrecomputedFFTInterpolation[
     dim: Dimension,
     dtype: DType,
     *,
-    dtype_coords: DType = DType.float32
+    dtype_coords: DType = dtype
 ](Movable):
     var _sizes_real: Vec[Int,dim]
     var _samples: DimensionalBuffer[dim,Self.Pixel]

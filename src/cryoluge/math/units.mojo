@@ -264,6 +264,12 @@ struct Unit[
     # conversions
     # TODO: would these makes sense as extension functions?
 
+    fn to_dtype[dtype_dst: DType](
+        self,
+        out mapped: Unit[utype,dtype_dst,width]
+    ):
+        mapped = Unit[utype,dtype_dst,width](SIMD[dtype_dst]( self.value ))
+
     fn to_ang(
         self: Px[dtype,width],
         pixel_size: SIMD[dtype,width],
@@ -309,6 +315,20 @@ struct Unit[
         out result: Rad[dtype,1]
     ):
         result = Rad(normalize_minus_pi_to_pi(rad=self.value))
+
+    fn dist(
+        self: Rad[dtype,width],
+        other: Rad[dtype,width],
+        out result: Rad[dtype,width]
+    ):
+        result = Rad(angle_dist(rad_a=self.value, rad_b=other.value))
+
+    fn dist(
+        self: Deg[dtype,width],
+        other: Deg[dtype,width],
+        out result: Deg[dtype,width]
+    ):
+        result = Deg(angle_dist(deg_a=self.value, deg_b=other.value))
 
     fn cos(
         self: Rad[dtype,width],

@@ -69,7 +69,7 @@ fn ease_cos[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[d
 
 # some of the more exotic trig functions
 
-fn sinc(f: Float32, out result: Float32):
+fn sinc[dtype: DType](f: Scalar[dtype], out result: Scalar[dtype]):
     if f == 0:
         result = 1
     elif f >= 0.01:

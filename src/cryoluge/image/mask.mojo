@@ -169,12 +169,12 @@ struct RadialMask[
     fn correct_sinc[
         dim: Dimension, //
     ](
-        self: RadialMask[CoordDomain.Real, region, include_boundary, DType.float32],
-        mut img: Image[dim,DType.float32]
+        self: RadialMask[CoordDomain.Real, region, include_boundary, dtype],
+        mut img: Image[dim,dtype]
     ):
         """TODO: what does this do? Someone must know."""
 
-        var scale = pi/img.sizes().map_float32()
+        var scale = pi/img.sizes().map_scalar[dtype]()
         var weight_outside = sinc(scale.x()*self.radius)
         weight_outside *= weight_outside
 
@@ -182,7 +182,7 @@ struct RadialMask[
         fn func(i: Vec[Int,dim]):
             if self.includes(i, img.sizes()):
                 var dist = i - img.sizes()//2
-                var weight = (dist.map_float32()*scale).sinc().product()
+                var weight = (dist.map_scalar[dtype]()*scale).sinc().product()
                 weight *= weight
                 img[i=i] /= weight
             else:

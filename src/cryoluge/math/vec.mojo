@@ -603,8 +603,8 @@ struct Vec[
     fn len[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Unit[utype,dtype]):
         result = self.len2().sqrt()
     
-    fn sinc(self: Vec[Float32,dim], out result: Vec[Float32,dim]):
-        result = Vec[Float32,dim](uninitialized=True)
+    fn sinc[dtype: DType](self: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
+        result = Vec[Scalar[dtype],dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             result[d] = sinc(self[d])

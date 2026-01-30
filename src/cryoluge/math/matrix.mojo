@@ -146,19 +146,19 @@ struct Matrix[
                 product[r,c] = v
 
     fn __mul__[dim: Dimension](
-        self: Matrix[rows,cols,DType.float32],
-        vec: Vec[Float32,dim],
-        out result: Vec[Float32,dim]
+        self,
+        vec: Vec[Scalar[dtype],dim],
+        out result: Vec[Scalar[dtype],dim]
     ):
         constrained[
             rows == dim.rank and cols == dim.rank,
             String("Matrix size (", rows, ", ", cols, ") doesn't match vector size (", dim.rank,  ")")
         ]()
 
-        result = Vec[Float32,dim](uninitialized=True)
+        result = Vec[Scalar[dtype],dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
-            var v = Float32(0)
+            var v = Scalar[dtype](0)
             @parameter
             for i in range(dim.rank):
                 v += self[d,i]*vec[i]
