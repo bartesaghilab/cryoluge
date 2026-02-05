@@ -1,6 +1,6 @@
 
 from cryoluge.math import Dimension, Vec
-from cryoluge.math.units import Rad
+from cryoluge.math.units import Px
 
 
 struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Dimension]:
@@ -13,7 +13,7 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Dimension]:
     ):
         self.phase_shift_op = PhaseShiftOperator[dtype](
             sizes_real=sizes_real.copy(),
-            shifts=sizes_real.map_scalar[dtype]().map_unit[Rad.utype]()/2
+            shifts=sizes_real.map_scalar[dtype]().map_unit[Px.utype]()/2
         )
 
     fn eval(

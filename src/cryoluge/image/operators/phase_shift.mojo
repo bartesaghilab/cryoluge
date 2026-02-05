@@ -2,7 +2,7 @@
 from math import sin, cos
 
 from cryoluge.math import Dimension, Vec
-from cryoluge.math.units import Rad, pi
+from cryoluge.math.units import Px, Rad, pi
 from cryoluge.fft import FFTCoords, FFTImage
 
 
@@ -10,14 +10,16 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
     Copyable,
     Movable
 ):
-    var _shifts_2pi_norm: Vec[Rad[dtype],dim]
+    var _shifts: Vec[Rad[dtype],dim]
 
     fn __init__(
         out self,
         sizes_real: Vec[Int,dim],
-        shifts: Vec[Rad[dtype],dim]
+        shifts: Vec[Px[dtype],dim]
     ):
-        self._shifts_2pi_norm = shifts.copy()*2*pi[dtype].value/sizes_real.map_scalar[dtype]()
+        # convert shifts from Px to Rad
+        self._shifts = shifts.map_value()*2*pi[dtype].value/sizes_real.map_scalar[dtype]()
+            .map_unit[Rad.utype]()
 
     fn eval(
         self,
@@ -26,7 +28,7 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
-        var phase = self._shifts_2pi_norm.inner_product(f)
+        var phase = self._shifts.inner_product(f)
         result = v*ComplexScalar[dtype](re=phase.cos(), im=-phase.sin())
 
     fn eval[width: Int](
@@ -39,7 +41,7 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
         var phases = SIMD[dtype,width](0)
         @parameter
         for d in range(dim.rank):
-            phases += f[d]*self._shifts_2pi_norm[d].value
+            phases += f[d]*self._shifts[d].value
         result = v*ComplexSIMD[dtype,width](re=cos(phases), im=-sin(phases))
 
     fn eval(
