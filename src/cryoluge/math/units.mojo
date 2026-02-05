@@ -1,5 +1,5 @@
 
-from math import sin, cos, pi as pi_std
+from math import sin, cos, tan, asin, acos, atan2, pi as pi_std, sqrt
 
 
 @fieldwise_init
@@ -261,6 +261,11 @@ struct Unit[
     fn sqrt(self) -> Self:
         return Self(sqrt(self.value))
 
+    fn abs(self) -> Self:
+        return Self(abs(self.value))
+
+    # TODO: dist? that works on everything but angles?
+    
     # conversions
     # TODO: would these makes sense as extension functions?
 
@@ -294,13 +299,13 @@ struct Unit[
         self: Rad[dtype,width],
         out deg: Deg[dtype,width]
     ):
-        deg = Deg(rad_to_deg(rad=self.value))
+        deg = Deg[dtype,width](self.value*180/pi_std)
     
     fn to_rad(
         self: Deg[dtype,width],
         out rad: Rad[dtype,width]
     ):
-        rad = Rad(deg_to_rad(deg=self.value))
+        rad = Rad[dtype,width](self.value*pi_std/180)
 
     fn to_ang3(
         self: KDa[dtype,width],
@@ -310,25 +315,138 @@ struct Unit[
 
     # angles
 
+    fn _normalize[
+        *,
+        min: Unit[utype,dtype,1],
+        min_inclusive: Bool,
+        max: Unit[utype,dtype,1],
+        max_inclusive: Bool,
+        offset: Unit[utype,dtype,1]
+    ](
+        self: Unit[utype,dtype,1],
+        out result: Unit[utype,dtype,1]
+    ):
+        result = self.copy()
+
+        @parameter
+        if min_inclusive:
+            while result < min:
+                result += offset
+        else:
+            while result <= min:
+                result += offset
+        
+        @parameter
+        if max_inclusive:
+            while result > max:
+                result -= offset
+        else:
+            while result >= max:
+                result -= offset
+
     fn normalize_minus_pi_to_pi(
+        self: Rad[dtype],
+        out result: Rad[dtype]
+    ):
+        """Normalizes the angle to the range (-pi,pi]."""
+        result = self._normalize[
+            min=-pi[dtype],
+            min_inclusive=False,
+            max=pi[dtype],
+            max_inclusive=True,
+            offset=2*pi[dtype]
+        ]()
+
+    fn normalize_0_to_2pi(
         self: Rad[dtype,1],
         out result: Rad[dtype,1]
     ):
-        result = Rad(normalize_minus_pi_to_pi(rad=self.value))
+        """Normalizes the angle to the range [0,2pi)."""
+        result = self._normalize[
+            min=Rad[dtype](0),
+            min_inclusive=True,
+            max=pi[dtype],
+            max_inclusive=False,
+            offset=2*pi[dtype]
+        ]()
+
+    fn normalize(
+        self: Rad[dtype,1],
+        out result: Rad[dtype,1]
+    ):
+        """Normalizes the angle to the range (-pi,pi]."""
+        result = self.normalize_minus_pi_to_pi()
+
+    fn normalize_positive(
+        self: Rad[dtype,1],
+        out result: Rad[dtype,1]
+    ):
+        """Normalizes the angle to the range [0,2pi)."""
+        result = self.normalize_0_to_2pi()
+
+    fn normalize_minus_180_to_180(
+        self: Deg[dtype],
+        out result: Deg[dtype]
+    ):
+        """Normalizes the angle to the range (-180,180]."""
+        result = self._normalize[
+            min=Deg[dtype](-180),
+            min_inclusive=False,
+            max=Deg[dtype](180),
+            max_inclusive=True,
+            offset=Deg[dtype](360)
+        ]()
+
+    fn normalize_0_to_360(
+        self: Deg[dtype,1],
+        out result: Deg[dtype,1]
+    ):
+        """Normalizes the angle to the range [0,360)."""
+        result = self._normalize[
+            min=Deg[dtype](0),
+            min_inclusive=True,
+            max=Deg[dtype](360),
+            max_inclusive=False,
+            offset=Deg[dtype](360)
+        ]()
+
+    fn normalize(
+        self: Deg[dtype,1],
+        out result: Deg[dtype,1]
+    ):
+        """Normalizes the angle to the range (-180,180]."""
+        result = self.normalize_minus_180_to_180()
+
+    fn normalize_positive(
+        self: Deg[dtype,1],
+        out result: Deg[dtype,1]
+    ):
+        """Normalizes the angle to the range [0,360)."""
+        result = self.normalize_0_to_360()
 
     fn dist(
-        self: Rad[dtype,width],
-        other: Rad[dtype,width],
-        out result: Rad[dtype,width]
+        self: Rad[dtype],
+        other: Rad[dtype],
+        out result: Rad[dtype]
     ):
-        result = Rad(angle_dist(rad_a=self.value, rad_b=other.value))
+        var norm_a = self.normalize_minus_pi_to_pi()
+        var norm_b = other.normalize_minus_pi_to_pi()
+        var dist = abs(norm_a.value - norm_b.value)
+        if dist > pi_std:
+            dist = pi_std - dist
+        result = Rad[dtype](dist)
 
     fn dist(
-        self: Deg[dtype,width],
-        other: Deg[dtype,width],
-        out result: Deg[dtype,width]
+        self: Deg[dtype],
+        other: Deg[dtype],
+        out result: Deg[dtype]
     ):
-        result = Deg(angle_dist(deg_a=self.value, deg_b=other.value))
+        var norm_a = self.normalize_minus_180_to_180()
+        var norm_b = other.normalize_minus_180_to_180()
+        var dist = abs(norm_a.value - norm_b.value)
+        if dist > 180:
+            dist = 180 - dist
+        result = Deg[dtype](dist)
 
     fn cos(
         self: Rad[dtype,width],
@@ -342,6 +460,19 @@ struct Unit[
     ):
         result = self.to_rad().cos()
 
+    @staticmethod
+    fn acos(
+        v: SIMD[dtype,width],
+        out result: Unit[utype,dtype,width]
+    ):
+        @parameter
+        if utype == UnitType.Rad:
+            result = Self(acos(v))
+        elif utype == UnitType.Deg:
+            result = rebind[Unit[utype,dtype,width]]( Rad.acos(v).to_deg() )
+        else:
+            return _require_angle[Unit[utype,dtype,width]]()
+
     fn sin(
         self: Rad[dtype,width],
         out result: SIMD[dtype,width]
@@ -353,3 +484,47 @@ struct Unit[
         out result: SIMD[dtype,width]
     ):
         result = self.to_rad().sin()
+
+    @staticmethod
+    fn asin(
+        v: SIMD[dtype,width],
+        out result: Unit[utype,dtype,width]
+    ):
+        @parameter
+        if utype == UnitType.Rad:
+            result = Self(asin(v))
+        elif utype == UnitType.Deg:
+            result = rebind[Unit[utype,dtype,width]]( Rad.asin(v).to_deg() )
+        else:
+            return _require_angle[Unit[utype,dtype,width]]()
+
+    fn tan(
+        self: Rad[dtype,width],
+        out result: SIMD[dtype,width]
+    ):
+        result = tan(self.value)
+
+    fn tan(
+        self: Deg[dtype,width],
+        out result: SIMD[dtype,width]
+    ):
+        result = self.to_rad().tan()
+
+    @staticmethod
+    fn atan2(
+        y: SIMD[dtype,width],
+        x: SIMD[dtype,width],
+        out result: Unit[utype,dtype,width]
+    ):
+        @parameter
+        if utype == UnitType.Rad:
+            result = Self(atan2(y, x))
+        elif utype == UnitType.Deg:
+            result = rebind[Unit[utype,dtype,width]]( Rad.atan2(y, x).to_deg() )
+        else:
+            return _require_angle[Unit[utype,dtype,width]]()
+
+
+fn _require_angle[T: AnyType]() -> T:
+    constrained[False, String("Must call inverse trig functions on angle units")]()
+    return abort[T]()

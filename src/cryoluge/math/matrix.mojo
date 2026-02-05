@@ -1,5 +1,5 @@
 
-from math import sin, cos, pi
+from cryoluge.math.units import Rad, Deg
 
 
 struct Matrix[
@@ -77,59 +77,59 @@ struct Matrix[
                 else:
                     self[r,c] = 0
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_x_rad: Scalar[dtype]):
+    fn __init__(out self: Self.D3[dtype], *, rotate_x: Rad[dtype]):
         self = Self.D3[dtype](uninitialized=True)
-        self.set_rotate_x(rad=rotate_x_rad)
+        self.set_rotate_x(rotate_x)
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_x_deg: Scalar[dtype]):
+    fn __init__(out self: Self.D3[dtype], *, rotate_x: Deg[dtype]):
         self = Self.D3[dtype](uninitialized=True)
-        self.set_rotate_x(deg=rotate_x_deg)
+        self.set_rotate_x(rotate_x)
 
-    fn set_rotate_x(mut self: Self.D3[dtype], *, rad: Scalar[dtype]):
-        var s = sin(rad)
-        var c = cos(rad)
+    fn set_rotate_x(mut self: Self.D3[dtype], angle: Rad[dtype]):
+        var s = angle.sin()
+        var c = angle.cos()
         self[0] = InlineArray[Scalar[dtype],3](1, 0, 0)
         self[1] = InlineArray[Scalar[dtype],3](1, c, -s)
         self[2] = InlineArray[Scalar[dtype],3](1, s, c)
 
-    fn set_rotate_x(mut self: Self.D3[dtype], *, deg: Scalar[dtype]):
-        self.set_rotate_x(rad=deg_to_rad(deg=deg))
+    fn set_rotate_x(mut self: Self.D3[dtype], angle: Deg[dtype]):
+        self.set_rotate_x(angle.to_rad())
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_y_rad: Scalar[dtype]):
+    fn __init__(out self: Self.D3[dtype], *, rotate_y: Rad[dtype]):
         self = Self.D3[dtype](uninitialized=True)
-        self.set_rotate_y(rad=rotate_y_rad)
+        self.set_rotate_y(rotate_y)
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_y_deg: Scalar[dtype]):
+    fn __init__(out self: Self.D3[dtype], *, rotate_y: Deg[dtype]):
         self = Self.D3[dtype](uninitialized=True)
-        self.set_rotate_y(deg=rotate_y_deg)
+        self.set_rotate_y(rotate_y)
 
-    fn set_rotate_y(mut self: Self.D3[dtype], *, rad: Scalar[dtype]):
-        var s = sin(rad)
-        var c = cos(rad)
+    fn set_rotate_y(mut self: Self.D3[dtype], angle: Rad[dtype]):
+        var s = angle.sin()
+        var c = angle.cos()
         self[0] = InlineArray[Scalar[dtype],3](c, 0, s)
         self[1] = InlineArray[Scalar[dtype],3](0, 1, 0)
         self[2] = InlineArray[Scalar[dtype],3](-s, 0, c)
 
-    fn set_rotate_y(mut self: Self.D3[dtype], *, deg: Scalar[dtype]):
-        self.set_rotate_y(rad=deg_to_rad(deg=deg))
+    fn set_rotate_y(mut self: Self.D3[dtype], angle: Deg[dtype]):
+        self.set_rotate_y(angle.to_rad())
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_z_rad: Scalar[dtype]):
+    fn __init__(out self: Self.D3[dtype], *, rotate_z: Rad[dtype]):
         self = Self.D3[dtype](uninitialized=True)
-        self.set_rotate_z(rad=rotate_z_rad)
+        self.set_rotate_z(rotate_z)
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_z_deg: Scalar[dtype]):
+    fn __init__(out self: Self.D3[dtype], *, rotate_z: Deg[dtype]):
         self = Self.D3[dtype](uninitialized=True)
-        self.set_rotate_z(deg=rotate_z_deg)
+        self.set_rotate_z(rotate_z)
 
-    fn set_rotate_z(mut self: Self.D3[dtype], *, rad: Scalar[dtype]):
-        var s = sin(rad)
-        var c = cos(rad)
+    fn set_rotate_z(mut self: Self.D3[dtype], angle: Rad[dtype]):
+        var s = angle.sin()
+        var c = angle.cos()
         self[0] = InlineArray[Scalar[dtype],3](c, -s, 0)
         self[1] = InlineArray[Scalar[dtype],3](s, c, 0)
         self[2] = InlineArray[Scalar[dtype],3](0, 0, 1)
 
-    fn set_rotate_z(mut self: Self.D3[dtype], *, deg: Scalar[dtype]):
-        self.set_rotate_z(rad=deg_to_rad(deg=deg))
+    fn set_rotate_z(mut self: Self.D3[dtype], angle: Deg[dtype]):
+        self.set_rotate_z(angle.to_rad())
 
     # math
 

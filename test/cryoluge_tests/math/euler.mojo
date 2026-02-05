@@ -3,6 +3,7 @@ from testing import assert_equal, assert_true, assert_false
 
 from cryoluge.lang import LexicalScope
 from cryoluge.math import EulerAnglesZYZ, Matrix
+from cryoluge.math.units import Deg
 
 from cryoluge_testlib import assert_equal_angles
 
@@ -23,20 +24,22 @@ def test_mat_roundtrip():
         var obs = EulerAnglesZYZ(from_mat=mat)
         assert_equal_angles(obs, exp.or_else(euler), eps=eps)
 
-    check(EulerAnglesZYZ[DType.float32](psi_deg=0, theta_deg=0, phi_deg=0))
+    comptime Deg32 = Deg[DType.float32]
 
-    check(EulerAnglesZYZ[DType.float32](psi_deg=1, theta_deg=0, phi_deg=0))
-    check(EulerAnglesZYZ[DType.float32](psi_deg=0, theta_deg=1, phi_deg=0),
+    check(EulerAnglesZYZ(psi=Deg32(0), theta=Deg32(0), phi=Deg32(0)))
+
+    check(EulerAnglesZYZ[DType.float32](psi=Deg32(1), theta=Deg32(0), phi=Deg32(0)))
+    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(1), phi=Deg32(0)),
         eps=1e-4)
         # NOTE: ZYZ Euler angle decomposition has low precision around theta=0
-    check(EulerAnglesZYZ[DType.float32](psi_deg=0, theta_deg=0, phi_deg=1),
-        exp=EulerAnglesZYZ[DType.float32](psi_deg=1, theta_deg=0, phi_deg=0))
+    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(0), phi=Deg32(1)),
+        exp=EulerAnglesZYZ[DType.float32](psi=Deg32(1), theta=Deg32(0), phi=Deg32(0)))
         # NOTE: when psi and theta are zero, a phi=n rotation is equivalent to a psi=n rotation
     
-    check(EulerAnglesZYZ[DType.float32](psi_deg=30, theta_deg=0, phi_deg=0))
-    check(EulerAnglesZYZ[DType.float32](psi_deg=0, theta_deg=30, phi_deg=0))
-    check(EulerAnglesZYZ[DType.float32](psi_deg=0, theta_deg=0, phi_deg=30),
-        exp=EulerAnglesZYZ[DType.float32](psi_deg=30, theta_deg=0, phi_deg=0))
+    check(EulerAnglesZYZ[DType.float32](psi=Deg32(30), theta=Deg32(0), phi=Deg32(0)))
+    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(30), phi=Deg32(0)))
+    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(0), phi=Deg32(30)),
+        exp=EulerAnglesZYZ[DType.float32](psi=Deg32(30), theta=Deg32(0), phi=Deg32(0)))
 
     # real-world example
-    check(EulerAnglesZYZ[DType.float32](psi_deg=71.149391, theta_deg=11.956297, phi_deg=59.530159))
+    check(EulerAnglesZYZ[DType.float32](psi=Deg32(71.149391), theta=Deg32(11.956297), phi=Deg32(59.530159)))

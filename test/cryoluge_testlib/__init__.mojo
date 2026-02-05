@@ -44,7 +44,7 @@ def assert_equal_angles[dtype: DType](
 ):
     var dists = obs.dists(exp)
     assert_true(
-        dists.psi_deg() < eps and dists.theta_deg() < eps and dists.phi_deg() < eps,
+        dists.psi.to_deg() < eps and dists.theta.to_deg() < eps and dists.phi.to_deg() < eps,
         String("Angles mismatch!\n",
             "\tobserved: ", obs, "\n",
             "\texpected: ", exp, "\n",

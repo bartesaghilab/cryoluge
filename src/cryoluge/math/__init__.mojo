@@ -4,7 +4,6 @@ from complex import ComplexSIMD
 
 from .dimension import *
 from .vec import *
-from .angles import *
 from .matrix import *
 from .euler import *
 
