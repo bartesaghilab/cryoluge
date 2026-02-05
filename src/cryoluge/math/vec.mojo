@@ -621,6 +621,12 @@ struct Vec[
             return abs(i)
         result = self.map[mapper=func]()
 
+    fn abs[utype: UnitType, dtype: DType](self: Vec[Unit[utype,dtype],dim], out result: Vec[Unit[utype,dtype],dim]):
+        @parameter
+        fn func(i: Unit[utype,dtype]) -> Unit[utype,dtype]:
+            return i.abs()
+        result = self.map[mapper=func]()
+        
     # mappings
 
     fn map[

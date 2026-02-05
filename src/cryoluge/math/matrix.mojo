@@ -164,6 +164,13 @@ struct Matrix[
                 v += self[d,i]*vec[i]
             result[d] = v
 
+    fn __mul__[dim: Dimension, utype: UnitType](
+        self,
+        vec: Vec[Unit[utype,dtype],dim],
+        out result: Vec[Unit[utype,dtype],dim]
+    ):
+        result = (self*vec.map_value()).map_unit[utype]()
+    
     # conversion
 
     fn map[
