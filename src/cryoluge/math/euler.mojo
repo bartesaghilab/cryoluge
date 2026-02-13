@@ -33,33 +33,35 @@ struct EulerAnglesZYZ[dtype: DType](
         self.theta = theta.to_rad()
         self.phi = phi.to_rad()
 
-    fn __init__(out self, *, from_mat: Matrix.D3[dtype]):
+    fn __init__(out self, *, from_mat: Matrix.D3[dtype], match_csp1: Bool = False):
         ref m = from_mat
-        self.theta = Rad[dtype].acos(m[2,2])
-        if abs(m[0,2]) < 1e-4:
-            self.psi = Rad[dtype].atan2(m[1,0], m[1,1])
-            self.phi = Rad[dtype](0)
-        else:
-            self.psi = Rad[dtype].atan2(m[2,1], -m[2,0])
-            self.phi = Rad[dtype].atan2(m[1,2], m[0,2])
 
-    # TEMP: implement the old csp1 behavior, for reference
-    fn __init__(out self, *, from_mat_csp1: Matrix.D3[dtype]):
-        ref m = from_mat_csp1
-        if m[2,2] < 1:
-            if m[2,2] > -1:
-                self.theta = Rad[dtype].acos(m[2,2])
-                var sin_theta = self.theta.sin()
-                self.psi = Rad[dtype].atan2(m[2,1]/sin_theta, m[2,0]/sin_theta)
-                self.phi = Rad[dtype].atan2(m[1,2]/sin_theta, -m[0,2]/sin_theta)
+        if match_csp1:
+            # TEMP: implement the old csp1 behavior, for reference
+            if m[2,2] < 1:
+                if m[2,2] > -1:
+                    self.theta = Rad[dtype].acos(m[2,2])
+                    var sin_theta = self.theta.sin()
+                    self.psi = Rad[dtype].atan2(m[2,1]/sin_theta, m[2,0]/sin_theta)
+                    self.phi = Rad[dtype].atan2(m[1,2]/sin_theta, -m[0,2]/sin_theta)
+                else:
+                    self.theta = pi[dtype]
+                    self.psi = Rad[dtype](0)
+                    self.phi = Rad[dtype].atan2(-m[0,1], -m[0,0])
             else:
-                self.theta = pi[dtype]
+                self.theta = Rad[dtype](0)
                 self.psi = Rad[dtype](0)
-                self.phi = Rad[dtype].atan2(-m[0,1], -m[0,0])
+                self.phi = Rad[dtype].atan2(m[0,1], m[0,0])
+
         else:
-            self.theta = Rad[dtype](0)
-            self.psi = Rad[dtype](0)
-            self.phi = Rad[dtype].atan2(m[0,1], m[0,0])
+            # otherwise, do the usual method for Euler angle decomposition
+            self.theta = Rad[dtype].acos(m[2,2])
+            if abs(m[0,2]) < 1e-4:
+                self.psi = Rad[dtype].atan2(m[1,0], m[1,1])
+                self.phi = Rad[dtype](0)
+            else:
+                self.psi = Rad[dtype].atan2(m[2,1], -m[2,0])
+                self.phi = Rad[dtype].atan2(m[1,2], m[0,2])
 
     fn write_to[W: Writer](self, mut writer: W):
         writer.write(
