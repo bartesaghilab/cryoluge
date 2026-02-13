@@ -365,7 +365,7 @@ struct Unit[
         result = self._normalize[
             min=Rad[dtype](0),
             min_inclusive=True,
-            max=pi[dtype],
+            max=2*pi[dtype],
             max_inclusive=False,
             offset=2*pi[dtype]
         ]()
