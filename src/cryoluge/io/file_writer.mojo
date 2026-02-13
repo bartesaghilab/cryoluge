@@ -13,13 +13,17 @@ struct FileWriter(
     # until we figure that out, just keep the pos in this struct
     var _pos: Int
 
-    def __init__(out self, fh: FileHandle, *, buf_size: Int = 16*1024):
+    fn __init__(out self, fh: FileHandle, *, buf_size: Int = 16*1024) raises:
         self._fd = FileDescriptor(fh._get_raw_fd())
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
         self._buf = ByteBuffer(buf_size)
         # TODO: how to do self references?
         #self._buf_writer = BytesWriter(self._buf.span())
         self._pos = 0
+
+    fn __del__(deinit self):
+        # flush any remaining buffers
+        self.flush()
 
     fn write_bytes(mut self, bytes: Span[Byte]):
 
@@ -76,5 +80,6 @@ struct FileWriter(
     fn flush(mut self):
         var writer = BytesWriter(self._buf.span(), self._pos)
         self._fd.write_bytes(writer.span_written())
+        # amazingly, a file write operation doesn't raise, or return an error code
         writer.reset()
         self._pos = writer._pos
