@@ -68,8 +68,8 @@ struct CistemWriter[
         reader: CistemReader[R, origin_reader]
     ) raises:
 
-        var src = self._line_buf.span()
-        var dst = reader._line_buf.span()
+        var src = reader._line_buf.span()
+        var dst = self._line_buf.span()
 
         if len(src) != len(dst):
             raise Error("Can't copy line buffer, sizes are different: ", len(src), " -> ", len(dst))
@@ -124,3 +124,16 @@ struct CistemWriter[
 
     fn write_line(mut self) raises:
         self.writer[].write_bytes(self._line_buf.span())
+
+    fn transform[
+        func: fn (CistemReader, mut CistemWriter) capturing raises -> Bool,
+        R: BinaryReader,
+        reader_origin: Origin[mut=True]
+    ](mut self, mut reader: CistemReader[R,reader_origin], out num_written: Int) raises:
+        num_written = 0
+        while not reader.eof():
+            reader.read_line()
+            self.copy_line(reader)
+            if func(reader, self):
+                self.write_line()
+                num_written += 1
