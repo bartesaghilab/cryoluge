@@ -79,15 +79,19 @@ struct EulerAnglesZYZ[dtype: DType](
         var rot_phi = Matrix.D3[dtype](rotate_z=self.phi)
         mat = rot_phi*rot_theta*rot_psi
 
-    fn normalize(mut self):
-        self.psi = self.psi.normalize()
-        self.theta = self.theta.normalize()
-        self.phi = self.phi.normalize()
+    fn normalize(self, out normalized: Self):
+        normalized = Self(
+            psi = self.psi.normalize(),
+            theta = self.theta.normalize(),
+            phi = self.phi.normalize()
+        )
 
-    fn normalize_positive(mut self):
-        self.psi = self.psi.normalize_positive()
-        self.theta = self.theta.normalize_positive()
-        self.phi = self.phi.normalize_positive()
+    fn normalize_positive(self, out normalized: Self):
+        normalized = Self(
+            psi = self.psi.normalize_positive(),
+            theta = self.theta.normalize_positive(),
+            phi = self.phi.normalize_positive()
+        )
 
     # math functions
 
