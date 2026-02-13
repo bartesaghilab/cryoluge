@@ -33,7 +33,9 @@ def main():
         suite._register_tests[cryoluge_tests.image.complex_image.funcs]()
 
         suite._register_tests[cryoluge_tests.cistem.cistem_reader.funcs]()
+        suite._register_tests[cryoluge_tests.cistem.cistem_writer.funcs]()
         suite._register_tests[cryoluge_tests.cistem.blocked_reader.funcs]()
+        suite._register_tests[cryoluge_tests.cistem.blocked_writer.funcs]()
 
         suite._register_tests[cryoluge_tests.fft.coords.funcs]()
         suite._register_tests[cryoluge_tests.fft.fft.funcs]()

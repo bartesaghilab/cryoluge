@@ -3,76 +3,16 @@ from testing import assert_equal
 
 from cryoluge.lang import rebind_scalar
 from cryoluge.io import FileReader
-from cryoluge.cistem import Reader, CistemParameters, Parameter, ParameterType
+from cryoluge.cistem import CistemReader, CistemParameters, Parameter, ParameterType
 
 
 comptime funcs = __functions_in_module()
 
 
-struct ExtraParameters:
-    comptime im_ind = Parameter(20, "im_ind", ParameterType.int)
-    comptime p_ind = Parameter(15, "p_ind", ParameterType.int)
-    comptime t_ind = Parameter(35, "t_ind", ParameterType.int)
-    comptime r_ind = Parameter(70, "r_ind", ParameterType.int)
-    comptime f_ind = Parameter(55, "f_ind", ParameterType.int)
-    comptime fshift_x = Parameter(11, "fshift_x", ParameterType.float)
-    comptime fshift_y = Parameter(121, "fshift_y", ParameterType.float)
-
-    comptime _all = List[Parameter](
-        Self.im_ind,
-        Self.p_ind,
-        Self.t_ind,
-        Self.r_ind,
-        Self.f_ind,
-        Self.fshift_x,
-        Self.fshift_y
-    )
-
-    @staticmethod
-    fn all() -> List[Parameter]:
-        return materialize[Self._all]()
-
-
-comptime TEST_FILE = "test/cryoluge_tests/cistem/test.cistem"
-# NOTE: parameters in this file:
-#    0: position_in_stack(1,uint)
-#    1: psi(4,float),
-#    2: theta(4194304,float)
-#    3: phi(8388608,float)
-#    4: x_shift(8,float)
-#    5: y_shift(16,float)
-#    6: defocus_1(32,float)
-#    7: defocus_2(64,float)
-#    8: defocus_angle(128,float)
-#    9: phase_shift(256,float)
-#   10: image_is_active(2,int)
-#   11: occupancy(512,float)
-#   12: logp(1024,float)
-#   13: sigma(2048,float)
-#   14: score(4096,float)
-#   15: pixel_size(16384,float)
-#   16: microscope_voltage(32768,float)
-#   17: microscope_cs(65536,float)
-#   18: amplitude_contrast(131072,float)
-#   19: beam_tilt_x(262144,float)
-#   20: beam_tilt_y(524288,float)
-#   21: image_shift_x(1048576,float)
-#   22: image_shift_y(2097152,float)
-#   23: original_x_position(8589934592,float)
-#   24: original_y_position(17179869184,float)
-#   25: im_ind(20,int)
-#   26: p_ind(15,int)
-#   27: t_ind(35,int)
-#   28: r_ind(70,int)
-#   29: f_ind(55,int)
-#   30: fshift_x(11,float)
-#   31: fshift_y(121,float)
-
-
 def test_default_parameters():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader)
+        var cistem_reader = CistemReader(file_reader)
         assert_equal(len(cistem_reader.cols()), 32)
 
         # spot-check a few parameters
@@ -88,7 +28,7 @@ def test_default_parameters():
 def test_some_default_parameters():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader, parameters=[
+        var cistem_reader = CistemReader(file_reader, parameters=[
             CistemParameters.psi,
             CistemParameters.theta,
             CistemParameters.phi
@@ -108,7 +48,7 @@ def test_some_default_parameters():
 def test_extended_parameters():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader, parameters=ExtraParameters.all())
+        var cistem_reader = CistemReader(file_reader, parameters=ExtraParameters.all())
         assert_equal(len(cistem_reader.cols()), 32)
 
         # spot-check a few parameters
@@ -120,7 +60,7 @@ def test_extended_parameters():
 def test_has_parameter():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader, parameters=[
+        var cistem_reader = CistemReader(file_reader, parameters=[
             CistemParameters.psi,
             CistemParameters.theta,
             CistemParameters.phi
@@ -143,7 +83,7 @@ def test_has_parameter():
 def test_get_parameter_first_line():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader)
+        var cistem_reader = CistemReader(file_reader)
         cistem_reader.read_line()
 
         # spot-check a few values
@@ -158,7 +98,7 @@ def test_get_parameter_first_line():
 def test_get_parameter_into_string():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader)
+        var cistem_reader = CistemReader(file_reader)
         cistem_reader.read_line()
 
         # spot-check a few values
@@ -169,7 +109,7 @@ def test_get_parameter_into_string():
 def test_read_a_few_lines():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader)
+        var cistem_reader = CistemReader(file_reader)
 
         assert_equal(cistem_reader.next_line(), 0)
         assert_equal(cistem_reader.eof(), False)
@@ -193,7 +133,7 @@ def test_read_a_few_lines():
 def test_seek():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader)
+        var cistem_reader = CistemReader(file_reader)
 
         cistem_reader.seek(2)
         assert_equal(cistem_reader.next_line(), 2)
@@ -215,7 +155,7 @@ def test_seek():
 def test_get_parameter_types():
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
-        var cistem_reader = Reader(file_reader)
+        var cistem_reader = CistemReader(file_reader)
 
         cistem_reader.read_line()
 

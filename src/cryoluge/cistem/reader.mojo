@@ -7,7 +7,7 @@ from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian
 comptime endian = Endian.Little
 
 
-struct Reader[
+struct CistemReader[
     R: BinaryReader,
     origin: Origin[mut=True]
 ](Movable):
