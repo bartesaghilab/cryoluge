@@ -10,6 +10,7 @@ struct MachineStamp(
 
     comptime LittleEndian = Self(0x44, 0x44)
     comptime BigEndian = Self(0x11, 0x11)
+    comptime NativeEndian = Self(0x44, 0x41)
 
     fn __init__(out self, a: Byte, b: Byte):
         self.value = InlineArray[Byte, 2](a, b)
@@ -33,5 +34,7 @@ struct MachineStamp(
             return Endian.Little
         elif self == Self.BigEndian:
             return Endian.Big
+        elif self == Self.NativeEndian:
+            return Endian.native()
         else:
             raise Error(String("Can't determine endianness: machine stamp unrecognized: ", self))
