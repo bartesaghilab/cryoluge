@@ -189,22 +189,18 @@ struct Image[
 
     # TODO: move these function to struct extension functions? when that gets released?
 
-    fn mean(self: Image[dim,dtype]) -> Scalar[dtype]:
-        """Returns mean of the entire image."""
+    fn mean(self) -> Scalar[dtype]:
+        """Returns the mean of the entire image."""
         return self.mean(mask = AllMask())
 
     fn mean[
         M: MaskReal, //
     ](
-        self: Image[dim,dtype],
+        self,
         *,
         mask: M
     ) -> Scalar[dtype]:
-        """Returns mean of the masked region."""
-
-        # since we can't divide by zero
-        if self.num_pixels() <= 0:
-            return 0
+        """Returns the mean of the masked region."""
 
         var sum: Float64 = 0
         var num_pixels_matched: Int = 0
@@ -219,24 +215,24 @@ struct Image[
 
         self.iterate[func]()
 
+        # since we can't divide by zero
+        if num_pixels_matched <= 0:
+            return 0
+
         return Scalar[dtype](sum/Float64(num_pixels_matched))
 
-    fn mean_variance(self: Image[dim,dtype]) -> Tuple[Scalar[dtype], Scalar[dtype]]:
-        """Returns mean and variance of the entire image."""
+    fn mean_variance(self) -> Tuple[Scalar[dtype], Scalar[dtype]]:
+        """Returns the mean and variance of the entire image."""
         return self.mean_variance(mask = AllMask())
 
     fn mean_variance[
         M: MaskReal, //
     ](
-        self: Image[dim,dtype],
+        self,
         *,
         mask: M
     ) -> Tuple[Scalar[dtype], Scalar[dtype]]:
-        """Returns mean and variance of the masked region."""
-
-        # since we can't divide by zero
-        if self.num_pixels() <= 0:
-            return (0, 0)
+        """Returns the mean and variance of the masked region."""
 
         var sum: Float64 = 0
         var sum_of_squares: Float64 = 0
@@ -248,22 +244,72 @@ struct Image[
         fn func(i: Vec[Int,dim]):
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
-                # TODO: this is higher-precision, and possibly more efficient, but doesn't match the original csp
-                # var p = Float64(self[i])
-                # sum += p
-                # p *= p
-                # sum_of_squares += p
-                # TEMP: for now, do the lower-precision thing, to match the original csp exactly
-                var p = self[i]
-                sum += Float64(p)
-                sum_of_squares += Float64(p*p)
+                var p = Float64(self[i])
+                sum += p
+                p *= p
+                sum_of_squares += p
 
         self.iterate[func]()
 
+        # since we can't divide by zero
+        if num_pixels_matched <= 0:
+            return (0, 0)
+
         var n = Float64(num_pixels_matched)
         var mean = Scalar[dtype](sum/n)
-        # TODO: this is higher-precision, but doesn't match the original csp
-        #var variance = abs(Float32( sum_of_squares/n - (sum/n)*(sum/n) ))
-        # TEMP: for now, do the lower-precision thing, to match the original csp exactly
-        var variance = abs(Scalar[dtype]( sum_of_squares/n - Float64(mean*mean) ))
+        var variance = abs(Scalar[dtype]( sum_of_squares/n - (sum/n)**2 ))
         return (mean, variance)
+
+    fn range(self) -> Tuple[Scalar[dtype],Scalar[dtype]]:
+        return self.range(mask=AllMask())
+
+    fn range[
+        M: MaskReal, //
+    ](
+        self,
+        *,
+        mask: M
+    ) -> Tuple[Scalar[dtype],Scalar[dtype]]:
+        
+        var min = Scalar[dtype].MAX
+        var max = Scalar[dtype].MIN
+
+        # TODO: vectorize?
+        @parameter
+        fn func(i: Vec[Int,dim]):
+            if mask.includes(i, self.sizes()):
+                var p = self[i]
+                if p < min:
+                    min = p
+                elif p > max:
+                    max = p
+        
+        self.iterate[func]()
+
+        return (min, max)
+
+    fn replace_outliers(
+        mut self,
+        *,
+        mean: Scalar[dtype],
+        variance: Scalar[dtype],
+        gt_sigmas: Scalar[dtype],
+        replace_with: Scalar[dtype]
+    ):
+        """Replaces pixels with sigma (relative to `mean` and `variance`) greater than `gt_sigmas` with `replace_with`."""
+
+        var stddev = sqrt(variance)
+        var max = mean + gt_sigmas*stddev
+        var min = mean - gt_sigmas*stddev
+
+        @parameter
+        fn func(i: Vec[Int,dim]):
+            var p = self[i]
+            if p > max or p < min:
+                self[i] = replace_with
+
+        self.iterate[func]()
+            
+        # TEMP: extend lifetimes of captures vars to work around compiler bug
+        _ = min
+        _ = max

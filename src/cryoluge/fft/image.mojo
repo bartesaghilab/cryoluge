@@ -62,6 +62,20 @@ struct FFTImage[
 
         _ = dst  # TEMP: need to extend lifetime of ref to avoid compiler bug
 
+    fn get(
+        self,
+        *,
+        f: Self.Vec[Int],
+        out v: Optional[ComplexScalar[dtype]]
+    ):
+        var i = self.coords().maybe_f2i(f)
+        if i is None:
+            v = None
+        else:
+            v = self.complex.get(i.value())
+            if v is not None and self.coords().needs_conjugation(f=f):
+                    v = v.value().conj()
+
     fn get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
         self,
         *,
