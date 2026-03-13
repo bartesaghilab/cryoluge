@@ -58,6 +58,10 @@ struct MovableList[T: Movable](
         (self._data + self._len).init_pointee_move(elem^)
         self._len += 1
 
+    fn append_get(mut self, var elem: T) -> ref [self] T:
+        self.append(elem^)
+        return (self._data + self._len - 1)[]
+
     # TODO: insert?
 
     fn __len__(self) -> Int:
