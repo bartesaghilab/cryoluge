@@ -396,3 +396,28 @@ struct AnnularBlendDirection(
 
     fn __str__(self) -> String:
         return String.write(self)
+
+
+@fieldwise_init
+struct EdgeMask[dim_edges: Dimension](MaskReal):
+    var edges: Vec[Int,dim_edges]
+    """
+    Edges are encoded as a vector of integers.
+      -1 in position d encodes the low edge of dimension d.
+      1 in position d encodes the high edge of dimension d.
+      0 in position d encodes no edge.
+      If multiple positions encode edges, the mask matches the union of those edges.
+    """
+
+    fn includes[
+        dim: Dimension
+    ](self, i: Vec[Int,dim], sizes: Vec[Int,dim]) -> Bool:
+
+        @parameter
+        for d in range(min(dim.rank, self.dim_edges.rank)):
+            if i[d] == 0 and self.edges[d] == -1:
+                return True
+            elif i[d] == sizes[d] - 1 and self.edges[d] == 1:
+                return True
+
+        return False
