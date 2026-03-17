@@ -102,6 +102,9 @@ struct FFTPlan[
 
         self._fftw = _load_fftw[dtype]()
 
+        # NOTE: the FFTW planner is very *NOT* thread-safe,
+        #       so we need to get a process-wide lock before using it
+
         # create the plan
         @parameter
         if dim == Dimension.D1:
