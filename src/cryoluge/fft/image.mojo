@@ -62,7 +62,7 @@ struct FFTImage[
 
         _ = dst  # TEMP: need to extend lifetime of ref to avoid compiler bug
 
-    fn get(
+    fn find(
         self,
         *,
         f: Self.Vec[Int],

@@ -7,6 +7,26 @@ from cryoluge.image import DimensionalBuffer
 from cryoluge.fft import FFTCoordsFull, Delta
 
 
+@fieldwise_init
+struct OutOfRangeBehavior[dtype: DType](
+    Movable,
+    ImplicitlyCopyable
+):
+    var id: Int
+    var value: ComplexScalar[dtype]
+
+    alias Interpolate: Int = 1
+    alias Override: Int = 2
+
+    @staticmethod
+    fn interpolate(v: ComplexScalar[dtype], out s: Self):
+        s = Self(Self.Interpolate, v)
+
+    @staticmethod
+    fn override(v: ComplexScalar[dtype], out s: Self):
+        s = Self(Self.Override, v)
+
+
 struct PrecomputedFFTInterpolation[
     dim: Dimension,
     dtype: DType,
@@ -25,7 +45,11 @@ struct PrecomputedFFTInterpolation[
     )
     comptime Selector = SIMD[DType.bool,Self.num_samples]
 
-    fn __init__(out self, img: FFTImage[dim,dtype]):
+    fn __init__(
+        out self,
+        img: FFTImage[dim,dtype],
+        out_of_range: OutOfRangeBehavior[dtype]
+    ):
 
         self._sizes_real = img.sizes_real.copy()
 
@@ -44,16 +68,30 @@ struct PrecomputedFFTInterpolation[
 
             @parameter
             for s in range(Self.num_samples):
+
+                # sample the point
                 var f_sample = f + materialize[Self.deltas[s].pos]()
-                var v = img.get[or_else=ComplexScalar[dtype](0, 0)](f=f_sample)
-                pixel.re[s] = v.re
-                pixel.im[s] = v.im
+                var v = img.find(f=f_sample)
+
+                # handle out-of-range behavior
+                if v is None:
+                    if out_of_range.id == OutOfRangeBehavior.Interpolate:
+                        # interpolate with the out-of-range value
+                        pixel.re[s] = out_of_range.value.re
+                        pixel.im[s] = out_of_range.value.im
+                    elif out_of_range.id == OutOfRangeBehavior.Override:
+                        # override the whole pixel with the out-of-range value
+                        pixel.re = SIMD[dtype,Self.num_samples](out_of_range.value.re)
+                        pixel.im = SIMD[dtype,Self.num_samples](out_of_range.value.im)
+                        break
+                else:
+                    # otherwise, just interpolate with the sampled value like normal
+                    pixel.re[s] = v.value().re
+                    pixel.im[s] = v.value().im
 
             self._samples[i=i] = pixel
                 
         self._samples.iterate[func]()
-
-        _ = coords  # TEMP: extend lifetimes to work around compiler bug
 
     fn _coords(self) -> FFTCoordsFull[dim,origin_of(self._sizes_real)]:
         return FFTCoordsFull(self._sizes_real)
