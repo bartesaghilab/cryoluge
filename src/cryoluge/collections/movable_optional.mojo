@@ -3,6 +3,8 @@ from memory.maybe_uninitialized import UnsafeMaybeUninitialized
 from os import abort
 
 
+# TODO: Mojo v26.2 stdlib Optional no longer requires Copyable, can we get rid of this?
+
 struct MovableOptional[T: Movable](Movable):
     var _has: Bool
     var _v: UnsafeMaybeUninitialized[T]
