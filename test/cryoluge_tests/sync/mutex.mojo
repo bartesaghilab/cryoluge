@@ -14,10 +14,6 @@ comptime funcs = __functions_in_module()
 
 def test_mutex():
 
-    # TEMP
-    from cryoluge.sync import thread_id
-    print('tid=', thread_id())
-
     var counter = 0
     var mutex = Mutex()
 
