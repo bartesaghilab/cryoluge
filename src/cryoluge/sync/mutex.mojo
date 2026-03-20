@@ -20,6 +20,7 @@ struct Mutex(
         self.ptr[] = Self.unlocked
 
     # TODO: can we relax any of the consistencies to get better optimization?
+    # TODO: implement thread parking and signaling instead of doing spin,sleep waits?
 
     fn lock[wait_ms: Int = 0](
         mut self,
