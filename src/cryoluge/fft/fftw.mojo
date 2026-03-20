@@ -3,14 +3,12 @@ from sys import simd_width_of, align_of
 from sys.ffi import OwnedDLHandle
 from os import abort
 from complex import ComplexFloat32
+from memory import ArcPointer
 
 from cryoluge.math import Dimension, Vec, unrecognized_dimension
 from cryoluge.image import Image
+from cryoluge.sync import Mutex
 
-
-# NOTE: fftw is perhaps not fully thread-safe?
-#       https://fftw.org/fftw3_doc/Thread-safety.html
-#       Might need to use locking to protect fftw internals in multi-threaded settings
 
 # fftw docs on actually computing DFTs:
 # https://fftw.org/fftw3_doc/Real_002ddata-DFTs.html
@@ -93,7 +91,8 @@ struct FFTPlan[
         out self,
         *,
         real: Image[dim,dtype],
-        fourier: FFTImage[dim,dtype]
+        fourier: FFTImage[dim,dtype],
+        mutex: Optional[ArcPointer[Mutex]] = None
     ) raises:
 
         # save the image info so we can validate it later
@@ -104,95 +103,13 @@ struct FFTPlan[
 
         # NOTE: the FFTW planner is very *NOT* thread-safe,
         #       so we need to get a process-wide lock before using it
-
-        # create the plan
-        @parameter
-        if dim == Dimension.D1:
-
-            @parameter
-            if direction == FFTDirection.R2C:
-                var planner = self._fftw.get_function[
-                    fn(Int32, Self.ImmutRealPtr, Self.ImmutComplexPtr, UInt32) -> Self.PlanPtr
-                ](_fftw_prefix[dtype]() + "_plan_dft_r2c_1d")
-                self._plan = planner(
-                    real.sizes().x(),
-                    real.span().unsafe_ptr(),
-                    fourier.complex.span().unsafe_ptr(),
-                    _fftw_flags
-                )
-            elif direction == FFTDirection.C2R:
-                var planner = self._fftw.get_function[
-                    fn(Int32, Self.ImmutComplexPtr, Self.ImmutRealPtr, UInt32) -> Self.PlanPtr
-                ](_fftw_prefix[dtype]() + "_plan_dft_c2r_1d")
-                self._plan = planner(
-                    real.sizes().x(),
-                    fourier.complex.span().unsafe_ptr(),
-                    real.span().unsafe_ptr(),
-                    _fftw_flags
-                )
-            else:
-                return _unrecognized_direction[direction,Self]()
-
-        elif dim == Dimension.D2:
-
-            @parameter
-            if direction == FFTDirection.R2C:
-                var planner = self._fftw.get_function[
-                    fn(Int32, Int32, Self.ImmutRealPtr, Self.ImmutComplexPtr, UInt32) -> Self.PlanPtr
-                ](_fftw_prefix[dtype]() + "_plan_dft_r2c_2d")
-                self._plan = planner(
-                    real.sizes().y(),
-                    real.sizes().x(),
-                    real.span().unsafe_ptr(),
-                    fourier.complex.span().unsafe_ptr(),
-                    _fftw_flags
-                )
-            elif direction == FFTDirection.C2R:
-                var planner = self._fftw.get_function[
-                    fn(Int32, Int32, Self.ImmutComplexPtr, Self.ImmutRealPtr, UInt32) -> Self.PlanPtr
-                ](_fftw_prefix[dtype]() + "_plan_dft_c2r_2d")
-                self._plan = planner(
-                    real.sizes().y(),
-                    real.sizes().x(),
-                    fourier.complex.span().unsafe_ptr(),
-                    real.span().unsafe_ptr(),
-                    _fftw_flags
-                )
-            else:
-                return _unrecognized_direction[direction,Self]()
-
-        elif dim == Dimension.D3:
-
-            @parameter
-            if direction == FFTDirection.R2C:
-                var planner = self._fftw.get_function[
-                    fn(Int32, Int32, Int32, Self.ImmutRealPtr, Self.ImmutComplexPtr, UInt32) -> Self.PlanPtr
-                ](_fftw_prefix[dtype]() + "_plan_dft_r2c_3d")
-                self._plan = planner(
-                    real.sizes().z(),
-                    real.sizes().y(),
-                    real.sizes().x(),
-                    real.span().unsafe_ptr(),
-                    fourier.complex.span().unsafe_ptr(),
-                    _fftw_flags
-                )
-            elif direction == FFTDirection.C2R:
-                var planner = self._fftw.get_function[
-                    fn(Int32, Int32, Int32, Self.ImmutComplexPtr, Self.ImmutRealPtr, UInt32) -> Self.PlanPtr
-                ](_fftw_prefix[dtype]() + "_plan_dft_c2r_3d")
-                self._plan = planner(
-                    real.sizes().z(),
-                    real.sizes().y(),
-                    real.sizes().x(),
-                    fourier.complex.span().unsafe_ptr(),
-                    real.span().unsafe_ptr(),
-                    _fftw_flags
-                )
-            else:
-                return _unrecognized_direction[direction,Self]()
-
+        if mutex is not None:
+            # have mutex: lock it before planning
+            with mutex.value()[].lock[wait_ms=50]():
+                self._plan = Self._plan_fft(self._fftw, real, fourier)
         else:
-            return unrecognized_dimension[dim,Self]()
+            # no mutex: YOLO
+            self._plan = Self._plan_fft(self._fftw, real, fourier)
 
         # make sure we got a plan
         if not self._plan:
@@ -203,6 +120,100 @@ struct FFTPlan[
             fn(Self.PlanPtr)
         ](_fftw_prefix[dtype]() + "_destroy_plan")
         destroy_plan(self._plan)
+
+    @staticmethod
+    fn _plan_fft(
+        fftw: OwnedDLHandle,
+        real: Image[dim,dtype],
+        fourier: FFTImage[dim,dtype]
+    ) -> Self.PlanPtr:
+        @parameter
+        if dim == Dimension.D1:
+
+            @parameter
+            if direction == FFTDirection.R2C:
+                var planner = fftw.get_function[
+                    fn(Int32, Self.ImmutRealPtr, Self.ImmutComplexPtr, UInt32) -> Self.PlanPtr
+                ](_fftw_prefix[dtype]() + "_plan_dft_r2c_1d")
+                return planner(
+                    real.sizes().x(),
+                    real.span().unsafe_ptr(),
+                    fourier.complex.span().unsafe_ptr(),
+                    _fftw_flags
+                )
+            elif direction == FFTDirection.C2R:
+                var planner = fftw.get_function[
+                    fn(Int32, Self.ImmutComplexPtr, Self.ImmutRealPtr, UInt32) -> Self.PlanPtr
+                ](_fftw_prefix[dtype]() + "_plan_dft_c2r_1d")
+                return planner(
+                    real.sizes().x(),
+                    fourier.complex.span().unsafe_ptr(),
+                    real.span().unsafe_ptr(),
+                    _fftw_flags
+                )
+            else:
+                return _unrecognized_direction[direction,Self.PlanPtr]()
+
+        elif dim == Dimension.D2:
+
+            @parameter
+            if direction == FFTDirection.R2C:
+                var planner = fftw.get_function[
+                    fn(Int32, Int32, Self.ImmutRealPtr, Self.ImmutComplexPtr, UInt32) -> Self.PlanPtr
+                ](_fftw_prefix[dtype]() + "_plan_dft_r2c_2d")
+                return planner(
+                    real.sizes().y(),
+                    real.sizes().x(),
+                    real.span().unsafe_ptr(),
+                    fourier.complex.span().unsafe_ptr(),
+                    _fftw_flags
+                )
+            elif direction == FFTDirection.C2R:
+                var planner = fftw.get_function[
+                    fn(Int32, Int32, Self.ImmutComplexPtr, Self.ImmutRealPtr, UInt32) -> Self.PlanPtr
+                ](_fftw_prefix[dtype]() + "_plan_dft_c2r_2d")
+                return planner(
+                    real.sizes().y(),
+                    real.sizes().x(),
+                    fourier.complex.span().unsafe_ptr(),
+                    real.span().unsafe_ptr(),
+                    _fftw_flags
+                )
+            else:
+                return _unrecognized_direction[direction,Self.PlanPtr]()
+
+        elif dim == Dimension.D3:
+
+            @parameter
+            if direction == FFTDirection.R2C:
+                var planner = fftw.get_function[
+                    fn(Int32, Int32, Int32, Self.ImmutRealPtr, Self.ImmutComplexPtr, UInt32) -> Self.PlanPtr
+                ](_fftw_prefix[dtype]() + "_plan_dft_r2c_3d")
+                return planner(
+                    real.sizes().z(),
+                    real.sizes().y(),
+                    real.sizes().x(),
+                    real.span().unsafe_ptr(),
+                    fourier.complex.span().unsafe_ptr(),
+                    _fftw_flags
+                )
+            elif direction == FFTDirection.C2R:
+                var planner = fftw.get_function[
+                    fn(Int32, Int32, Int32, Self.ImmutComplexPtr, Self.ImmutRealPtr, UInt32) -> Self.PlanPtr
+                ](_fftw_prefix[dtype]() + "_plan_dft_c2r_3d")
+                return planner(
+                    real.sizes().z(),
+                    real.sizes().y(),
+                    real.sizes().x(),
+                    fourier.complex.span().unsafe_ptr(),
+                    real.span().unsafe_ptr(),
+                    _fftw_flags
+                )
+            else:
+                return _unrecognized_direction[direction,Self.PlanPtr]()
+
+        else:
+            return unrecognized_dimension[dim,Self.PlanPtr]()
 
     fn _check_image(self, real: Image[dim,dtype]):
         var info_real = _ImageInfo(real.sizes().copy(), real.alignment())
@@ -342,7 +353,12 @@ struct FFTPlans[
              fftw will reject FFTW_PRESERVE_INPUT flags on multi-dimensional transforms.
     """
 
-    fn __init__(out self, sizes_real: Vec[Int,dim]) raises:
+    fn __init__(
+        out self,
+        sizes_real: Vec[Int,dim],
+        *,
+        mutex: Optional[ArcPointer[Mutex]] = None
+    ) raises:
 
         self.alignment = best_alignment[dtype]
         self.sizes_real = sizes_real.copy()
@@ -354,8 +370,8 @@ struct FFTPlans[
         self.sizes_fourier = plan_img_fourier.coords().sizes_fourier()
 
         # make the plans
-        self.r2c = FFTPlan.R2C(real=plan_img_real, fourier=plan_img_fourier)
-        self.c2r = FFTPlan.C2R(real=plan_img_real, fourier=plan_img_fourier)
+        self.r2c = FFTPlan.R2C(real=plan_img_real, fourier=plan_img_fourier, mutex=mutex)
+        self.c2r = FFTPlan.C2R(real=plan_img_real, fourier=plan_img_fourier, mutex=mutex)
 
     fn alloc_real(self, out img: Image[dim,dtype]):
         img = Image[dim,dtype](self.sizes_real, alignment=self.alignment)
