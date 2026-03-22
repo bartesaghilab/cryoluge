@@ -12,22 +12,68 @@ from cryoluge_testlib import assert_equal_float
 comptime funcs = __functions_in_module()
 
 
-def test_mutex():
+struct Counter(Movable):
+    var count: Int
 
-    var counter = 0
+    fn __init__(out self):
+        self.count = 0
+
+    fn delayed_increment(mut self):
+        var c = self.count
+        sleep(0.01)
+        self.count = c + 1
+
+
+def test_mutex_spin():
+
+    var counter = Counter()
     var mutex = Mutex()
 
     @parameter
-    fn delayed_increment(_i: Int) capturing:
+    fn func(_i: Int) capturing:
         with mutex.lock():
-            var c = counter
-            sleep(0.1)
-            counter = c + 1
+            counter.delayed_increment()
 
     var num_tasks = 10
-    parallelize[delayed_increment](num_tasks)
+    parallelize[func](num_tasks)
     # NOTE: parallelize uses a thread pool maintained by the Mojo runtime library
 
     _ = mutex  # TEMP: extend lifetimes to work around compiler bug
 
-    assert_equal(counter, num_tasks)
+    assert_equal(counter.count, num_tasks)
+
+
+def test_mutex_wait():
+
+    var counter = Counter()
+    var mutex = Mutex()
+
+    @parameter
+    fn func(_i: Int) capturing:
+        with mutex.lock[wait_ms=10]():
+            counter.delayed_increment()
+
+    var num_tasks = 10
+    parallelize[func](num_tasks)
+    # NOTE: parallelize uses a thread pool maintained by the Mojo runtime library
+
+    _ = mutex  # TEMP: extend lifetimes to work around compiler bug
+
+    assert_equal(counter.count, num_tasks)
+
+
+def test_mutexed():
+
+    var counter = Counter()
+    var mutex = Mutex(counter^)
+
+    @parameter
+    fn func(_i: Int) capturing:
+        with mutex.lock() as counter:
+            counter[].delayed_increment()
+
+    var num_tasks = 10
+    parallelize[func](num_tasks)
+    # NOTE: parallelize uses a thread pool maintained by the Mojo runtime library
+
+    assert_equal(mutex^.unwrap().count, num_tasks)
