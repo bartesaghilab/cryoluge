@@ -39,22 +39,10 @@ struct BytesReader[
         memcpy(src=src, dest=dst, count=size)
         self._pos += size
 
-    fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
-        var size = size_of[dtype]()
-        if size > self.bytes_remaining():
-            raise Error("Buffer underflow: read=", size, ", remaining=", self.bytes_remaining())
-        var src = (self.buf.unsafe_ptr() + self._pos)
-            .bitcast[Scalar[dtype]]()
-        v = src[]
-        self._pos += size
-
     fn skip_bytes(mut self, size: Int) raises:
         if size > self.bytes_remaining():
             raise Error(String("Buffer underflow: skip=", size, ", remaining=", self.bytes_remaining()))
         self._pos += size
-
-    fn skip_scalar[dtype: DType](mut self) raises:
-        self.skip_bytes(size_of[dtype]())
 
     fn offset(self) -> UInt64:
         return UInt64(self._pos)

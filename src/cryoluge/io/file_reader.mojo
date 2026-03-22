@@ -3,19 +3,82 @@ from io import FileDescriptor
 from os import SEEK_CUR, SEEK_SET
 
 
+alias DEFAULT_BUFFER_SIZE = 16*1024
+
+
 struct FileReader[origin: Origin](
     BinaryReader,
     Movable
 ):
     var _fh: Pointer[FileHandle, origin]
+    var _inner: _Inner
+
+    def __init__(out self, ref [origin] fh: FileHandle, *, buf_size: Int = DEFAULT_BUFFER_SIZE):
+        self._fh = Pointer(to=fh)
+        self._inner = _Inner(self._fh[], buf_size)
+
+    fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+        return self._inner.read_bytes(buf)
+
+    fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+        return self._inner.read_bytes_exact(buf)
+    
+    fn skip_bytes(mut self, size: Int) raises:
+        return self._inner.skip_bytes(self._fh[], size)
+
+    fn offset(self) -> UInt64:
+        return self._inner.offset()
+
+    fn seek_to(mut self, offset: UInt64) raises:
+        self._inner.seek_to(self._fh[], offset)
+
+    fn seek_by(mut self, offset: Int64) raises:
+        self._inner.seek_by(self._fh[], offset)
+
+
+struct OwnedFileReader(
+    BinaryReader,
+    Movable
+):
+    var _fh: FileHandle
+    var _inner: _Inner
+
+    def __init__(out self, path: String, *, buf_size: Int = DEFAULT_BUFFER_SIZE):
+        self._fh = open(path, 'r')
+        self._inner = _Inner(self._fh, buf_size)
+
+    def __init__(out self, var fh: FileHandle, *, buf_size: Int = DEFAULT_BUFFER_SIZE):
+        self._fh = fh^
+        self._inner = _Inner(self._fh, buf_size)
+
+    fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+        return self._inner.read_bytes(buf)
+
+    fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+        return self._inner.read_bytes_exact(buf)
+    
+    fn skip_bytes(mut self, size: Int) raises:
+        return self._inner.skip_bytes(self._fh, size)
+
+    fn offset(self) -> UInt64:
+        return self._inner.offset()
+
+    fn seek_to(mut self, offset: UInt64) raises:
+        self._inner.seek_to(self._fh, offset)
+
+    fn seek_by(mut self, offset: Int64) raises:
+        self._inner.seek_by(self._fh, offset)
+
+
+@fieldwise_init
+struct _Inner(Movable):
     var _fd: FileDescriptor
     var _buf: ByteBuffer
     var _pos: Int
     var _limit: Int
     var _offset: UInt64
 
-    def __init__(out self, ref [origin] fh: FileHandle, *, buf_size: Int = 16*1024):
-        self._fh = Pointer(to=fh)
+    def __init__(out self, fh: FileHandle, buf_size: Int):
         self._fd = FileDescriptor(fh._get_raw_fd())
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
         self._buf = ByteBuffer(buf_size)
@@ -94,48 +157,7 @@ struct FileReader[origin: Origin](
             "Failed to read exact buffer size: read=", size_out_read, ", buf=", size
         )
 
-        self._offset += size
-
-    fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
-        
-        # make sure the scalar can fit in the buffer, even when empty
-        var size = size_of[dtype]()
-        debug_assert[assert_mode="safe"](
-             size <= self._buf.size(),
-             "Buffer too small (", self._buf.size(), " bytes) to read scalar of ", size, " bytes"
-        )
-
-        var size_buf_remaining = self._limit - self._pos
-        
-        if size_buf_remaining < size:
-
-            if size_buf_remaining > 0:
-                # copy leftovers to start of buffer
-                memcpy(
-                    dest=self._buf._p,
-                    src=self._buf._p + self._pos,
-                    count=size_buf_remaining
-                )
-
-            # read into the buffer
-            var span_read = self._buf.span(
-                start=size_buf_remaining,
-                length=Int(self._buf.size() - size_buf_remaining)
-            )
-            var size_read = Int(self._fd.read_bytes(span_read))
-            if size_read <= 0:
-                raise Error(String("Can't read ", dtype, ": EOF"))
-
-            self._pos = 0
-            self._limit = size_buf_remaining + size_read
-
-        # finally, value is in-memory: read it
-        var reader = BytesReader(self._buf.span(start=self._pos, length=size), 0)
-        v = reader.read_scalar[dtype]()
-        self._pos += reader._pos
-        self._offset += reader._pos
-
-    fn skip_bytes(mut self, size: Int) raises:
+    fn skip_bytes(mut self, fh: FileHandle, size: Int) raises:
 
         # if we've already buffered the skip size, just advance the buffer position
         var size_buf_remaining = self._limit - self._pos
@@ -150,27 +172,24 @@ struct FileReader[origin: Origin](
         # and seek ahead, if needed
         var size_seek = size - size_buf_remaining
         if size_seek > 0:
-            _ = self._fh[].seek(size_seek, SEEK_CUR)
+            _ = fh.seek(size_seek, SEEK_CUR)
 
         self._offset += size
 
-    fn skip_scalar[dtype: DType](mut self) raises:
-        self.skip_bytes(size_of[dtype]())
-
     fn offset(self) -> UInt64:
         return self._offset
-        
-    fn seek_to(mut self, offset: UInt64) raises:
+
+    fn seek_to(mut self, fh: FileHandle, offset: UInt64) raises:
 
         # ignore the current buffer
         self._pos = self._limit
 
         # seek the file
-        _ = self._fh[].seek(offset, SEEK_SET)
+        _ = fh.seek(offset, SEEK_SET)
 
         self._offset = offset
 
-    fn seek_by(mut self, offset: Int64) raises:
+    fn seek_by(mut self, fh: FileHandle, offset: Int64) raises:
 
         var new_offset = Int64(self._offset) + offset
         if new_offset < 0:
@@ -180,7 +199,7 @@ struct FileReader[origin: Origin](
         self._pos = self._limit
 
         # seek the file
-        _ = self._fh[].seek(UInt64(offset), SEEK_CUR)
+        _ = fh.seek(UInt64(offset), SEEK_CUR)
         # NOTE: The UInt64 cast won't actually destroy negative offsets,
         #       since the stdlib is probably just passing those bits to libc.
         #       Probably the stdlib should be accepting a signed int here?

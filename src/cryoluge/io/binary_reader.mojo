@@ -1,17 +1,26 @@
 
 trait BinaryReader:
     fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int: ...
-    fn read_bytes_exact(mut self, but: Span[mut=True, Byte]) raises: ...
-    fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises: ...
+    fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises: ...
     fn skip_bytes(mut self, size: Int) raises: ...
-    fn skip_scalar[dtype: DType](mut self) raises: ...
     fn offset(self) -> UInt64: ...
     fn seek_to(mut self, offset: UInt64) raises: ...
     fn seek_by(mut self, offset: Int64) raises: ...
 
+    fn read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
+        v = 0
+        var buf = Span(
+            ptr = UnsafePointer(to=v).bitcast[Byte](),
+            length = size_of[Scalar[dtype]]()
+        )
+        self.read_bytes_exact(buf)
+
     fn read_scalar[dtype: DType, endian: Endian](mut self, out v: Scalar[dtype]) raises:
         v = self.read_scalar[dtype]()
         swap_bytes_if_needed[dtype, endian](v)
+
+    fn skip_scalar[dtype: DType](mut self) raises:
+        self.skip_bytes(size_of[dtype]())
 
     fn read_u8(mut self, out v: UInt8) raises:
         v = self.read_scalar[DType.uint8]()
