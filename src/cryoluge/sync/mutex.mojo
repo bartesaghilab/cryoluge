@@ -18,7 +18,6 @@ struct Mutex[
 
     alias _Ptr = UnsafePointer[Self._Val,MutOrigin.external]
 
-
     fn __init__(out self: Mutex[NoneType]):
         self = Mutex[NoneType](None)
 
@@ -34,8 +33,8 @@ struct Mutex[
     # TODO: implement thread parking and signaling instead of doing spin,sleep waits?
 
     fn lock[wait_ms: Int = 0](
-        mut self,
-        out guard: MutexGuard[T,origin_of(self._item)]
+        self,
+        out guard: MutexGuard[T,MutOrigin.cast_from[origin_of(self._item)]]
     ):
         while True:
 
@@ -51,7 +50,10 @@ struct Mutex[
             )
             if exchanged:
                 # we have the lock now!
-                return MutexGuard[T](self._ptr, self._item)
+                var p_item = UnsafePointer(to=self._item)
+                    .unsafe_mut_cast[True]()
+                    # SAFETY: we can mutate the item only while holding the lock
+                return MutexGuard[T](self._ptr, p_item[])
             else:
                 # don't have the lock yet: try again
                 if wait_ms != 0:
