@@ -57,6 +57,10 @@ struct MovableDict[
         # then move the pointer into the dict
         self._dict[key^] = p
 
+    fn set_get(mut self, var key: K, var elem: V) -> ref [self] V:
+        self[key.copy()] = elem^
+        return self.get(key^).value()[]
+
     fn __len__(self) -> Int:
         return len(self._dict)
 
