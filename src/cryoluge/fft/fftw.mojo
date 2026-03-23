@@ -105,7 +105,8 @@ struct FFTPlan[
         #       so we need to get a process-wide lock before using it
         if mutex is not None:
             # have mutex: lock it before planning
-            with mutex.value()[].lock[wait_ms=50]():
+            # TODO: make lock wait behavior configurable?
+            with mutex.value()[].lock[wait_ms=1]():
                 self._plan = Self._plan_fft(self._fftw, real, fourier)
         else:
             # no mutex: YOLO
