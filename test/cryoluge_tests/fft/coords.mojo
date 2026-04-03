@@ -22,8 +22,8 @@ def test_coords():
         assert_equal(coords.fmin(), Vec.D1(x=-2))
         assert_equal(coords.fmax(), Vec.D1(x=2))
 
-        assert_equal(coords.f2i(Vec.D1(x=-2)), Vec.D1(x=1))
-        assert_equal(coords.f2i(Vec.D1(x=-1)), Vec.D1(x=2))
+        assert_equal(coords.f2i(Vec.D1(x=-2)), Vec.D1(x=2))
+        assert_equal(coords.f2i(Vec.D1(x=-1)), Vec.D1(x=1))
         assert_equal(coords.f2i(Vec.D1(x=0)), Vec.D1(x=0))
         assert_equal(coords.f2i(Vec.D1(x=1)), Vec.D1(x=1))
         assert_equal(coords.f2i(Vec.D1(x=2)), Vec.D1(x=2))
@@ -41,8 +41,8 @@ def test_coords():
         assert_equal(coords.fmin(), Vec.D1(x=-2))
         assert_equal(coords.fmax(), Vec.D1(x=2))
 
-        assert_equal(coords.f2i(Vec.D1(x=-2)), Vec.D1(x=1))
-        assert_equal(coords.f2i(Vec.D1(x=-1)), Vec.D1(x=2))
+        assert_equal(coords.f2i(Vec.D1(x=-2)), Vec.D1(x=2))
+        assert_equal(coords.f2i(Vec.D1(x=-1)), Vec.D1(x=1))
         assert_equal(coords.f2i(Vec.D1(x=0)), Vec.D1(x=0))
         assert_equal(coords.f2i(Vec.D1(x=1)), Vec.D1(x=1))
         assert_equal(coords.f2i(Vec.D1(x=2)), Vec.D1(x=2))
@@ -67,6 +67,11 @@ def test_coords():
         assert_equal(coords.f2i(Vec.D2(x=0, y=0)), Vec.D2(x=0, y=0))
         assert_equal(coords.f2i(Vec.D2(x=0, y=1)), Vec.D2(x=0, y=1))
 
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=-2)), Vec.D2(x=1, y=2))
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=-1)), Vec.D2(x=1, y=1))
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=0)), Vec.D2(x=1, y=0))
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=1)), Vec.D2(x=1, y=3))
+
         assert_equal(coords.i2f(Vec.D2(x=0, y=0)), Vec.D2(x=0, y=0))
         assert_equal(coords.i2f(Vec.D2(x=0, y=1)), Vec.D2(x=0, y=1))
         assert_equal(coords.i2f(Vec.D2(x=0, y=2)), Vec.D2(x=0, y=-2))
@@ -86,6 +91,12 @@ def test_coords():
         assert_equal(coords.f2i(Vec.D2(x=0, y=0)), Vec.D2(x=0, y=0))
         assert_equal(coords.f2i(Vec.D2(x=0, y=1)), Vec.D2(x=0, y=1))
         assert_equal(coords.f2i(Vec.D2(x=0, y=2)), Vec.D2(x=0, y=2))
+
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=-2)), Vec.D2(x=1, y=2))
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=-1)), Vec.D2(x=1, y=1))
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=0)), Vec.D2(x=1, y=0))
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=1)), Vec.D2(x=1, y=4))
+        assert_equal(coords.f2i(Vec.D2(x=-1, y=2)), Vec.D2(x=1, y=3))
 
         assert_equal(coords.i2f(Vec.D2(x=0, y=0)), Vec.D2(x=0, y=0))
         assert_equal(coords.i2f(Vec.D2(x=0, y=1)), Vec.D2(x=0, y=1))

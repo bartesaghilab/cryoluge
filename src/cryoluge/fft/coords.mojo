@@ -127,12 +127,17 @@ struct FFTCoords[
 
         i = Self.Vec(uninitialized=True)
 
+        var _f = f.copy()
+        if self.needs_conjugation(f=f):
+            _f = -_f
+
+        i[0] = _f[0]
         @parameter
-        for d in range(dim.rank):
-            if f[d] < 0:
-                i[d] = f[d] + self.size_fourier[d]()
+        for d in range(1, dim.rank):
+            if _f[d] < 0:
+                i[d] = _f[d] + self.size_fourier[d]()
             else:
-                i[d] = f[d]
+                i[d] = _f[d]
 
     fn maybe_f2i(self, f: Self.Vec, *, out i: Optional[Self.Vec]):
         """
@@ -143,12 +148,8 @@ struct FFTCoords[
         or if the value needs to be conjugated.
         """
 
-        var _f = f.copy()
-        if self.needs_conjugation(f=f):
-            _f = -f
-
-        if self.f_in_range(_f):
-            i = self.f2i(_f)
+        if self.f_in_range(f):
+            i = self.f2i(f)
         else:
             i = None
 

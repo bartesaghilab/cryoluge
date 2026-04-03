@@ -74,7 +74,7 @@ struct FFTImage[
         else:
             v = self.complex.get(i.value())
             if v is not None and self.coords().needs_conjugation(f=f):
-                    v = v.value().conj()
+                v = v.value().conj()
 
     fn get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
         self,
