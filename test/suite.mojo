@@ -22,6 +22,7 @@ def main():
         suite._register_tests[cryoluge_tests.math.euler.funcs]()
         suite._register_tests[cryoluge_tests.math.matrix.funcs]()
         suite._register_tests[cryoluge_tests.math.vec.funcs]()
+        suite._register_tests[cryoluge_tests.math.rand.funcs]()
 
         suite._register_tests[cryoluge_tests.io.binary_reader.funcs]()
         suite._register_tests[cryoluge_tests.io.binary_writer.funcs]()

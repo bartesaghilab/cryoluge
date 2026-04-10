@@ -6,6 +6,7 @@ from .dimension import *
 from .vec import *
 from .matrix import *
 from .euler import *
+from .rand import *
 
 
 # NOTE: coming in mojo stdlib in next release
