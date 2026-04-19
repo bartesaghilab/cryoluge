@@ -4,6 +4,14 @@ from python import Python
 from python._cpython import GILReleased
 
 from .mutex import Mutex
+from .affinity import Cpus, Cpu, VirtualCore, VirtualCoreSet
+
+
+fn process_id() -> UInt64:
+    return external_call[
+        "getpid",
+        UInt64
+    ]()
 
 
 fn thread_id() -> UInt64:

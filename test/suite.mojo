@@ -51,6 +51,7 @@ def main():
         suite._register_tests[cryoluge_tests.optimization.powell.funcs]()
 
         suite._register_tests[cryoluge_tests.sync.mutex.funcs]()
+        suite._register_tests[cryoluge_tests.sync.affinity.funcs]()
 
     except e:
         suite^.abandon()
