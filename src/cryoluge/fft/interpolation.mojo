@@ -7,6 +7,9 @@ from cryoluge.image import DimensionalBuffer
 from cryoluge.fft import FFTCoordsFull, Delta
 
 
+comptime SIMDInt[simd_width: Int] = SIMD[DType.int,simd_width]
+
+
 @fieldwise_init
 struct OutOfRangeBehavior[dtype: DType](
     Movable,
@@ -97,16 +100,20 @@ struct PrecomputedFFTInterpolation[
         return FFTCoordsFull(self._sizes_real)
 
     @always_inline
-    fn _f2i(self, f: Vec[Int,dim], out i: Vec[Int,dim]):
+    fn _f2i[simd_width: Int](
+        self,
+        f: Vec[SIMDInt[simd_width],dim],
+        out i: Vec[SIMDInt[simd_width],dim]
+    ):
         
-        i = Vec[Int,dim](uninitialized=True)
+        i = Vec[SIMDInt[simd_width],dim](uninitialized=True)
 
         @parameter
         for d in range(dim.rank):
-            if f[d] < 0:
-                i[d] = f[d] + self._coords().size_fourier[d]() + 1
-            else:
-                i[d] = f[d]
+            i[d] = f[d] + f[d].lt(0).select(
+                true_case = SIMDInt[simd_width](self._coords().size_fourier[d]() + 1),
+                false_case = SIMDInt[simd_width](0)
+            )
     
     @always_inline
     fn _i2f(self, i: Vec[Int,dim], out f: Vec[Int,dim]):
@@ -121,43 +128,46 @@ struct PrecomputedFFTInterpolation[
                 f[d] = i[d]
 
     fn get[
+        simd_width: Int,
         *,
         or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
     ](
         self,
         *,
-        f: Vec[Scalar[dtype_coords],dim],
-        out v: ComplexScalar[dtype]
+        f: Vec[SIMD[dtype_coords,simd_width],dim],
+        out v: ComplexSIMD[dtype,simd_width]
     ):
         # discretize the frequency coordinates, and keep track of distances
-        var start = Vec[Int,dim](uninitialized=True)
-        var dists = Vec[Scalar[dtype_coords],dim](uninitialized=True)
+        var start = Vec[SIMDInt[simd_width],dim](uninitialized=True)
+        var dists = Vec[SIMD[dtype_coords,simd_width],dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
             var floor = floor(f[d])
-            start[d] = Int(floor)
+            start[d] = SIMDInt[simd_width](floor)
             dists[d] = f[d] - floor
 
-        # load the samples
+        v = ComplexSIMD[dtype,simd_width](re=0, im=0)
+
         var i = self._f2i(start)
-        var samples = self._samples.get(i)
-           .or_else(Self.EmptySamples[or_else])
+        for w in range(simd_width):
 
-        # apply sample weights based on the distances
-        @parameter
-        for d in range(dim.rank):
-            var t = SIMD[dtype,Self.num_samples](dists[d])
-            var omt = SIMD[dtype,Self.num_samples](1 - dists[d])
-            comptime selector = Self.make_selector(d)
-            var w = selector.select(omt, t)
-            samples.re *= w
-            samples.im *= w
+            # load the samples
+            var samples = self._samples.get(i[slice=w].map_int())
+                .or_else(Self.EmptySamples[or_else])
 
-        # the final interpolated pixel is the sum of the weighted samples
-        v = ComplexScalar[dtype](
-            re = samples.re.reduce_add(),
-            im = samples.im.reduce_add()
-        )
+            # apply sample weights based on the distances
+            @parameter
+            for d in range(dim.rank):
+                var t = SIMD[dtype,Self.num_samples](dists[d][w])
+                var omt = SIMD[dtype,Self.num_samples](1 - dists[d][w])
+                comptime selector = Self.make_selector(d)
+                var w = selector.select(omt, t)
+                samples.re *= w
+                samples.im *= w
+
+            # the final interpolated pixel is the sum of the weighted samples
+            v.re[w] = samples.re.reduce_add()
+            v.im[w] = samples.im.reduce_add()
 
     @staticmethod
     fn make_selector(d: Int, out selector: Self.Selector):

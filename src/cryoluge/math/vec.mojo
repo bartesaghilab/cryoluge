@@ -90,6 +90,17 @@ struct Vec[
     fn __setitem__(mut self, d: Int, v: T):
         self._values[d] = v.copy()
 
+    fn __getitem__[dtype: DType, simd_width: Int](
+        self: Vec[SIMD[dtype,simd_width],dim],
+        *,
+        slice: Int,
+        out v: Vec[Scalar[dtype],dim]
+    ):
+        v = Vec[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            v[d] = self[d][slice]
+
     fn __eq__(self, other: Self) -> Bool:
         @parameter
         for d in range(dim.rank):

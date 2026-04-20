@@ -133,7 +133,11 @@ struct Matrix[
 
     # math
 
-    fn __mul__[other_cols: Int](self, rhs: Matrix[cols,other_cols,dtype], out product: Matrix[rows,other_cols,dtype]):
+    fn __mul__[other_cols: Int](
+        self,
+        rhs: Matrix[cols,other_cols,dtype],
+        out product: Matrix[rows,other_cols,dtype]
+    ):
         product = Matrix[rows,other_cols,dtype](uninitialized=True)
         @parameter
         for r in range(rows):
@@ -145,20 +149,20 @@ struct Matrix[
                     v += self[r,i]*rhs[i,c]
                 product[r,c] = v
 
-    fn __mul__[dim: Dimension](
+    fn __mul__[dim: Dimension, simd_width: Int](
         self,
-        vec: Vec[Scalar[dtype],dim],
-        out result: Vec[Scalar[dtype],dim]
+        vec: Vec[SIMD[dtype,simd_width],dim],
+        out result: Vec[SIMD[dtype,simd_width],dim]
     ):
         constrained[
             rows == dim.rank and cols == dim.rank,
             String("Matrix size (", rows, ", ", cols, ") doesn't match vector size (", dim.rank,  ")")
         ]()
 
-        result = Vec[Scalar[dtype],dim](uninitialized=True)
+        result = Vec[SIMD[dtype,simd_width],dim](uninitialized=True)
         @parameter
         for d in range(dim.rank):
-            var v = Scalar[dtype](0)
+            var v = SIMD[dtype,simd_width](0)
             @parameter
             for i in range(dim.rank):
                 v += self[d,i]*vec[i]
@@ -170,7 +174,7 @@ struct Matrix[
         out result: Vec[Unit[utype,dtype],dim]
     ):
         result = (self*vec.map_value()).map_unit[utype]()
-    
+
     # conversion
 
     fn map[
