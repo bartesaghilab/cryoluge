@@ -100,6 +100,18 @@ struct PrecomputedFFTInterpolation[
         return FFTCoordsFull(self._sizes_real)
 
     @always_inline
+    fn _f2i(self, f: Vec[Int,dim], out i: Vec[Int,dim]):
+        
+        i = Vec[Int,dim](uninitialized=True)
+
+        @parameter
+        for d in range(dim.rank):
+            if f[d] < 0:
+                i[d] = f[d] + self._coords().size_fourier[d]() + 1
+            else:
+                i[d] = f[d]
+    
+    @always_inline
     fn _f2i[simd_width: Int](
         self,
         f: Vec[SIMDInt[simd_width],dim],
