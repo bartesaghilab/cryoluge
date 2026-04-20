@@ -121,6 +121,15 @@ struct Cpus(
         for ci in reversed(disallowed_cpu_indices):
             _ = self.cpus.pop(ci)
 
+    fn physical_cores(
+        self,
+        out pcores: List[PhysicalCore]
+    ):
+        pcores = List[PhysicalCore]()
+        for cpu in self.cpus:
+            for pcore in cpu.physical_cores:
+                pcores.append(pcore.copy())
+
     fn virtual_cores(
         self,
         out vcores: List[VirtualCore],
