@@ -1,7 +1,7 @@
 
 from sys.ffi import external_call
 from python import Python
-from python._cpython import GILReleased
+from python._cpython import GILReleased, GILAcquired
 
 from .mutex import Mutex
 from .affinity import Cpus, Cpu, VirtualCore, VirtualCoreSet
@@ -32,3 +32,16 @@ struct DropGIL:
     
     fn __exit__(mut self):
         self._released.__exit__()
+
+
+struct HoldGIL:
+    var _acquired: GILAcquired
+
+    fn __init__(out self):
+        self._acquired = GILAcquired(Python())
+
+    fn __enter__(mut self):
+        self._acquired.__enter__()
+    
+    fn __exit__(mut self):
+        self._acquired.__exit__()
