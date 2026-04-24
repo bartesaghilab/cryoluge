@@ -48,24 +48,30 @@ struct Cpus(
                         virtual_id = processor.value()
                     )
 
-                    if len(self.cpus) <= 0 or self.cpus[-1].cpu_id != virtual_core.cpu_id:
+                    # find or make the cpu
+                    var cpu_index = self.index_of(cpu_id=virtual_core.cpu_id)
+                    if cpu_index is None:
+                        cpu_index = len(self.cpus)
                         self.cpus.append(Cpu(
                             cpu_id = virtual_core.cpu_id,
                             physical_cores = List[PhysicalCore]()
                         ))
 
-                    ref cpu = self.cpus[-1]
+                    ref cpu = self.cpus[cpu_index.value()]
 
-                    if len(cpu.physical_cores) == 0 or cpu.physical_cores[-1].physical_id != virtual_core.physical_id:
+                    # find or make the physical core
+                    var pcore_index = cpu.index_of(physical_id=virtual_core.physical_id)
+                    if pcore_index is None:
+                        pcore_index = len(cpu.physical_cores)
                         cpu.physical_cores.append(PhysicalCore(
                             cpu_id = cpu.cpu_id,
                             physical_id = virtual_core.physical_id,
                             virtual_cores = List[VirtualCore]()
                         ))
 
-                    ref physical_core = cpu.physical_cores[-1]
+                    ref pcore = cpu.physical_cores[pcore_index.value()]
 
-                    physical_core.virtual_cores.append(virtual_core^)
+                    pcore.virtual_cores.append(virtual_core^)
                     
                     # cleanup for the next section
                     processor = None
@@ -104,6 +110,12 @@ struct Cpus(
 
     fn __getitem__(self, i: Int) -> ref [self.cpus] Cpu:
         return self.cpus[i]
+
+    fn index_of(self, *, cpu_id: Int) -> Optional[Int]:
+        for i in range(len(self.cpus)):
+            if self.cpus[i].cpu_id == cpu_id:
+                return i
+        return None
     
     fn retain(
         mut self,
