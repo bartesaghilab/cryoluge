@@ -27,6 +27,13 @@ struct MovableList[T: Movable](
         self._capacity = capacity
         self._len = 0
 
+    fn __init__(out self, *, mut take_from: Self):
+        self = Self.__init__(capacity=len(take_from))
+        for i in range(len(take_from)):
+            (self._data + i).init_pointee_move_from(take_from._data + i)
+        self._len = take_from._len
+        take_from._len = 0
+
     fn capacity(self) -> Int:
         return self._capacity
 

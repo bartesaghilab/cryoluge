@@ -146,3 +146,20 @@ def test_iterataion():
     assert_equal(iterated[1], 6)
     assert_equal(iterated[2], 7)
     assert_equal(len(iterated), 3)
+
+
+def test_take_from():
+
+    var src = MovableList[Thing]()
+    src.append(Thing(5))
+    src.append(Thing(6))
+    src.append(Thing(7))
+
+    var dst = MovableList[Thing](take_from=src)
+
+    assert_equal(len(dst), 3)
+    assert_equal(len(src), 0)
+
+    assert_equal(dst[0], Thing(5))
+    assert_equal(dst[1], Thing(6))
+    assert_equal(dst[2], Thing(7))
