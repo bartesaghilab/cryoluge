@@ -53,23 +53,18 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
     ):
         result = self.eval(f=f.map_scalar[dtype](), v=v)
 
-    fn eval(
-        self,
-        *,
-        i: Vec[Int,dim],
-        sizes_real: Vec[Int,dim],
-        v: ComplexScalar[dtype],
-        out result: ComplexScalar[dtype]
-    ):
-        var f = FFTCoords(sizes_real).i2f(i)
-        result = self.eval(f=f, v=v)
-
     fn apply(
         self,
         mut img: FFTImage[dim,dtype]
     ):
+        var coords = img.coords()
+
         @parameter
         fn func(i: Vec[Int,dim]):
-            img.complex[i=i] = self.eval(i=i, sizes_real=img.sizes_real, v=img.complex[i=i])
+            var f = coords.i2f(i)
+            img.complex[i=i] = self.eval(f=f, v=img.complex[i=i])
 
         img.complex.iterate[func]()
+
+        # TEMP: extend lifetimes to work around compiler bug
+        _ = coords

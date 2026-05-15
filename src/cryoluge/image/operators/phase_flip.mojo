@@ -16,6 +16,16 @@ struct PhaseFlipOperator:
     ):
         result = -v
 
+    fn eval[dtype: DType](
+        self,
+        ctf: Scalar[dtype],
+        v: ComplexScalar[dtype],
+        out result: ComplexScalar[dtype]
+    ):
+        var sign = Int(ctf > 0) - Int(ctf < 0)
+        # NOTE: mojo True casts to 1 and False to 0
+        result = v*sign
+
     fn apply[dim: Dimension, dtype: DType](
         self,
         mut image: ComplexImage[dim,dtype]

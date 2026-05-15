@@ -20,9 +20,20 @@ struct FourierShells[dim: Dimension](
     Therefore, the shell index can never exceed the count for areas and volumes.
     """
 
-    var sizes_real: Vec[Int,dim]
     var count: Int
 
+    comptime D2 = FourierShells[Dimension.D2]
+    comptime D3 = FourierShells[Dimension.D3]
+
+    fn shelli[dtype: DType](
+        self,
+        *,
+        freq: Scalar[dtype],
+        out shelli: Int
+    ):
+        """Returns the index of the Fourier shell at the given frequency."""
+        shelli = Int(freq*self.count)
+    
     fn shelli[dtype: DType](
         self,
         *,
@@ -30,18 +41,8 @@ struct FourierShells[dim: Dimension](
         out shelli: Int
     ):
         """Returns the index of the Fourier shell at the given squared frequency."""
-        shelli = Int(sqrt(freq2)*self.count)
+        shelli = self.shelli(freq=sqrt(freq2))
     
-    fn shelli[dtype: DType](
-        self,
-        *,
-        f: Vec[Int,dim],
-        out shelli: Int
-    ):
-        """Returns the index of the Fourier shell at the given frequency coordinates."""
-        var freqs = FFTCoords(self.sizes_real).freqs[dtype](f=f)
-        shelli = self.shelli(freq2=freqs.len2())
-
     fn shelli_max(self, out result: Int):
         var freq_max = sqrt(Scalar[DType.float32](dim.rank))
         result = Int(freq_max*self.count/2)
