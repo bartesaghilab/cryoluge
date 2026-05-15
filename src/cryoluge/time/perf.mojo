@@ -107,10 +107,12 @@ struct Profiler(
 ):
     var _counters: List[ProfilerCounter]
     var _lookup: Dict[String,Int]
+    var unit: StaticString
 
-    fn __init__(out self):
+    fn __init__(out self, *, unit: StaticString = 's'):
         self._counters = []
         self._lookup = {}
+        self.unit = unit
 
     fn counter(mut self, name: String) -> ref [self._counters] ProfilerCounter:
         var i = self._lookup.get(name)
@@ -137,7 +139,13 @@ struct Profiler(
             if count > 0:
                 writer.write("  ")
             count += 1
-            writer.write(counter.name, "=", counter.elapsed_s(), " s")
+            writer.write(counter.name, "=")
+            if self.unit == 'us':
+                writer.write(counter.elapsed_s()*1000*1000, " us")
+            elif self.unit == 'ms':
+                writer.write(counter.elapsed_s()*1000, " ms")
+            else:
+                writer.write(counter.elapsed_s(), " s")
         writer.write("]")
 
     fn __str__(self) -> String:
