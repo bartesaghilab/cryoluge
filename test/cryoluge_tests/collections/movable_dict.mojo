@@ -92,3 +92,17 @@ def test_key_list():
     dict[7] = Thing(9)
     var keys = dict.key_list()
     assert_equal(keys, [5, 7])
+
+
+def test_take_from():
+
+    var src = MovableDict[Int,Thing]()
+    src[5] = Thing(42)
+    src[7] = Thing(9)
+
+    var dst = MovableDict[Int,Thing](take_from=src)
+
+    assert_equal(len(src), 0)
+    assert_equal(len(dst), 2)
+    assert_equal(dst[5].i, 42)
+    assert_equal(dst[7].i, 9)

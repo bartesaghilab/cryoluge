@@ -34,6 +34,14 @@ struct MovableDict[
 
         self._dict = Dict[K,Self.ValuePtr,H](power_of_two_initial_capacity=cap)
 
+    fn __init__(out self, *, mut take_from: Self):
+        self = Self.__init__(capacity=len(take_from))
+        for key in take_from.key_list():
+            try:
+                self._dict[key.copy()] = take_from._dict.pop(key)
+            except KeyError:
+                pass
+
     fn __getitem__(ref self, key: K) raises -> ref [self._dict.__getitem__(key)] V:
         var p = self._dict[key]
         return p[]
