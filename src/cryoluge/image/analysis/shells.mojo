@@ -63,6 +63,22 @@ struct FourierShells[dim: Dimension](
         """Returns the index of the Fourier shell at the given squared frequency."""
         shelli = self.shelli(freq=sqrt(freq2))
 
+    fn freq_lo[dtype: DType](
+        self,
+        shelli: Int,
+        out freq: Scalar[dtype]
+    ):
+        """Returns the low frequency boundary of the given shell."""
+        freq = Scalar[dtype](shelli)/self.count_at_unity
+
+    fn freq_hi[dtype: DType](
+        self,
+        shelli: Int,
+        out freq: Scalar[dtype]
+    ):
+        """Returns the high frequency boundary of the given shell."""
+        freq = self.freq_lo[dtype](shelli + 1)
+
     fn freq_max[dtype: DType](self, out freq_max: Scalar[dtype]):
         """Returns the frequency at the corner of Fourier space farthest from the center."""
         freq_max = sqrt(Scalar[dtype](dim.rank))/2
@@ -70,6 +86,10 @@ struct FourierShells[dim: Dimension](
     fn shelli_max(self, out shelli_max: Int):
         """Returns the index of the Fourier shell at the corner of Fourier space farthest from the center."""
         shelli_max = self.shelli(freq=self.freq_max[DType.float32]())
+
+    fn shelli_last(self, out shelli_last: Int):
+        """Returns the index of the last Fourier shell that completely fits within the Fourier area or volume."""
+        shelli_last = self.count - 1
 
     fn __len__(self) -> Int:
         """

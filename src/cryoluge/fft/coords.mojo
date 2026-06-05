@@ -177,6 +177,7 @@ struct FFTCoords[
         f: Vec[Int,dim],
         out freqs: Vec[Scalar[dtype],dim]
     ):
+        """Returns the normalized frequencies of the Fourier coordinates."""
         var f_dt = f.map_scalar[dtype]()
         freqs = self.freqs(f=f_dt)
 
@@ -187,6 +188,7 @@ struct FFTCoords[
         f: Vec[Scalar[dtype],dim],
         out freqs: Vec[Scalar[dtype],dim]
     ):
+        """Returns the normalized frequencies of the Fourier coordinates."""
         var sizes_real_dt = self.sizes_real().map_scalar[dtype]()
         # NOTE: multipliying by the reciprical is measurably faster than just doing division
         #       and also matches the roundoff error of csp1
@@ -199,7 +201,15 @@ struct FFTCoords[
         i: Vec[Int,dim],
         out freqs: Vec[Scalar[dtype],dim]
     ):
+        """Returns the normalized frequencies of the image coordinates."""
         freqs = self.freqs[dtype](f=self.i2f(i))
+
+    fn freq_edge[dtype: DType](self, out freq: Scalar[dtype]):
+        """
+        Returns the positive frequency at the edge of the fourier area,
+        which is always 0.5, since the frequencies are normalized by the sizes.
+        """
+        freq = Scalar[dtype](0.5)
 
 
 struct FFTCoordsFull[
