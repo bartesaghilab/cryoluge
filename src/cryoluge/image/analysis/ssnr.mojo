@@ -16,18 +16,18 @@ struct SSNR[dtype: DType](
 
     var pixel_size: Scalar[dtype]
     var particle_diameter_a: Ang[dtype]
-    var num_bins: Int
+    var shells_at_unity: Int
     var _precalc_1: Scalar[dtype]
 
-    fn __init__(
+    fn __init__[dim: Dimension](
         out self,
         *,
         pixel_size: Scalar[dtype],
         mass_kda: KDa[dtype],
-        num_bins: Int
+        shells: FourierShells[dim]
     ):
         self.pixel_size = pixel_size
-        self.num_bins = num_bins
+        self.shells_at_unity = shells.count_at_unity
         
         # calculate the particle diameter
         var base = 3*mass_kda.to_ang3()/4/pi[dtype].value
@@ -42,6 +42,6 @@ struct SSNR[dtype: DType](
             v = 1000
         else:
             # Approximate formula derived from part_SSNR curve for VSV-L
-            var resolution = Scalar[dtype](self.num_bins)*self.pixel_size/Scalar[dtype](bin)
+            var resolution = Scalar[dtype](self.shells_at_unity)*self.pixel_size/Scalar[dtype](bin)
             v = self._precalc_1
                 * (800*exp(-3.5*self.particle_diameter_a.value/resolution) + exp(-25.0/resolution))

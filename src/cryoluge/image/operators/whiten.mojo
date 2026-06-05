@@ -83,7 +83,7 @@ struct WhitenStats[
         res_limit: Optional[Int] = None
     ):
         self.shells = Pointer(to=shells)
-        self.res_limit = res_limit.or_else(self.shells[].count)
+        self.res_limit = res_limit.or_else(self.shells[].count_at_unity)
         self._sum = List[Scalar[sum_dtype]](length=len(shells), fill=0)
         self._count = List[Int](length=len(shells), fill=0)
 
