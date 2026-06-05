@@ -7,6 +7,7 @@ from .vec import *
 from .matrix import *
 from .euler import *
 from .rand import *
+from .stats import *
 
 
 # NOTE: coming in mojo stdlib in next release

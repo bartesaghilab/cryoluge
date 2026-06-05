@@ -13,6 +13,7 @@ struct UnitType(
     var value: Int
     var name: StaticString
 
+    comptime _None = Self(0, "(none)")
     comptime Px = Self(1, "Px")
     comptime Ang = Self(2, "Ang")
     comptime MM = Self(3, "mm")
