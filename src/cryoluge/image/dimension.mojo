@@ -173,28 +173,7 @@ struct DimensionalBuffer[
     fn iterate[
         func: fn (i: Self.Vec[Int]) capturing
     ](self):
-
-        @parameter
-        if dim == Dimension.D1:
-            
-            for x in range(self.sizes().x()):
-                func(Self.Vec[Int](x=x))
-
-        elif dim == Dimension.D2:
-            
-            for y in range(self.sizes().y()):
-                for x in range(self.sizes().x()):
-                    func(Self.Vec[Int](x=x, y=y))
-
-        elif dim == Dimension.D3:
-
-            for z in range(self.sizes().z()):
-                for y in range(self.sizes().y()):
-                    for x in range(self.sizes().x()):
-                        func(Self.Vec[Int](x=x, y=y, z=z))
-
-        else:
-            unrecognized_dimension[dim]()
+        self.sizes().iterate_over_sizes[func]()
 
     # TEMP
     fn assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](

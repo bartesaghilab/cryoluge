@@ -367,6 +367,36 @@ struct AnnularMask[
 
         img.complex.iterate[func]()
 
+    fn volume_retained[
+        dir: AnnularBlendDirection,
+        *,
+        ease: Self.EaseFn,
+        dim: Dimension
+    ](
+        self: AnnularMask[CoordDomain.Real, region, include_boundary_inner, include_boundary_outer, dtype],
+        sizes: Vec[Int,dim],
+        out volume: Scalar[dtype]
+    ):
+        """
+        Returns the sum of squared pixel values retained by the mask blend.
+        """
+        var sum = Float64(0)
+
+        # TODO: there's probably an analytical solution for this?
+
+        @parameter
+        fn func(i: Vec[Int,dim]):
+            var r2 = center_dist2_real[dim,dtype](i, sizes)
+            if self.includes(r2):
+                var t = self._blend_interpolate[dir,ease](r2)
+                sum += Float64( (1 - t)**2 )
+            elif self._past_end[dir.opposite()](r2):
+                sum += 1
+
+        sizes.iterate_over_sizes[func]()
+
+        volume = Scalar[dtype](sum)
+
 
 @fieldwise_init
 struct AnnularBlendDirection(
@@ -396,6 +426,9 @@ struct AnnularBlendDirection(
 
     fn __str__(self) -> String:
         return String.write(self)
+
+    fn opposite(self, out other: Self):
+        other = Self(self.value ^ 0x1)
 
 
 @fieldwise_init

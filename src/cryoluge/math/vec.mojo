@@ -2,6 +2,7 @@
 from math import sqrt
 from utils.numerics import isnan
 
+from cryoluge.math import unrecognized_dimension
 from cryoluge.math.units import Unit, UnitType, Ang, Px
 
 
@@ -739,6 +740,34 @@ struct Vec[
         fn m(v: Px[dtype]) -> Ang[dtype]:
             return v.to_ang(pixel_size)
         result = self.map[mapper=m]()
+
+    fn iterate_over_sizes[
+        func: fn (i: Vec[Int,dim]) capturing
+    ](
+        self: Vec[Int,dim]
+    ):
+
+        @parameter
+        if dim == Dimension.D1:
+            
+            for x in range(self.x()):
+                func(Vec[Int,dim](x=x))
+
+        elif dim == Dimension.D2:
+            
+            for y in range(self.y()):
+                for x in range(self.x()):
+                    func(Vec[Int,dim](x=x, y=y))
+
+        elif dim == Dimension.D3:
+
+            for z in range(self.z()):
+                for y in range(self.y()):
+                    for x in range(self.x()):
+                        func(Vec[Int,dim](x=x, y=y, z=z))
+
+        else:
+            unrecognized_dimension[dim]()
 
 
 fn expect_num_arguments[dim: Dimension, count: Int]():
