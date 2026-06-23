@@ -6,7 +6,7 @@ from testing import assert_equal, assert_true, assert_false
 
 from cryoluge.sync import Mutex
 
-from cryoluge_testlib import assert_equal_float
+from cryoluge.test import assert_equal_float
 
 
 comptime funcs = __functions_in_module()

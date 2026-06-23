@@ -4,7 +4,7 @@ from testing import assert_equal
 from cryoluge.math import Rand
 from cryoluge.math.error import err_abs
 
-from cryoluge_testlib import assert_equal_float
+from cryoluge.test import assert_equal_float
 
 
 comptime funcs = __functions_in_module()

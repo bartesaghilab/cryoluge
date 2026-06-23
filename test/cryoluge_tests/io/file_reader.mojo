@@ -5,8 +5,9 @@ from tempfile import NamedTemporaryFile
 from testing import assert_equal, assert_raises
 
 from cryoluge.io import FileReader
+from cryoluge.test import assert_equal_buffers
 
-from cryoluge_testlib import assert_equal_buffers, file_handle
+from cryoluge_testlib import file_handle
 
 
 comptime funcs = __functions_in_module()

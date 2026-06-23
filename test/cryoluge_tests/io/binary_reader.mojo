@@ -3,7 +3,7 @@ from testing import assert_equal, assert_raises
 from memory import memcpy
 
 from cryoluge.io import ByteBuffer, BytesReader, Endian
-from cryoluge_testlib import assert_equal_buffers
+from cryoluge.test import assert_equal_buffers
 
 
 comptime funcs = __functions_in_module()

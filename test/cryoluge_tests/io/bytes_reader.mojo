@@ -2,7 +2,7 @@
 from testing import assert_equal, assert_raises
 
 from cryoluge.io import ByteBuffer, BytesReader
-from cryoluge_testlib import assert_equal_buffers
+from cryoluge.test import assert_equal_buffers
 
 
 comptime funcs = __functions_in_module()

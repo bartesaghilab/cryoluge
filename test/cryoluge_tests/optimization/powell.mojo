@@ -5,7 +5,7 @@ from cryoluge.math import Dimension, Vec
 from cryoluge.math.error import err_abs
 from cryoluge.optimization import ObjectiveInfo, Coord, Coords, Value, BrentLineSearch, powell, PowellMinimizer
 
-from cryoluge_testlib import assert_equal_float
+from cryoluge.test import assert_equal_float
 
 
 comptime funcs = __functions_in_module()

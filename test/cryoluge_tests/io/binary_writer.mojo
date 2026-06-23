@@ -2,7 +2,7 @@
 from testing import assert_equal
 
 from cryoluge.io import ByteBuffer, BytesWriter, Endian
-from cryoluge_testlib import assert_equal_buffers
+from cryoluge.test import assert_equal_buffers
 
 
 comptime funcs = __functions_in_module()
