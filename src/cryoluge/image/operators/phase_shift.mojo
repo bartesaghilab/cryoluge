@@ -21,28 +21,26 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
         self._shifts = shifts.map_value()*2*pi[dtype].value/sizes_real.map_scalar[dtype]()
             .map_unit[Rad.utype]()
 
-    fn eval(
+    fn get[width: Int](
         self,
         *,
-        f: Vec[Scalar[dtype],dim],
-        v: ComplexScalar[dtype],
-        out result: ComplexScalar[dtype]
-    ):
-        var phase = self._shifts.inner_product(f)
-        result = v*ComplexScalar[dtype](re=phase.cos(), im=-phase.sin())
-
-    fn eval[width: Int](
-        self: PhaseShiftOperator[dtype,Dimension.D2],
-        *,
-        f: Vec.D2[SIMD[dtype,width]],
-        v: ComplexSIMD[dtype,width],
+        f: Vec[SIMD[dtype,width],dim],
         out result: ComplexSIMD[dtype,width]
     ):
         var phases = SIMD[dtype,width](0)
         @parameter
         for d in range(dim.rank):
             phases += f[d]*self._shifts[d].value
-        result = v*ComplexSIMD[dtype,width](re=cos(phases), im=-sin(phases))
+        result = ComplexSIMD[dtype,width](re=cos(phases), im=-sin(phases))
+
+    fn eval[width: Int](
+        self,
+        *,
+        f: Vec[SIMD[dtype,width],dim],
+        v: ComplexSIMD[dtype,width],
+        out result: ComplexSIMD[dtype,width]
+    ):
+        result = v*self.get(f=f)
 
     fn eval(
         self,
