@@ -21,6 +21,7 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
         self._shifts = shifts.map_value()*2*pi[dtype].value/sizes_real.map_scalar[dtype]()
             .map_unit[Rad.utype]()
 
+    @always_inline
     fn get[width: Int](
         self,
         *,
@@ -33,6 +34,7 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
             phases += f[d]*self._shifts[d].value
         result = ComplexSIMD[dtype,width](re=cos(phases), im=-sin(phases))
 
+    @always_inline
     fn eval[width: Int](
         self,
         *,
@@ -42,6 +44,7 @@ struct PhaseShiftOperator[dtype: DType, dim: Dimension](
     ):
         result = v*self.get(f=f)
 
+    @always_inline
     fn eval(
         self,
         *,
