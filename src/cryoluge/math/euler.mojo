@@ -139,13 +139,13 @@ struct EulerAnglesZYZ[dtype: DType](
         self.phi *= other.phi
 
     fn __mul__(self, other: Scalar[dtype], out result: Self):
-        result = self * Self(fill=other)
+        result = self * Self(fill=Rad(other))
 
     fn __rmul__(self, other: Scalar[dtype], out result: Self):
         result = self * other
 
     fn __imul__(mut self, other: Scalar[dtype]):
-        self *= Self(fill=other)
+        self *= Self(fill=Rad(other))
 
     fn __truediv__(self, other: Self, out result: Self):
         result = Self(
@@ -160,13 +160,13 @@ struct EulerAnglesZYZ[dtype: DType](
         self.phi /= other.phi
 
     fn __truediv__(self, other: Scalar[dtype], out result: Self):
-        result = self / Self(fill=other)
+        result = self / Self(fill=Rad(other))
 
     fn __rtruediv__(self, other: Scalar[dtype], out result: Self):
         result = self / other
 
     fn __itruediv__(mut self, other: Scalar[dtype]):
-        self /= Self(fill=other)
+        self /= Self(fill=Rad(other))
 
     fn abs(self, out result: Self):
         result = Self(

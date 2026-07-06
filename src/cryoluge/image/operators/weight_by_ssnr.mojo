@@ -1,6 +1,6 @@
 
 from cryoluge.math import Dimension
-from cryoluge.math.units import pi
+from cryoluge.math.units import pi, Ang
 from cryoluge.ctf import CTF
 from cryoluge.image.analysis import FourierShells, SSNR
 from cryoluge.fft import FFTImage
@@ -16,7 +16,7 @@ struct WeightBySSNROperator[
     fn __init__(
         out self,
         *,
-        pixel_size: Scalar[dtype],
+        pixel_size: Ang[dtype],
         sizes_real: Vec.D2[Int],
         ref [shells_origin] shells: FourierShells[Dimension.D2],
         ssnr: SSNR[dtype]

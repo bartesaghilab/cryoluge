@@ -21,7 +21,7 @@ struct SSNR[dtype: DType](
     fn __init__[dim: Dimension](
         out self,
         *,
-        pixel_size: Scalar[dtype],
+        pixel_size: Ang[dtype],
         mass_kda: KDa[dtype],
         shells: FourierShells[dim]
     ):
@@ -33,7 +33,7 @@ struct SSNR[dtype: DType](
 
         # pre-calulate some values
         self._precalc_1 = ( mass_kda.value**1.5 )/2200
-        self._precalc_2 = Scalar[dtype](shells.count_at_unity)*pixel_size
+        self._precalc_2 = Scalar[dtype](shells.count_at_unity)*pixel_size.value
     
     fn __getitem__(self, bin: Int, out v: Scalar[dtype]):
         if bin == 0:

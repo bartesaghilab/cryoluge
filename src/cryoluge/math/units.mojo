@@ -65,8 +65,17 @@ struct Unit[
         self.value = value
 
     @always_inline
-    @implicit
     fn __init__[other_dtype: DType](out self, value: SIMD[other_dtype, width]):
+        self.value = SIMD[dtype,width](value)
+
+    @always_inline
+    @implicit
+    fn __init__(out self, value: IntLiteral):
+        self.value = SIMD[dtype,width](value)
+
+    @always_inline
+    @implicit
+    fn __init__(out self, value: FloatLiteral):
         self.value = SIMD[dtype,width](value)
 
     @always_inline
@@ -81,7 +90,7 @@ struct Unit[
     fn __str__(self) -> String:
         return String.write(self)
 
-    # comparisons
+    # self comparisons
 
     @always_inline
     fn __eq__(self, other: Self) -> Bool:
@@ -102,6 +111,68 @@ struct Unit[
     @always_inline
     fn __ge__(self, other: Self) -> Bool:
         return self.value >= other.value
+
+    # scalar comparisons
+
+    @always_inline
+    fn __eq__(self, other: Self.V) -> Bool:
+        return self.value == other
+
+    @always_inline
+    fn __eq__(self, other: IntLiteral) -> Bool:
+        return self.value == Self.V(other)
+
+    @always_inline
+    fn __eq__(self, other: FloatLiteral) -> Bool:
+        return self.value == Self.V(other)
+
+    @always_inline
+    fn __lt__(self, other: Self.V) -> Bool:
+        return self.value < other
+
+    @always_inline
+    fn __lt__(self, other: IntLiteral) -> Bool:
+        return self.value < Self.V(other)
+
+    @always_inline
+    fn __lt__(self, other: FloatLiteral) -> Bool:
+        return self.value < Self.V(other)
+
+    @always_inline
+    fn __le__(self, other: Self.V) -> Bool:
+        return self.value <= other
+
+    @always_inline
+    fn __le__(self, other: IntLiteral) -> Bool:
+        return self.value <= Self.V(other)
+
+    @always_inline
+    fn __le__(self, other: FloatLiteral) -> Bool:
+        return self.value <= Self.V(other)
+
+    @always_inline
+    fn __gt__(self, other: Self.V) -> Bool:
+        return self.value > other
+
+    @always_inline
+    fn __gt__(self, other: IntLiteral) -> Bool:
+        return self.value > Self.V(other)
+
+    @always_inline
+    fn __gt__(self, other: FloatLiteral) -> Bool:
+        return self.value > Self.V(other)
+
+    @always_inline
+    fn __ge__(self, other: Self.V) -> Bool:
+        return self.value >= other
+
+    @always_inline
+    fn __ge__(self, other: IntLiteral) -> Bool:
+        return self.value >= Self.V(other)
+
+    @always_inline
+    fn __ge__(self, other: FloatLiteral) -> Bool:
+        return self.value >= Self.V(other)
 
     # self math
 
@@ -180,72 +251,212 @@ struct Unit[
         return Self(self.value + other)
 
     @always_inline
+    fn __add__(self, other: IntLiteral) -> Self:
+        return self + Self.V(other)
+
+    @always_inline
+    fn __add__(self, other: FloatLiteral) -> Self:
+        return self + Self.V(other)
+
+    @always_inline
     fn __radd__(self, other: Self.V) -> Self:
         return self + other
+
+    @always_inline
+    fn __radd__(self, other: IntLiteral) -> Self:
+        return self + Self.V(other)
+
+    @always_inline
+    fn __radd__(self, other: FloatLiteral) -> Self:
+        return self + Self.V(other)
 
     @always_inline
     fn __iadd__(mut self, other: Self.V):
         self.value += other
 
     @always_inline
+    fn __iadd__(mut self, other: IntLiteral):
+        self.value += Self.V(other)
+
+    @always_inline
+    fn __iadd__(mut self, other: FloatLiteral):
+        self.value += Self.V(other)
+
+    @always_inline
     fn __sub__(self, other: Self.V) -> Self:
         return Self(self.value - other)
+
+    @always_inline
+    fn __sub__(self, other: IntLiteral) -> Self:
+        return self - Self.V(other)
+
+    @always_inline
+    fn __sub__(self, other: FloatLiteral) -> Self:
+        return self - Self.V(other)
 
     @always_inline
     fn __rsub__(self, other: Self.V) -> Self:
         return Self(other - self.value)
 
     @always_inline
+    fn __rsub__(self, other: IntLiteral) -> Self:
+        return Self.V(other) - self
+
+    @always_inline
+    fn __rsub__(self, other: FloatLiteral) -> Self:
+        return Self.V(other) - self
+
+    @always_inline
     fn __isub__(mut self, other: Self.V):
         self.value -= other
+
+    @always_inline
+    fn __isub__(mut self, other: IntLiteral):
+        self.value -= Self.V(other)
+
+    @always_inline
+    fn __isub__(mut self, other: FloatLiteral):
+        self.value -= Self.V(other)
 
     @always_inline
     fn __mul__(self, other: Self.V) -> Self:
         return Self(self.value * other)
 
     @always_inline
+    fn __mul__(self, other: IntLiteral) -> Self:
+        return self * Self.V(other)
+
+    @always_inline
+    fn __mul__(self, other: FloatLiteral) -> Self:
+        return self * Self.V(other)
+
+    @always_inline
     fn __rmul__(self, other: Self.V) -> Self:
         return self * other
+
+    @always_inline
+    fn __rmul__(self, other: IntLiteral) -> Self:
+        return self * Self.V(other)
+
+    @always_inline
+    fn __rmul__(self, other: FloatLiteral) -> Self:
+        return self * Self.V(other)
 
     @always_inline
     fn __imul__(mut self, other: Self.V):
         self.value *= other
 
     @always_inline
+    fn __imul__(mut self, other: IntLiteral):
+        self.value *= Self.V(other)
+
+    @always_inline
+    fn __imul__(mut self, other: FloatLiteral):
+        self.value *= Self.V(other)
+
+    @always_inline
     fn __truediv__(self, other: Self.V) -> Self:
         return Self(self.value / other)
+
+    @always_inline
+    fn __truediv__(self, other: IntLiteral) -> Self:
+        return self / Self.V(other)
+
+    @always_inline
+    fn __truediv__(self, other: FloatLiteral) -> Self:
+        return self / Self.V(other)
 
     @always_inline
     fn __rtruediv__(self, other: Self.V) -> Self:
         return Self(other / self.value)
 
     @always_inline
+    fn __rtruediv__(self, other: IntLiteral) -> Self:
+        return Self.V(other) / self
+
+    @always_inline
+    fn __rtruediv__(self, other: FloatLiteral) -> Self:
+        return Self.V(other) / self
+
+    @always_inline
     fn __itruediv__(mut self, other: Self.V):
         self.value /= other
+
+    @always_inline
+    fn __itruediv__(mut self, other: IntLiteral):
+        self.value /= Self.V(other)
+
+    @always_inline
+    fn __itruediv__(mut self, other: FloatLiteral):
+        self.value /= Self.V(other)
 
     @always_inline
     fn __floordiv__(self, other: Self.V) -> Self:
         return Self(self.value // other)
 
     @always_inline
+    fn __floordiv__(self, other: IntLiteral) -> Self:
+        return self // Self.V(other)
+
+    @always_inline
+    fn __floordiv__(self, other: FloatLiteral) -> Self:
+        return self // Self.V(other)
+
+    @always_inline
     fn __rfloordiv__(self, other: Self.V) -> Self:
         return Self(other // self.value)
 
     @always_inline
+    fn __rfloordiv__(self, other: IntLiteral) -> Self:
+        return Self.V(other) // self
+
+    @always_inline
+    fn __rfloordiv__(self, other: FloatLiteral) -> Self:
+        return Self.V(other) // self
+
+    @always_inline
     fn __ifloordiv__(mut self, other: Self.V):
         self.value //= other
- 
+
+    @always_inline
+    fn __ifloordiv__(mut self, other: IntLiteral):
+        self.value //= Self.V(other)
+
+    @always_inline
+    fn __ifloordiv__(mut self, other: FloatLiteral):
+        self.value //= Self.V(other)
+
     @always_inline
     fn __pow__(self, other: Self.V) -> Self:
         return Self(self.value ** other)
+
+    @always_inline
+    fn __pow__(self, other: IntLiteral) -> Self:
+        return self ** Self.V(other)
+
+    @always_inline
+    fn __pow__(self, other: FloatLiteral) -> Self:
+        return self ** Self.V(other)
 
     @always_inline
     fn __rpow__(self, other: Self.V) -> Self:
         return Self(other ** self.value)
 
     @always_inline
+    fn __rpow__(self, other: IntLiteral) -> Self:
+        return Self.V(other) ** self
+
+    @always_inline
+    fn __rpow__(self, other: FloatLiteral) -> Self:
+        return Self.V(other) ** self
+
+    @always_inline
     fn __ipow__(mut self, other: Self.V):
         self.value = self.value ** other
+
+    @always_inline
+    fn __ipow__(mut self, other: IntLiteral):
+        self.value = self.value ** Self.V(other)
 
     @always_inline
     fn clamp(self, *, min: Self.V) -> Self:
@@ -278,10 +489,10 @@ struct Unit[
 
     fn to_ang(
         self: Px[dtype,width],
-        pixel_size: SIMD[dtype,width],
+        pixel_size: Ang[dtype,width],
         out ang: Ang[dtype,width]
     ):
-        ang = Ang(self.value*pixel_size)
+        ang = Ang(self.value*pixel_size.value)
 
     fn to_ang(
         self: MM[dtype,width],
@@ -291,10 +502,10 @@ struct Unit[
 
     fn to_px(
         self: Ang[dtype,width],
-        pixel_size: SIMD[dtype,width],
+        pixel_size: Ang[dtype,width],
         out px: Px[dtype,width]
     ):
-        px = Px(self.value/pixel_size)
+        px = Px(self.value/pixel_size.value)
 
     fn to_deg(
         self: Rad[dtype,width],

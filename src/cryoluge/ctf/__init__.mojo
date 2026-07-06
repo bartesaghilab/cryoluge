@@ -14,7 +14,7 @@ struct CTF[dtype: DType](
     var wavelength_px: Px[dtype]
     var spherical_aberration_px: Px[dtype]
     var astigmatism_azimuth_rad: Rad[dtype]
-    var pixel_size: Scalar[dtype]
+    var pixel_size: Ang[dtype]
     var additional_phase_shift_rad: Rad[dtype]
     var amplitude_contrast_term_rad: Rad[dtype]
     var beam_tilt_azimuth_rad: Rad[dtype]
@@ -36,7 +36,7 @@ struct CTF[dtype: DType](
         amplitude_contrast: Scalar[dtype],  # TODO: does this have a unit?
         defocus_a: Vec.D2[Ang[dtype]],
         astigmatism_azimuth_rad: Rad[dtype],
-        pixel_size: Scalar[dtype],
+        pixel_size: Ang[dtype],
         additional_phase_shift_rad: Rad[dtype],
         beam_tilt_rad: Vec.D2[Rad[dtype]],
         particle_shift_a: Vec.D2[Ang[dtype]],
