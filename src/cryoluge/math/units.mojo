@@ -519,12 +519,6 @@ struct Unit[
     ):
         rad = Rad[dtype,width](self.value*pi_std/180)
 
-    fn to_ang3(
-        self: KDa[dtype,width],
-        out ang: Ang[dtype,width]
-    ):
-        ang = Ang(self.value*1000/0.81)
-
     # angles
 
     fn _normalize[

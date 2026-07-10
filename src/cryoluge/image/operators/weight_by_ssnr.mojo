@@ -23,10 +23,9 @@ struct WeightBySSNROperator[
     ):
         self.shells = Pointer(to=shells)
 
-        # compute the scale factor        
-        var particle_diameter2_px = ssnr.particle_diameter_a.to_px(pixel_size)**2
-        var particle_area2_px = particle_diameter2_px*pi[dtype].value/4
-        var scale_factor = particle_area2_px.value/sizes_real.x()/sizes_real.y()
+        # compute the scale factor (ratio of particle area to image area)
+        var particle_area_px = ssnr.spherical_particle.cross_area_a().to_px(pixel_size**2)
+        var scale_factor = particle_area_px.value/sizes_real.x()/sizes_real.y()
 
         # pre-compute the shell factors
         self._factors = List[Scalar[dtype]](capacity=len(shells))
@@ -44,7 +43,8 @@ struct WeightBySSNROperator[
     ):
         result = v
 
-        # TODO: what is this magic number?
+        # make sure the normalized frequency is in range [-0.5,0.5]
+        # ie, only apply to the inscribed circle of the square image
         if freq**2 <= 0.25:
             var shelli = self.shells[].shelli(freq=freq)
             result *= sqrt(1 + ctf2*self._factors[shelli])

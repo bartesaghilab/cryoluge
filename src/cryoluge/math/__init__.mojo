@@ -8,6 +8,7 @@ from .matrix import *
 from .euler import *
 from .rand import *
 from .stats import *
+from .sphere import *
 
 
 # NOTE: coming in mojo stdlib in next release

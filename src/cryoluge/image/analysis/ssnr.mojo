@@ -2,6 +2,7 @@
 from math import exp
 
 from cryoluge.math.units import KDa, Ang, pi
+from cryoluge.model import SphericalParticle
 
 
 struct SSNR[dtype: DType](
@@ -14,7 +15,7 @@ struct SSNR[dtype: DType](
     See the wiki above for more info.
     """
 
-    var particle_diameter_a: Ang[dtype]
+    var spherical_particle: SphericalParticle[dtype]
     var _precalc_1: Scalar[dtype]
     var _precalc_2: Scalar[dtype]
 
@@ -25,12 +26,9 @@ struct SSNR[dtype: DType](
         mass_kda: KDa[dtype],
         shells: FourierShells[dim]
     ):
+        # model a spherical particle of the given mass
+        self.spherical_particle = SphericalParticle(mass_kda=mass_kda)
         
-        # calculate the particle diameter
-        var base = 3*mass_kda.to_ang3()/4/pi[dtype].value
-        var exp = Scalar[dtype](1.0/3.0)
-        self.particle_diameter_a = 2*( base**exp )
-
         # pre-calulate some values
         self._precalc_1 = ( mass_kda.value**1.5 )/2200
         self._precalc_2 = Scalar[dtype](shells.count_at_unity)*pixel_size.value
@@ -42,4 +40,4 @@ struct SSNR[dtype: DType](
             # Approximate formula derived from part_SSNR curve for VSV-L
             var resolution = self._precalc_2/Scalar[dtype](bin)
             v = self._precalc_1
-                * (800*exp(-3.5*self.particle_diameter_a.value/resolution) + exp(-25.0/resolution))
+                * (800*exp(-3.5*self.spherical_particle.diameter_a().value/resolution) + exp(-25.0/resolution))
