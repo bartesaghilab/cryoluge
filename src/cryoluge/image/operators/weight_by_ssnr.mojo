@@ -1,9 +1,10 @@
 
 from cryoluge.math import Dimension
-from cryoluge.math.units import pi, Ang
+from cryoluge.math.units import pi, Ang, KDa
 from cryoluge.ctf import CTF
 from cryoluge.image.analysis import FourierShells, SSNR
 from cryoluge.fft import FFTImage
+from cryoluge.model import SphericalParticle
 
 
 struct WeightBySSNROperator[
@@ -16,6 +17,7 @@ struct WeightBySSNROperator[
     fn __init__(
         out self,
         *,
+        mass_kda: KDa[dtype],
         pixel_size: Ang[dtype],
         sizes_real: Vec.D2[Int],
         ref [shells_origin] shells: FourierShells[Dimension.D2],
@@ -24,7 +26,8 @@ struct WeightBySSNROperator[
         self.shells = Pointer(to=shells)
 
         # compute the scale factor (ratio of particle area to image area)
-        var particle_area_px = ssnr.spherical_particle.cross_area_a().to_px(pixel_size**2)
+        var particle = SphericalParticle(mass_kda=mass_kda)
+        var particle_area_px = particle.cross_area_a().to_px(pixel_size**2)
         var scale_factor = particle_area_px.value/sizes_real.x()/sizes_real.y()
 
         # pre-compute the shell factors
