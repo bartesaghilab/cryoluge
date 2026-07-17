@@ -32,6 +32,7 @@ def main():
         suite._register_tests[cryoluge_tests.io.file_writer.funcs]()
 
         suite._register_tests[cryoluge_tests.image.complex_image.funcs]()
+        suite._register_tests[cryoluge_tests.image.resolution_statistics.funcs]()
 
         suite._register_tests[cryoluge_tests.cistem.cistem_reader.funcs]()
         suite._register_tests[cryoluge_tests.cistem.cistem_writer.funcs]()
