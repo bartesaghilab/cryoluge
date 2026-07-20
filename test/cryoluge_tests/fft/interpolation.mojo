@@ -17,6 +17,9 @@ comptime err_fn = err_abs[dtype]
 comptime Cx = ComplexScalar[dtype]
 comptime Coords1 = Vec.D1[Float32]
 comptime Coords2 = Vec.D2[Float32]
+comptime ScalarInt = Scalar[DType.int]
+comptime ICoords1 = Vec.D1[ScalarInt]
+comptime ICoords2 = Vec.D2[ScalarInt]
 
 
 def test_lerp_1d():
@@ -140,10 +143,12 @@ def test_plerp_f2i_1d():
     var img = FFTImage.D1[dtype](Vec.D1(x=3))
     var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
 
-    assert_equal(plerp._f2i(Vec.D1(x=-2)), Vec.D1(x=2))
-    assert_equal(plerp._f2i(Vec.D1(x=-1)), Vec.D1(x=3))
-    assert_equal(plerp._f2i(Vec.D1(x=0)), Vec.D1(x=0))
-    assert_equal(plerp._f2i(Vec.D1(x=1)), Vec.D1(x=1))
+    assert_equal(plerp._f2i(ICoords1(x=-3)), ICoords1(x=-1))   # out of range
+    assert_equal(plerp._f2i(ICoords1(x=-2)), ICoords1(x=2))
+    assert_equal(plerp._f2i(ICoords1(x=-1)), ICoords1(x=3))
+    assert_equal(plerp._f2i(ICoords1(x=0)), ICoords1(x=0))
+    assert_equal(plerp._f2i(ICoords1(x=1)), ICoords1(x=1))
+    assert_equal(plerp._f2i(ICoords1(x=2)), ICoords1(x=-1))  # out of range
 
 
 def test_plerp_i2f_1d():
@@ -176,13 +181,16 @@ def test_plerp_1d():
         )
 
     # exact
+    check(Coords1(x=-3.0))  # out of range
     check(Coords1(x=-2.0))
     check(Coords1(x=-1.0))
     check(Coords1(x=0.0))
     check(Coords1(x=1.0))
-    check(Coords1(x=2.0))
+    check(Coords1(x=2.0))  # out of range
 
     # interpolated
+    check(Coords1(x=-2.1))  # out of range
+    check(Coords1(x=-1.9))
     check(Coords1(x=-1.1))
     check(Coords1(x=-0.9))
     check(Coords1(x=-0.5))
@@ -191,6 +199,8 @@ def test_plerp_1d():
     check(Coords1(x=0.5))
     check(Coords1(x=0.9))
     check(Coords1(x=1.1))
+    check(Coords1(x=1.9))
+    check(Coords1(x=2.1))  # out of range
 
 
 def test_plerp_2d():
