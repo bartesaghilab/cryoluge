@@ -30,12 +30,20 @@ struct OutOfRangeBehavior[dtype: DType](
         s = Self(Self.Override, v)
 
 
-struct PrecomputedFFTInterpolation[
+struct PrecomputedFFTInterpolationFull[
     dim: Dimension,
     dtype: DType,
     *,
     dtype_coords: DType = dtype
 ](Movable):
+    """
+    A SIMD-optimized implementation of multi-dimensional linear interpolation
+    that pre-computes a cache of sampled pixel neighborhoods to maximize memory locality.
+    WARNING: uses ~16x more memory than the original image data,
+             which will overflow CPU caches much more quickly with increasing image sizes!
+             Profiling generally shows the overall performance improvement is worth it,
+             although the gains start to diminish with increasing image size.
+    """
     var _sizes_real: Vec[Int,dim]
     var _samples: DimensionalBuffer[dim,Self.Pixel]
 
@@ -183,7 +191,7 @@ struct PrecomputedFFTInterpolation[
             for d in range(dim.rank):
                 var t = SIMD[dtype,Self.num_samples](dists[d][w])
                 var omt = SIMD[dtype,Self.num_samples](1 - dists[d][w])
-                comptime selector = Self.make_selector(d)
+                comptime selector = _make_selector[dim,Self.num_samples](d)
                 var w = selector.select(omt, t)
                 samples.re *= w
                 samples.im *= w
@@ -192,35 +200,126 @@ struct PrecomputedFFTInterpolation[
             v.re[w] = samples.re.reduce_add()
             v.im[w] = samples.im.reduce_add()
 
-    @staticmethod
-    fn make_selector(d: Int, out selector: Self.Selector):
-                    
-        comptime t = False
-        comptime omt = True
-        var s0 = SIMD[DType.bool,2](omt, t)
+
+struct PrecomputedFFTInterpolationNop[
+    dim: Dimension,
+    dtype: DType,
+    *,
+    dtype_coords: DType = dtype
+](Movable):
+    """
+    A no-op implementation of the FFT interpolation, for testing,
+    to see how well (or poorly) doing the interpolation with incoherent memory accesses really is.
+    NOTE: It's very poor.
+    """
+    var _img: FFTImage[dim,dtype]
+    var _out_of_range: OutOfRangeBehavior[dtype]
+
+    comptime deltas = Delta[dim,dtype_coords].build()
+    comptime num_samples = len(Self.deltas)
+    comptime Pixel = ComplexSIMD[dtype,Self.num_samples]
+    comptime EmptySamples[c: ComplexSIMD[dtype,1]] = ComplexSIMD[dtype,Self.num_samples](
+        re=SIMD[dtype,Self.num_samples](c.re),
+        im=SIMD[dtype,Self.num_samples](c.im)
+    )
+
+    fn __init__(
+        out self,
+        img: FFTImage[dim,dtype],
+        out_of_range: OutOfRangeBehavior[dtype]
+    ):
+        self._img = img.copy()
+        self._out_of_range = out_of_range
+
+    fn get[
+        simd_width: Int,
+        *,
+        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
+    ](
+        self,
+        *,
+        f: Vec[SIMD[dtype_coords,simd_width],dim],
+        out v: ComplexSIMD[dtype,simd_width]
+    ):
+        # discretize the frequency coordinates, and keep track of distances
+        var start = Vec[SIMDInt[simd_width],dim](uninitialized=True)
+        var dists = Vec[SIMD[dtype_coords,simd_width],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            var floor = floor(f[d])
+            start[d] = SIMDInt[simd_width](floor)
+            dists[d] = f[d] - floor
+
+        v = ComplexSIMD[dtype,simd_width](re=0, im=0)
 
         @parameter
-        if dim.rank == 1:
-            selector = rebind[Self.Selector](s0)
-        elif dim.rank == 2:
-            if d == 0:
-                selector = rebind[Self.Selector](s0.join(s0))
-            elif d == 1:
-                selector = rebind[Self.Selector](s0.interleave(s0))
-            else:
-                selector = abort[Self.Selector]("d exceeds rank 2")
-        elif dim.rank == 3:
-            if d == 0:
-                var s1 = s0.join(s0)
-                selector = rebind[Self.Selector](s1.join(s1))
-            elif d == 1:
-                var s1 = s0.interleave(s0)
-                selector = rebind[Self.Selector](s1.join(s1))
-            elif d == 2:
-                var s1 = s0.interleave(s0)
-                selector = rebind[Self.Selector](s1.interleave(s1))
-            else:
-                selector = abort[Self.Selector]("d exceeds rank 3")
+        for w in range(simd_width):
+
+            # load the samples
+            # NOTE: this part just loads all 2,4, or 8 pixels independently,
+            #       hoping that limited locality in the x-dimension will give somewhat good cache performance
+            var samples = Self.Pixel(0, 0)
+            @parameter
+            for s in range(Self.num_samples):
+                var f_sample = start[slice=w].map_int() + materialize[Self.deltas[s].pos]()
+                var v = self._img.get[or_else=or_else](f=f_sample)
+                samples.re[s] = v.re
+                samples.im[s] = v.im
+
+                # TODO: handle out-of-range=override behavior
+
+            # apply sample weights based on the distances
+            @parameter
+            for d in range(dim.rank):
+                var t = SIMD[dtype,Self.num_samples](dists[d][w])
+                var omt = SIMD[dtype,Self.num_samples](1 - dists[d][w])
+                comptime selector = _make_selector[dim,Self.num_samples](d)
+                var w = selector.select(omt, t)
+                samples.re *= w
+                samples.im *= w
+
+            # the final interpolated pixel is the sum of the weighted samples
+            v.re[w] = samples.re.reduce_add()
+            v.im[w] = samples.im.reduce_add()
+
+
+comptime _Selector[num_samples: Int] = SIMD[DType.bool,num_samples]
+
+fn _make_selector[
+    dim: Dimension,
+    num_samples: Int
+](d: Int, out selector: _Selector[num_samples]):
+    
+    comptime S = _Selector[num_samples]
+    comptime t = False
+    comptime omt = True
+    var s0 = SIMD[DType.bool,2](omt, t)
+
+    @parameter
+    if dim.rank == 1:
+        selector = rebind[S](s0)
+    elif dim.rank == 2:
+        if d == 0:selector = rebind[S](s0.join(s0))
+        elif d == 1:
+            selector = rebind[S](s0.interleave(s0))
         else:
-            constrained[False, String("unrecognized dimension: ", dim)]()
-            selector = abort[Self.Selector]()
+            selector = abort[S]("d exceeds rank 2")
+    elif dim.rank == 3:
+        if d == 0:
+            var s1 = s0.join(s0)
+            selector = rebind[S](s1.join(s1))
+        elif d == 1:
+            var s1 = s0.interleave(s0)
+            selector = rebind[S](s1.join(s1))
+        elif d == 2:
+            var s1 = s0.interleave(s0)
+            selector = rebind[S](s1.interleave(s1))
+        else:
+            selector = abort[S]("d exceeds rank 3")
+    else:
+        constrained[False, String("unrecognized dimension: ", dim)]()
+        selector = abort[S]()
+
+
+comptime PrecomputedFFTInterpolation = PrecomputedFFTInterpolationFull
+# NOTE: this is useful for switching downstream apps to use different implementations during benchmarking

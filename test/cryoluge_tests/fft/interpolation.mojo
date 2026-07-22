@@ -5,7 +5,7 @@ from builtin._location import __call_location
 
 from cryoluge.math import Dimension, Vec
 from cryoluge.math.error import err_abs
-from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, OutOfRangeBehavior
+from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior
 from cryoluge.test import assert_equal_float
 
 
@@ -139,10 +139,10 @@ def test_lerp_2d():
 alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](0, 0))
 
 
-def test_plerp_i2f_1d():
+def test_plerp_i2f_1d_full():
 
     var img = FFTImage.D1[dtype](Vec.D1(x=3))
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
 
     assert_equal(plerp._i2f(Vec.D1(x=0)), Vec.D1(x=-2))
     assert_equal(plerp._i2f(Vec.D1(x=1)), Vec.D1(x=-1))
@@ -150,10 +150,10 @@ def test_plerp_i2f_1d():
     assert_equal(plerp._i2f(Vec.D1(x=3)), Vec.D1(x=1))
 
 
-def test_plerp_f2i_1d():
+def test_plerp_f2i_1d_full():
 
     var img = FFTImage.D1[dtype](Vec.D1(x=3))
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
 
     assert_equal(plerp._f2i(ICoords1(x=-3)), ICoords1(x=-1))  # out of range
     assert_equal(plerp._f2i(ICoords1(x=-2)), ICoords1(x=0))
@@ -209,10 +209,10 @@ def test_plerp_1d():
         check(Coords1(x=fx))
 
 
-def test_plerp_f2i_2d():
+def test_plerp_f2i_2d_full():
 
     var img = FFTImage.D2[dtype](Vec.D2(x=3, y=3))
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
 
     assert_equal(plerp._f2i(ICoords2(x=-2, y=-3)), ICoords2(x=0, y=-1))  # out of range
     assert_equal(plerp._f2i(ICoords2(x=-2, y=-2)), ICoords2(x=0, y=0))
