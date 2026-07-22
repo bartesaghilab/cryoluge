@@ -3,9 +3,9 @@ from complex import ComplexScalar
 from testing import assert_equal
 from builtin._location import __call_location
 
-from cryoluge.math import Vec
+from cryoluge.math import Dimension, Vec
 from cryoluge.math.error import err_abs
-from cryoluge.fft import FFTImage, PrecomputedFFTInterpolation, OutOfRangeBehavior
+from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, OutOfRangeBehavior
 from cryoluge.test import assert_equal_float
 
 
@@ -17,6 +17,7 @@ comptime err_fn = err_abs[dtype]
 comptime Cx = ComplexScalar[dtype]
 comptime Coords1 = Vec.D1[Float32]
 comptime Coords2 = Vec.D2[Float32]
+comptime Coords3 = Vec.D3[Float32]
 comptime ScalarInt = Scalar[DType.int]
 comptime ICoords1 = Vec.D1[ScalarInt]
 comptime ICoords2 = Vec.D2[ScalarInt]
@@ -138,28 +139,28 @@ def test_lerp_2d():
 alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](0, 0))
 
 
-def test_plerp_f2i_1d():
-
-    var img = FFTImage.D1[dtype](Vec.D1(x=3))
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
-
-    assert_equal(plerp._f2i(ICoords1(x=-3)), ICoords1(x=-1))   # out of range
-    assert_equal(plerp._f2i(ICoords1(x=-2)), ICoords1(x=2))
-    assert_equal(plerp._f2i(ICoords1(x=-1)), ICoords1(x=3))
-    assert_equal(plerp._f2i(ICoords1(x=0)), ICoords1(x=0))
-    assert_equal(plerp._f2i(ICoords1(x=1)), ICoords1(x=1))
-    assert_equal(plerp._f2i(ICoords1(x=2)), ICoords1(x=-1))  # out of range
-
-
 def test_plerp_i2f_1d():
 
     var img = FFTImage.D1[dtype](Vec.D1(x=3))
     var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
 
-    assert_equal(plerp._i2f(Vec.D1(x=0)), Vec.D1(x=0))
-    assert_equal(plerp._i2f(Vec.D1(x=1)), Vec.D1(x=1))
-    assert_equal(plerp._i2f(Vec.D1(x=2)), Vec.D1(x=-2))
-    assert_equal(plerp._i2f(Vec.D1(x=3)), Vec.D1(x=-1))
+    assert_equal(plerp._i2f(Vec.D1(x=0)), Vec.D1(x=-2))
+    assert_equal(plerp._i2f(Vec.D1(x=1)), Vec.D1(x=-1))
+    assert_equal(plerp._i2f(Vec.D1(x=2)), Vec.D1(x=0))
+    assert_equal(plerp._i2f(Vec.D1(x=3)), Vec.D1(x=1))
+
+
+def test_plerp_f2i_1d():
+
+    var img = FFTImage.D1[dtype](Vec.D1(x=3))
+    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+
+    assert_equal(plerp._f2i(ICoords1(x=-3)), ICoords1(x=-1))  # out of range
+    assert_equal(plerp._f2i(ICoords1(x=-2)), ICoords1(x=0))
+    assert_equal(plerp._f2i(ICoords1(x=-1)), ICoords1(x=1))
+    assert_equal(plerp._f2i(ICoords1(x=0)), ICoords1(x=2))
+    assert_equal(plerp._f2i(ICoords1(x=1)), ICoords1(x=3))
+    assert_equal(plerp._f2i(ICoords1(x=2)), ICoords1(x=-1))  # out of range
 
 
 def test_plerp_1d():
@@ -190,7 +191,6 @@ def test_plerp_1d():
 
     # interpolated
     check(Coords1(x=-2.1))  # out of range
-    check(Coords1(x=-1.9))
     check(Coords1(x=-1.1))
     check(Coords1(x=-0.9))
     check(Coords1(x=-0.5))
@@ -199,8 +199,48 @@ def test_plerp_1d():
     check(Coords1(x=0.5))
     check(Coords1(x=0.9))
     check(Coords1(x=1.1))
-    check(Coords1(x=1.9))
     check(Coords1(x=2.1))  # out of range
+
+    # sample finely in frequency space
+    comptime NUM_SAMPLES = 20
+    var coords = img.coords()
+    for x in range(NUM_SAMPLES):
+        var fx = sample_range[NUM_SAMPLES, d=0](coords, x)
+        check(Coords1(x=fx))
+
+
+def test_plerp_f2i_2d():
+
+    var img = FFTImage.D2[dtype](Vec.D2(x=3, y=3))
+    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+
+    assert_equal(plerp._f2i(ICoords2(x=-2, y=-3)), ICoords2(x=0, y=-1))  # out of range
+    assert_equal(plerp._f2i(ICoords2(x=-2, y=-2)), ICoords2(x=0, y=0))
+    assert_equal(plerp._f2i(ICoords2(x=-2, y=-1)), ICoords2(x=0, y=1))
+    assert_equal(plerp._f2i(ICoords2(x=-2, y=0)), ICoords2(x=0, y=2))
+    assert_equal(plerp._f2i(ICoords2(x=-2, y=1)), ICoords2(x=0, y=3))
+    assert_equal(plerp._f2i(ICoords2(x=-2, y=2)), ICoords2(x=0, y=-1))  # out of range
+
+    assert_equal(plerp._f2i(ICoords2(x=-1, y=-3)), ICoords2(x=1, y=-1))  # out of range
+    assert_equal(plerp._f2i(ICoords2(x=-1, y=-2)), ICoords2(x=1, y=0))
+    assert_equal(plerp._f2i(ICoords2(x=-1, y=-1)), ICoords2(x=1, y=1))
+    assert_equal(plerp._f2i(ICoords2(x=-1, y=0)), ICoords2(x=1, y=2))
+    assert_equal(plerp._f2i(ICoords2(x=-1, y=1)), ICoords2(x=1, y=3))
+    assert_equal(plerp._f2i(ICoords2(x=-1, y=2)), ICoords2(x=1, y=-1))  # out of range
+
+    assert_equal(plerp._f2i(ICoords2(x=0, y=-3)), ICoords2(x=2, y=-1))  # out of range
+    assert_equal(plerp._f2i(ICoords2(x=0, y=-2)), ICoords2(x=2, y=0))
+    assert_equal(plerp._f2i(ICoords2(x=0, y=-1)), ICoords2(x=2, y=1))
+    assert_equal(plerp._f2i(ICoords2(x=0, y=0)), ICoords2(x=2, y=2))
+    assert_equal(plerp._f2i(ICoords2(x=0, y=1)), ICoords2(x=2, y=3))
+    assert_equal(plerp._f2i(ICoords2(x=0, y=2)), ICoords2(x=2, y=-1))  # out of range
+
+    assert_equal(plerp._f2i(ICoords2(x=1, y=-3)), ICoords2(x=3, y=-1))  # out of range
+    assert_equal(plerp._f2i(ICoords2(x=1, y=-2)), ICoords2(x=3, y=0))
+    assert_equal(plerp._f2i(ICoords2(x=1, y=-1)), ICoords2(x=3, y=1))
+    assert_equal(plerp._f2i(ICoords2(x=1, y=0)), ICoords2(x=3, y=2))
+    assert_equal(plerp._f2i(ICoords2(x=1, y=1)), ICoords2(x=3, y=3))
+    assert_equal(plerp._f2i(ICoords2(x=1, y=2)), ICoords2(x=3, y=-1))  # out of range
 
 
 def test_plerp_2d():
@@ -302,6 +342,135 @@ def test_plerp_2d():
     check(Coords2(x=1.1, y=1.1))
 
 
+def test_plerp_2d_big_odd():
+
+    var img = FFTImage.D2[dtype](Vec.D2(x=7, y=7))
+
+    # fill the image with arbitrary (but deterministic) numbers
+    for i in range(img.complex.num_pixels()):
+        img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
+
+    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+
+    @always_inline
+    @parameter
+    def check(f: Coords2):
+        assert_equal_float[err_fn](
+            plerp.get(f=f),
+            img.get(f_lerp=f),
+            String("f=", f),
+            location=__call_location()
+        )
+
+    # sample finely in frequency space
+    comptime NUM_SAMPLES = 20
+    var coords = img.coords()
+    for y in range(NUM_SAMPLES):
+        var fy = sample_range[NUM_SAMPLES, d=1](coords, y)
+        for x in range(NUM_SAMPLES):
+            var fx = sample_range[NUM_SAMPLES, d=0](coords, x)
+            check(Coords2(x=fx, y=fy))
+
+
+def test_plerp_2d_big_even():
+
+    var img = FFTImage.D2[dtype](Vec.D2(x=6, y=6))
+
+    # fill the image with arbitrary (but deterministic) numbers
+    for i in range(img.complex.num_pixels()):
+        img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
+
+    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+
+    @always_inline
+    @parameter
+    def check(f: Coords2):
+        assert_equal_float[err_fn](
+            plerp.get(f=f),
+            img.get(f_lerp=f),
+            String("f=", f),
+            location=__call_location()
+        )
+
+    # sample finely in frequency space
+    comptime NUM_SAMPLES = 20
+    var coords = img.coords()
+    for y in range(NUM_SAMPLES):
+        var fy = sample_range[NUM_SAMPLES, d=1](coords, y)
+        for x in range(NUM_SAMPLES):
+            var fx = sample_range[NUM_SAMPLES, d=0](coords, x)
+            check(Coords2(x=fx, y=fy))
+
+
+def test_plerp_3d_big_odd():
+
+    var img = FFTImage.D3[dtype](Vec.D3(x=7, y=7, z=7))
+
+    # fill the image with arbitrary (but deterministic) numbers
+    for i in range(img.complex.num_pixels()):
+        img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
+
+    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+
+    @always_inline
+    @parameter
+    def check(f: Coords3):
+        assert_equal_float[err_fn](
+            plerp.get(f=f),
+            img.get(f_lerp=f),
+            String("f=", f),
+            eps=1e-4,
+            location=__call_location()
+        )
+
+    # sample finely in frequency space
+    comptime NUM_SAMPLES = 20
+    var coords = img.coords()
+    for z in range(NUM_SAMPLES):
+        var fz = sample_range[NUM_SAMPLES, d=2](coords, z)
+        for y in range(NUM_SAMPLES):
+            var fy = sample_range[NUM_SAMPLES, d=1](coords, y)
+            for x in range(NUM_SAMPLES):
+                var fx = sample_range[NUM_SAMPLES, d=0](coords, x)
+                check(Coords3(x=fx, y=fy, z=fz))
+
+
+def test_plerp_3d_big_even():
+
+    var img = FFTImage.D3[dtype](Vec.D3(x=6, y=6, z=6))
+
+    # fill the image with arbitrary (but deterministic) numbers
+    for i in range(img.complex.num_pixels()):
+        img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
+
+    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+
+    @always_inline
+    @parameter
+    def check(f: Coords3):
+        assert_equal_float[err_fn](
+            plerp.get(f=f),
+            img.get(f_lerp=f),
+            String("f=", f),
+            eps=1e-4,
+            location=__call_location()
+        )
+
+    # sample finely in frequency space
+    comptime NUM_SAMPLES = 20
+    var coords = img.coords()
+    for z in range(NUM_SAMPLES):
+        var fz = sample_range[NUM_SAMPLES, d=2](coords, z)
+        for y in range(NUM_SAMPLES):
+            var fy = sample_range[NUM_SAMPLES, d=1](coords, y)
+            for x in range(NUM_SAMPLES):
+                var fx = sample_range[NUM_SAMPLES, d=0](coords, x)
+                check(Coords3(x=fx, y=fy, z=fz))
+
+
+# NOTE: helper functions have to go after tests or the test runner won't find all the tests
+
+
 fn lerp(v0: Scalar[dtype], v1: Scalar[dtype], t: Scalar[dtype], out v: Scalar[dtype]):
     v = v0*(1 - t) + t*v1
 
@@ -320,3 +489,28 @@ fn lerp2(
         lerp(v01, v11, t0),
         t1
     )
+
+
+fn sample_range[
+    num_samples: Int,
+    d: Int,
+    dim: Dimension
+](
+    coords: FFTCoords[dim],
+    i: Int
+) -> Float32:
+
+    # start with the regular frequency range
+    var min = coords.fmin[d]()
+    var max = coords.fmax[d]()
+
+    # push out the bounds by one to cover the interpolatable distance
+    min -= 1
+    max += 1
+
+    # and push out by one more so some samples land outside the range
+    min -= 1
+    max += 1
+
+    var width = max - min
+    return Float32(width*i)/Float32(num_samples - 1) + Float32(min)

@@ -100,41 +100,54 @@ struct PrecomputedFFTInterpolation[
         return FFTCoordsFull(self._sizes_real)
 
     @always_inline
-    fn _f2i[simd_width: Int](
-        self,
-        f: Vec[SIMDInt[simd_width],dim],
-        out i: Vec[SIMDInt[simd_width],dim]
-    ):
-        
-        i = Vec[SIMDInt[simd_width],dim](uninitialized=True)
-        var coords = self._coords()
+    fn _offset[d: Int](self, out offset: Int):
+        offset = (self._sizes_real[d] + 2) >> 1
 
+    @always_inline
+    fn _imax[d: Int](self, out imax: Int):
+        imax = self._sizes_real[d]
         @parameter
-        for d in range(dim.rank):
+        if d == 0:
+            imax |= 0b1
 
-            i[d] = f[d] + f[d].lt(0).select(
-                true_case = SIMDInt[simd_width](coords.size_fourier[d]() + 1),
-                false_case = SIMDInt[simd_width](0)
-            )
-
-            # if out of range, replace with -1
-            var out_of_range = f[d].lt(coords.fmin[d]() - 1) or f[d].gt(coords.fmax[d]())
-            i[d] = out_of_range.select(
-                true_case = SIMDInt[simd_width](-1),
-                false_case = i[d]
-            )
-    
     @always_inline
     fn _i2f(self, i: Vec[Int,dim], out f: Vec[Int,dim]):
+        """
+        Maps interpolation storage coordinates into frequency coordinates.
+        NOTE: This is not the same transformation as FFTCoords.i2f(),
+              since the storage layouts are different.
+        """
 
         f = Vec[Int,dim](uninitialized=True)
 
         @parameter
         for d in range(0, dim.rank):
-            if i[d] >= self._coords()._pivot[d]():
-                f[d] = i[d] - self._coords().size_fourier[d]() - 1
-            else:
-                f[d] = i[d]
+            f[d] = i[d] - self._offset[d]()
+        
+    @always_inline
+    fn _f2i[simd_width: Int](
+        self,
+        f: Vec[SIMDInt[simd_width],dim],
+        out i: Vec[SIMDInt[simd_width],dim]
+    ):
+        """
+        Maps frequency coordinates into the interpolation storage coordinates.
+        NOTE: This is not the same transformation as FFTCoords.f2i(),
+              since the storage layouts are different.
+        """
+        
+        i = Vec[SIMDInt[simd_width],dim](uninitialized=True)
+
+        @parameter
+        for d in range(0, dim.rank):
+            i[d] = f[d] + self._offset[d]()
+
+            # if out of range, replace with -1
+            var out_of_range = i[d].lt(0) or i[d].gt(self._imax[d]())
+            i[d] = out_of_range.select(
+                true_case = SIMDInt[simd_width](-1),
+                false_case = i[d]
+            )
 
     fn get[
         simd_width: Int,
@@ -158,6 +171,7 @@ struct PrecomputedFFTInterpolation[
         v = ComplexSIMD[dtype,simd_width](re=0, im=0)
 
         var i = self._f2i(start)
+        @parameter
         for w in range(simd_width):
 
             # load the samples
