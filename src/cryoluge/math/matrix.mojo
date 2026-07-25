@@ -131,7 +131,20 @@ struct Matrix[
     fn set_rotate_z(mut self: Self.D3[dtype], angle: Deg[dtype]):
         self.set_rotate_z(angle.to_rad())
 
-    # math
+    # modifiers
+
+    fn transpose(mut self):
+        @parameter
+        for r in range(rows):
+            @parameter
+            for c in range(r):
+                # LOL: this can't work on self things
+                #swap(self[r,c], self[c,r])
+                var s = self[r,c]
+                self[r,c] = self[c,r]
+                self[c,r] = s
+
+    # operators
 
     fn __mul__[other_cols: Int](
         self,
