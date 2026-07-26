@@ -161,6 +161,10 @@ struct ComplexImage[
             im = rebind[Self.ScalarVec[width]](imag)
         )
 
+    # TEMP
+    fn _load[width: Int](self, *, i: Vec[Int,dim], out v: Self.PixelVec[width]):
+        v = self._load[width](self._buf._offset(i))
+
     fn _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
 
         # interleave

@@ -108,6 +108,25 @@ struct Matrix[
                 else:
                     self[r,c] = 0
 
+    fn __init__(out self: Self.D2[dtype], *, rotate: Rad[dtype]):
+        self = Self.D2[dtype](uninitialized=True)
+        self.set_rotate(rotate)
+
+    fn __init__(out self: Self.D2[dtype], *, rotate: Deg[dtype]):
+        self = Self.D2[dtype](uninitialized=True)
+        self.set_rotate(rotate)
+
+    fn set_rotate(mut self: Self.D2[dtype], angle: Rad[dtype]):
+        var s = angle.sin()
+        var c = angle.cos()
+        self = Self.D2[dtype].row_major(
+            c, -s,
+            s, c
+        )
+
+    fn set_rotate(mut self: Self.D2[dtype], angle: Deg[dtype]):
+        self.set_rotate(angle.to_rad())
+    
     fn __init__(out self: Self.D3[dtype], *, rotate_x: Rad[dtype]):
         self = Self.D3[dtype](uninitialized=True)
         self.set_rotate_x(rotate_x)

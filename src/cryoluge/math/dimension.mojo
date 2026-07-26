@@ -33,6 +33,22 @@ struct Dimension(
     fn __str__(self) -> String:
         return String.write(self)
 
+    @staticmethod
+    fn unit_corners[dim: Dimension](out corners: List[Vec[Int,dim]]):
+        """
+        Return a list of vectors pointing to each corner of the unit box.
+        """
+
+        # start with the zero vec
+        corners = [Vec[Int,dim](fill=0)]
+
+        # add the other deltas by flipping 0s to 1s
+        for d in range(dim.rank):
+            for i in range(len(corners)):
+                var corner = corners[i].copy()
+                corner[d] = 1
+                corners.append(corner^)
+
 
 fn unrecognized_dimension[dim: Dimension, T: AnyType = NoneType._mlir_type]() -> T:
     constrained[False, String("Unrecognized dimensionality: ", dim)]()

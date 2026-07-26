@@ -175,6 +175,30 @@ struct Vec[
         for d in range(dim.rank):
             result = result or isnan(self[d])
 
+    fn min(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
+        result = Vec[Int,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = min(self[d], other[d])
+
+    fn min[dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
+        result = Vec[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = min(self[d], other[d])
+
+    fn max(self: Vec[Int,dim], other: Vec[Int,dim], out result: Vec[Int,dim]):
+        result = Vec[Int,dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = max(self[d], other[d])
+
+    fn max[dtype: DType](self: Vec[Scalar[dtype],dim], other: Vec[Scalar[dtype],dim], out result: Vec[Scalar[dtype],dim]):
+        result = Vec[Scalar[dtype],dim](uninitialized=True)
+        @parameter
+        for d in range(dim.rank):
+            result[d] = max(self[d], other[d])
+
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
     #       since mojo doesn't seem to have traits for their math dunder methods =(

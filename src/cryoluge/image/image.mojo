@@ -125,6 +125,13 @@ struct Image[
             .unsafe_ptr()
             .load[width=width]()
 
+    # TEMP
+    fn load[width: Int](self, *, i: Vec[Int,dim], out v: Self.PixelVec[width]):
+        var offset = self._buf._offset(i)
+        v = self.span(start=offset)
+            .unsafe_ptr()
+            .load[width=width]()
+
     fn store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
         self._check_vector_offset[width](offset)
         self.span(start=offset)

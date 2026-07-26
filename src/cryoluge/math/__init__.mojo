@@ -9,6 +9,7 @@ from .euler import *
 from .rand import *
 from .stats import *
 from .sphere import *
+from .box import *
 
 
 # NOTE: coming in mojo stdlib in next release

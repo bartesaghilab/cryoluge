@@ -1,5 +1,5 @@
 
-from math import floor
+from math import floor, ceildiv
 from complex import ComplexSIMD
 
 from cryoluge.math import Dimension, Vec
@@ -323,3 +323,68 @@ fn _make_selector[
 
 comptime PrecomputedFFTInterpolation = PrecomputedFFTInterpolationFull
 # NOTE: this is useful for switching downstream apps to use different implementations during benchmarking
+
+
+# TEMP
+struct VolumeNeighborhoods[
+    dtype: DType,
+    simd_width: Int,
+    *,
+    dtype_coords: DType = dtype
+](Movable):
+    var _sizes_real: Vec.D3[Int]
+    var _segments: DimensionalBuffer.D3[Self.Segment]
+
+    comptime Segment = ComplexSIMD[dtype,simd_width]
+    comptime num_neighborhoods_in_segment = simd_width - 1
+    # one less nieghborhood, due to needing two pixels per neighborhood
+    comptime deltas = Delta[Dimension.D3,dtype_coords].build()
+
+    fn __init__(out self, img: FFTImage.D3[dtype]):
+
+        self._sizes_real = img.sizes_real.copy()
+
+        # calculate how many segments we need in each x-row
+        var coords = FFTCoords(self._sizes_real)
+        var sizes_fourier = coords.sizes_fourier()
+        var sizes_segments = sizes_fourier.copy()
+        var sizes_segments.x() = ceildiv(sizes_fourier.x(), Self.num_neighborhoods_in_segment)
+        
+        # allocate storage for all the segments
+        self._segments = DimensionalBuffer.D3[Self.Segment](sizes_segments)
+
+        # pack all the segments
+        @parameter
+        fn func(s: Vec.D3[Int]):
+
+            var segment = Self.Segment(0, 0)
+
+            # convert segment indices into image indices
+            var i = s.copy()
+            i.x() = s.x()*Self.num_neighborhoods_in_segment
+
+            # pack all the pixels into this segment
+            @parameter
+            for w in range(Self.num_neighborhoods_in_segment):
+                # if the pixel is inside the volume, pack it
+                # (otherwise, leave it zero)
+                var iw = i + Vec.D3(x=w, y=0, z=0)
+                if iw.x() < sizes_fourier.x():
+                    var pixel = img.complex[i=iw]
+                    segment.re[w] = pixel.re
+                    segment.im[w] = pixel.im
+        
+            self._segments[i=s] = segment
+                
+        sizes_segments.iterate_over_sizes[func]()
+
+        # TEMP: extend lifetimes to work around compiler bug
+        _ = sizes_fourier
+
+    fn coords(self) -> FFTCoords[Dimension.D3,origin_of(self._sizes_real)]:
+        return FFTCoords(self._sizes_real)
+    
+    fn __getitem__(self, *, i: Vec.D3[Int], out segment: Self.Segment):
+        var s = i.copy()
+        s.x() //= Self.num_neighborhoods_in_segment
+        segment = self._segments[i=s]
