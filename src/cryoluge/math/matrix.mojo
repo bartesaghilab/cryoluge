@@ -10,11 +10,15 @@ struct Matrix[
     Copyable,
     Movable,
     Writable,
-    Stringable
+    Stringable,
+    EqualityComparable
 ):
     var _values: InlineArray[Scalar[dtype], Self.num_elements]
+    """Saved in row-major order."""
 
     comptime num_elements = rows*cols
+    comptime D1 = Matrix[1,1,_]
+    comptime D2 = Matrix[2,2,_]
     comptime D3 = Matrix[3,3,_]
 
     fn __init__(out self, *, uninitialized: Bool):
@@ -23,6 +27,24 @@ struct Matrix[
     fn __init__(out self, *, fill: Scalar[dtype]):
         self._values = InlineArray[Scalar[dtype], Self.num_elements](fill=fill)
 
+    fn __init__(out self, *, var row_major: InlineArray[Scalar[dtype],Self.num_elements]):
+        self._values = row_major^
+
+    @staticmethod
+    fn row_major(out self: Self, *row_major: Scalar[dtype]):
+
+        # check the size
+        debug_assert(
+            len(row_major) == Self.num_elements,
+            "Expected ", Self.num_elements, " elements in ", rows, "x", cols, " matrix,"
+            ", but got ", len(row_major), " elements instead."
+        )
+
+        self = Self(uninitialized=True)
+        @parameter
+        for i in range(Self.num_elements):
+            self._values[i] = row_major[i]
+
     fn _index(self, row: Int, col: Int) -> Int:
         debug_assert(
             row >= 0 and row < rows and col >= 0 and col < cols,
@@ -30,34 +52,43 @@ struct Matrix[
         )
         return row*cols + col
 
+    # accessors
+
     fn __getitem__(ref self, row: Int, col: Int) -> ref [self._values] Scalar[dtype]:
         return self._values[self._index(row, col)]
-
-    fn __getitem__(self, row: Int, out v: InlineArray[Scalar[dtype],cols]):
-        v = InlineArray[Scalar[dtype],cols](uninitialized=True)
-        @parameter
-        for c in range(cols):
-            v[c] = self[row, c]
 
     fn __setitem__(mut self, row: Int, col: Int, v: Scalar[dtype]):
         self._values[self._index(row, col)] = v
 
-    fn __setitem__(mut self, row: Int, v: InlineArray[Scalar[dtype],cols]):
+    fn _vec[dim: Dimension](self, *, row: Int, out v: Vec[Scalar[dtype],dim]):
+        v = Vec[Scalar[dtype],dim](uninitialized=True)
         @parameter
         for c in range(cols):
-            self[row, c] = v[c]
+            v[c] = self[row,c]
 
-    fn write_to[W: Writer](self, mut writer: W):
-        writer.write("Matrix[", rows, ", ", cols, "]:")
+    fn vec(self: Matrix[rows,1,dtype], *, row: Int, out v: Vec.D1[Scalar[dtype]]):
+        v = self._vec[Dimension.D1](row=row)
+
+    fn vec(self: Matrix[rows,2,dtype], *, row: Int, out v: Vec.D2[Scalar[dtype]]):
+        v = self._vec[Dimension.D2](row=row)
+
+    fn vec(self: Matrix[rows,3,dtype], *, row: Int, out v: Vec.D3[Scalar[dtype]]):
+        v = self._vec[Dimension.D3](row=row)
+
+    fn _vec[dim: Dimension](self, *, col: Int, out v: Vec[Scalar[dtype],dim]):
+        v = Vec[Scalar[dtype],dim](uninitialized=True)
         @parameter
         for r in range(rows):
-            writer.write("\n  ")
-            @parameter
-            for c in range(cols):
-                writer.write("  ", self[r,c])
+            v[r] = self[r,col]
 
-    fn __str__(self) -> String:
-        return String.write(self)
+    fn vec(self: Matrix[1,cols,dtype], *, col: Int, out v: Vec.D1[Scalar[dtype]]):
+        v = self._vec[Dimension.D1](col=col)
+
+    fn vec(self: Matrix[2,cols,dtype], *, col: Int, out v: Vec.D2[Scalar[dtype]]):
+        v = self._vec[Dimension.D2](col=col)
+
+    fn vec(self: Matrix[3,cols,dtype], *, col: Int, out v: Vec.D3[Scalar[dtype]]):
+        v = self._vec[Dimension.D3](col=col)
 
     # setters
 
@@ -88,9 +119,11 @@ struct Matrix[
     fn set_rotate_x(mut self: Self.D3[dtype], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
-        self[0] = InlineArray[Scalar[dtype],3](1, 0, 0)
-        self[1] = InlineArray[Scalar[dtype],3](1, c, -s)
-        self[2] = InlineArray[Scalar[dtype],3](1, s, c)
+        self = Self.D3[dtype].row_major(
+            1, 0, 0,
+            1, c, -s,
+            1, s, c
+        )
 
     fn set_rotate_x(mut self: Self.D3[dtype], angle: Deg[dtype]):
         self.set_rotate_x(angle.to_rad())
@@ -106,9 +139,11 @@ struct Matrix[
     fn set_rotate_y(mut self: Self.D3[dtype], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
-        self[0] = InlineArray[Scalar[dtype],3](c, 0, s)
-        self[1] = InlineArray[Scalar[dtype],3](0, 1, 0)
-        self[2] = InlineArray[Scalar[dtype],3](-s, 0, c)
+        self = Self.D3[dtype].row_major(
+            c, 0, s,
+            0, 1, 0,
+            -s, 0, c
+        )
 
     fn set_rotate_y(mut self: Self.D3[dtype], angle: Deg[dtype]):
         self.set_rotate_y(angle.to_rad())
@@ -124,9 +159,11 @@ struct Matrix[
     fn set_rotate_z(mut self: Self.D3[dtype], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
-        self[0] = InlineArray[Scalar[dtype],3](c, -s, 0)
-        self[1] = InlineArray[Scalar[dtype],3](s, c, 0)
-        self[2] = InlineArray[Scalar[dtype],3](0, 0, 1)
+        self = Self.D3[dtype].row_major(
+            c, -s, 0,
+            s, c, 0,
+            0, 0, 1
+        )
 
     fn set_rotate_z(mut self: Self.D3[dtype], angle: Deg[dtype]):
         self.set_rotate_z(angle.to_rad())
@@ -188,6 +225,13 @@ struct Matrix[
     ):
         result = (self*vec.map_value()).map_unit[utype]()
 
+    fn __eq__(self, other: Self) -> Bool:
+        @parameter
+        for i in range(Self.num_elements):
+            if self._values[i] != other._values[i]:
+                return False
+        return True
+
     # conversion
 
     fn map[
@@ -211,3 +255,17 @@ struct Matrix[
 
     fn map_float64(self: Matrix[rows,cols,DType.float64], out result: Matrix[rows,cols,DType.float64]):
         result = self.map_scalar[DType.float64]()
+
+    # display
+
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write("Matrix[", rows, ", ", cols, "]:")
+        @parameter
+        for r in range(rows):
+            writer.write("\n  ")
+            @parameter
+            for c in range(cols):
+                writer.write("  ", self[r,c])
+
+    fn __str__(self) -> String:
+        return String.write(self)
