@@ -34,12 +34,12 @@ struct CTF[dtype: DType](
         acceleration_voltage_kv: Scalar[dtype],
         spherical_aberration_mm: MM[dtype],
         amplitude_contrast: Scalar[dtype],  # TODO: does this have a unit?
-        defocus_a: Vec.D2[Ang[dtype]],
+        defocus_a: Vec[2,Ang[dtype]],
         astigmatism_azimuth_rad: Rad[dtype],
         pixel_size: Ang[dtype],
         additional_phase_shift_rad: Rad[dtype],
-        beam_tilt_rad: Vec.D2[Rad[dtype]],
-        particle_shift_a: Vec.D2[Ang[dtype]],
+        beam_tilt_rad: Vec[2,Rad[dtype]],
+        particle_shift_a: Vec[2,Ang[dtype]],
         low_resolution_contrast: Scalar[dtype] = 0
     ):
         @parameter
@@ -90,7 +90,7 @@ struct CTF[dtype: DType](
     fn azimuth(
         self,
         *,
-        freqs: Vec.D2[Scalar[dtype]],
+        freqs: Vec[2,Scalar[dtype]],
         out result: Rad[dtype]
     ):
         result = Rad[dtype](0)
@@ -100,7 +100,7 @@ struct CTF[dtype: DType](
     fn eval(
         self,
         *,
-        freqs: Vec.D2[Scalar[dtype]],
+        freqs: Vec[2,Scalar[dtype]],
         out result: Scalar[dtype]
     ):
         result = self.eval(
@@ -128,7 +128,7 @@ struct CTF[dtype: DType](
     fn eval_beam_tilt_phase_shift(
         self,
         *,
-        freqs: Vec.D2[Scalar[dtype]],
+        freqs: Vec[2,Scalar[dtype]],
         out result: ComplexScalar[dtype]
     ):
         var freq2 = freqs.len2()

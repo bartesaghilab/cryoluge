@@ -22,9 +22,9 @@ fn powell[
     # directions, which are supposed to stay orthogonal
 
     # initialize the directions to be the axis-aligned orthonormal basis
-    var directions = List[Coords[info]](capacity=info.dim.rank)
+    var directions = List[Coords[info]](capacity=info.dim)
     @parameter
-    for d in range(info.dim.rank):
+    for d in range(info.dim):
         var dir = Coords[info](fill=0)
         dir[d] = Coord[info](1)
         directions.append(dir^)    
@@ -46,7 +46,7 @@ fn powell[
         # print("\titer: x=", x_here, "fx=", fx_here)  # DEBUG
 
         # search along each direction
-        for d in range(info.dim.rank):
+        for d in range(info.dim):
             var fx_before_dir = fx_here
 
             @parameter
@@ -149,7 +149,7 @@ fn _line_bounds[info: ObjectiveInfo](
     var best_t_neg = Coord[info].MIN
 
     @parameter
-    for d in range(info.dim.rank):
+    for d in range(info.dim):
 
         # skip dimensions with no movement
         if dir[d] == 0:

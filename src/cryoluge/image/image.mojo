@@ -1,19 +1,16 @@
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.math.error import ErrFn, err_rel
 from cryoluge.io import ByteBuffer
 
 
 struct Image[
-    dim: Dimension,
+    dim: Int,
     dtype: DType
 ](Copyable, Movable):
     var _buf: DimensionalBuffer[dim,Self.PixelType]
 
-    comptime D1 = Image[Dimension.D1,_]
-    comptime D2 = Image[Dimension.D2,_]
-    comptime D3 = Image[Dimension.D3,_]
-    comptime Vec = Vec[_,dim]
+    comptime Vec = Vec[dim,_]
     comptime PixelType = Scalar[dtype]
     comptime PixelVec = SIMD[dtype,_]
     comptime pixel_vec_max_width = simd_width_of[dtype]()
@@ -126,7 +123,7 @@ struct Image[
             .load[width=width]()
 
     # TEMP
-    fn load[width: Int](self, *, i: Vec[Int,dim], out v: Self.PixelVec[width]):
+    fn load[width: Int](self, *, i: Vec[dim,Int], out v: Self.PixelVec[width]):
         var offset = self._buf._offset(i)
         v = self.span(start=offset)
             .unsafe_ptr()
@@ -215,7 +212,7 @@ struct Image[
         # TODO: any chance we can vectorize this?
 
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 sum += Float64(self[i])
@@ -248,7 +245,7 @@ struct Image[
         # TODO: any chance we can vectorize this?
 
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 var p = Float64(self[i])
@@ -283,7 +280,7 @@ struct Image[
 
         # TODO: vectorize?
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             if mask.includes(i, self.sizes()):
                 var p = self[i]
                 if p < min:
@@ -310,7 +307,7 @@ struct Image[
         var min = mean - gt_sigmas*stddev
 
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             var p = self[i]
             if p > max or p < min:
                 self[i] = replace_with

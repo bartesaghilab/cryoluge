@@ -1,17 +1,17 @@
 
 from testing import assert_equal
 
-from cryoluge.math import Dimension, Vec, Matrix, AlignedBox, OrientedBox
+from cryoluge.math import Vec, Matrix, AlignedBox, OrientedBox
 from cryoluge.math.units import Deg
 
 
 comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float32
-comptime V1 = Vec.D1[Scalar[dtype]]
-comptime V2 = Vec.D2[Scalar[dtype]]
-comptime M1 = Matrix[Dimension.D1.rank,Dimension.D1.rank,dtype]
-comptime M2 = Matrix[Dimension.D2.rank,Dimension.D2.rank,dtype]
+comptime V1 = Vec[1,Scalar[dtype]]
+comptime V2 = Vec[2,Scalar[dtype]]
+comptime M1 = Matrix[1,1,dtype]
+comptime M2 = Matrix[2,2,dtype]
 
 
 def test_oriented_bound():

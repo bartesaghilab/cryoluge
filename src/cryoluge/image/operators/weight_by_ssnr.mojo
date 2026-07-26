@@ -1,5 +1,4 @@
 
-from cryoluge.math import Dimension
 from cryoluge.math.units import pi, Ang, KDa
 from cryoluge.ctf import CTF
 from cryoluge.image.analysis import FourierShells, SSNR
@@ -11,7 +10,7 @@ struct WeightBySSNROperator[
     dtype: DType,
     shells_origin: Origin[mut=False]
 ]:
-    var shells: Pointer[FourierShells[Dimension.D2],shells_origin]
+    var shells: Pointer[FourierShells[2],shells_origin]
     var _factors: List[Scalar[dtype]]
 
     fn __init__(
@@ -19,8 +18,8 @@ struct WeightBySSNROperator[
         *,
         mass_kda: KDa[dtype],
         pixel_size: Ang[dtype],
-        sizes_real: Vec.D2[Int],
-        ref [shells_origin] shells: FourierShells[Dimension.D2],
+        sizes_real: Vec[2,Int],
+        ref [shells_origin] shells: FourierShells[2],
         ssnr: SSNR[dtype]
     ):
         self.shells = Pointer(to=shells)
@@ -52,12 +51,12 @@ struct WeightBySSNROperator[
             var shelli = self.shells[].shelli(freq=freq)
             result *= sqrt(1 + ctf2*self._factors[shelli])
 
-    fn apply(self, ctf: CTF[dtype], mut image: FFTImage[Dimension.D2,dtype]):
+    fn apply(self, ctf: CTF[dtype], mut image: FFTImage[2,dtype]):
 
         var coords = image.coords()
         
         @parameter
-        fn func(i: Vec.D2[Int]):
+        fn func(i: Vec[2,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var freqs = coords.freqs[dtype](f=f)

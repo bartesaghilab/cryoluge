@@ -1,6 +1,6 @@
 
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.fft import FFTImage
 from cryoluge.image import ComplexImage
 from cryoluge.image.analysis import FourierShells
@@ -8,7 +8,7 @@ from cryoluge.image.analysis import FourierShells
 
 struct WhitenOperator[
     dtype: DType,
-    dim: Dimension,
+    dim: Int,
     sum_dtype: DType,
     origin_shells: Origin[mut=False]
 ](
@@ -52,7 +52,7 @@ struct WhitenOperator[
         var coords = image.coords()
 
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var freq = sqrt(coords.freqs[dtype](f=f).len2())
@@ -66,7 +66,7 @@ struct WhitenOperator[
 
 struct WhitenStats[
     sum_dtype: DType,
-    dim: Dimension,
+    dim: Int,
     origin_shells: Origin[mut=False]
 ](
     Movable
@@ -100,7 +100,7 @@ struct WhitenStats[
         var coords = image.coords()
         
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var freq2 = coords.freqs[dtype](f=f).len2()

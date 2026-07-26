@@ -17,9 +17,6 @@ struct Matrix[
     """Saved in row-major order."""
 
     comptime num_elements = rows*cols
-    comptime D1 = Matrix[1,1,_]
-    comptime D2 = Matrix[2,2,_]
-    comptime D3 = Matrix[3,3,_]
 
     fn __init__(out self, *, uninitialized: Bool):
         self._values = InlineArray[Scalar[dtype], Self.num_elements](uninitialized=uninitialized)
@@ -60,35 +57,35 @@ struct Matrix[
     fn __setitem__(mut self, row: Int, col: Int, v: Scalar[dtype]):
         self._values[self._index(row, col)] = v
 
-    fn _vec[dim: Dimension](self, *, row: Int, out v: Vec[Scalar[dtype],dim]):
-        v = Vec[Scalar[dtype],dim](uninitialized=True)
+    fn _vec[dim: Int](self, *, row: Int, out v: Vec[dim,Scalar[dtype]]):
+        v = Vec[dim,Scalar[dtype]](uninitialized=True)
         @parameter
         for c in range(cols):
             v[c] = self[row,c]
 
-    fn vec(self: Matrix[rows,1,dtype], *, row: Int, out v: Vec.D1[Scalar[dtype]]):
-        v = self._vec[Dimension.D1](row=row)
+    fn vec(self: Matrix[rows,1,dtype], *, row: Int, out v: Vec[1,Scalar[dtype]]):
+        v = self._vec[1](row=row)
 
-    fn vec(self: Matrix[rows,2,dtype], *, row: Int, out v: Vec.D2[Scalar[dtype]]):
-        v = self._vec[Dimension.D2](row=row)
+    fn vec(self: Matrix[rows,2,dtype], *, row: Int, out v: Vec[2,Scalar[dtype]]):
+        v = self._vec[2](row=row)
 
-    fn vec(self: Matrix[rows,3,dtype], *, row: Int, out v: Vec.D3[Scalar[dtype]]):
-        v = self._vec[Dimension.D3](row=row)
+    fn vec(self: Matrix[rows,3,dtype], *, row: Int, out v: Vec[3,Scalar[dtype]]):
+        v = self._vec[3](row=row)
 
-    fn _vec[dim: Dimension](self, *, col: Int, out v: Vec[Scalar[dtype],dim]):
-        v = Vec[Scalar[dtype],dim](uninitialized=True)
+    fn _vec[dim: Int](self, *, col: Int, out v: Vec[dim,Scalar[dtype]]):
+        v = Vec[dim,Scalar[dtype]](uninitialized=True)
         @parameter
         for r in range(rows):
             v[r] = self[r,col]
 
-    fn vec(self: Matrix[1,cols,dtype], *, col: Int, out v: Vec.D1[Scalar[dtype]]):
-        v = self._vec[Dimension.D1](col=col)
+    fn vec(self: Matrix[1,cols,dtype], *, col: Int, out v: Vec[1,Scalar[dtype]]):
+        v = self._vec[1](col=col)
 
-    fn vec(self: Matrix[2,cols,dtype], *, col: Int, out v: Vec.D2[Scalar[dtype]]):
-        v = self._vec[Dimension.D2](col=col)
+    fn vec(self: Matrix[2,cols,dtype], *, col: Int, out v: Vec[2,Scalar[dtype]]):
+        v = self._vec[2](col=col)
 
-    fn vec(self: Matrix[3,cols,dtype], *, col: Int, out v: Vec.D3[Scalar[dtype]]):
-        v = self._vec[Dimension.D3](col=col)
+    fn vec(self: Matrix[3,cols,dtype], *, col: Int, out v: Vec[3,Scalar[dtype]]):
+        v = self._vec[3](col=col)
 
     # setters
 
@@ -108,83 +105,83 @@ struct Matrix[
                 else:
                     self[r,c] = 0
 
-    fn __init__(out self: Self.D2[dtype], *, rotate: Rad[dtype]):
-        self = Self.D2[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[2,2,dtype], *, rotate: Rad[dtype]):
+        self = Matrix[2,2,dtype](uninitialized=True)
         self.set_rotate(rotate)
 
-    fn __init__(out self: Self.D2[dtype], *, rotate: Deg[dtype]):
-        self = Self.D2[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[2,2,dtype], *, rotate: Deg[dtype]):
+        self = Matrix[2,2,dtype](uninitialized=True)
         self.set_rotate(rotate)
 
-    fn set_rotate(mut self: Self.D2[dtype], angle: Rad[dtype]):
+    fn set_rotate(mut self: Matrix[2,2,dtype], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
-        self = Self.D2[dtype].row_major(
+        self = Matrix[2,2,dtype].row_major(
             c, -s,
             s, c
         )
 
-    fn set_rotate(mut self: Self.D2[dtype], angle: Deg[dtype]):
+    fn set_rotate(mut self: Matrix[2,2,dtype], angle: Deg[dtype]):
         self.set_rotate(angle.to_rad())
     
-    fn __init__(out self: Self.D3[dtype], *, rotate_x: Rad[dtype]):
-        self = Self.D3[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[3,3,dtype], *, rotate_x: Rad[dtype]):
+        self = Matrix[3,3,dtype](uninitialized=True)
         self.set_rotate_x(rotate_x)
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_x: Deg[dtype]):
-        self = Self.D3[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[3,3,dtype], *, rotate_x: Deg[dtype]):
+        self = Matrix[3,3,dtype](uninitialized=True)
         self.set_rotate_x(rotate_x)
 
-    fn set_rotate_x(mut self: Self.D3[dtype], angle: Rad[dtype]):
+    fn set_rotate_x(mut self: Matrix[3,3,dtype], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
-        self = Self.D3[dtype].row_major(
+        self = Matrix[3,3,dtype].row_major(
             1, 0, 0,
             1, c, -s,
             1, s, c
         )
 
-    fn set_rotate_x(mut self: Self.D3[dtype], angle: Deg[dtype]):
+    fn set_rotate_x(mut self: Matrix[3,3,dtype], angle: Deg[dtype]):
         self.set_rotate_x(angle.to_rad())
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_y: Rad[dtype]):
-        self = Self.D3[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[3,3,dtype], *, rotate_y: Rad[dtype]):
+        self = Matrix[3,3,dtype](uninitialized=True)
         self.set_rotate_y(rotate_y)
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_y: Deg[dtype]):
-        self = Self.D3[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[3,3,dtype], *, rotate_y: Deg[dtype]):
+        self = Matrix[3,3,dtype](uninitialized=True)
         self.set_rotate_y(rotate_y)
 
-    fn set_rotate_y(mut self: Self.D3[dtype], angle: Rad[dtype]):
+    fn set_rotate_y(mut self: Matrix[3,3,dtype], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
-        self = Self.D3[dtype].row_major(
+        self = Matrix[3,3,dtype].row_major(
             c, 0, s,
             0, 1, 0,
             -s, 0, c
         )
 
-    fn set_rotate_y(mut self: Self.D3[dtype], angle: Deg[dtype]):
+    fn set_rotate_y(mut self: Matrix[3,3,dtype], angle: Deg[dtype]):
         self.set_rotate_y(angle.to_rad())
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_z: Rad[dtype]):
-        self = Self.D3[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[3,3,dtype], *, rotate_z: Rad[dtype]):
+        self = Matrix[3,3,dtype](uninitialized=True)
         self.set_rotate_z(rotate_z)
 
-    fn __init__(out self: Self.D3[dtype], *, rotate_z: Deg[dtype]):
-        self = Self.D3[dtype](uninitialized=True)
+    fn __init__(out self: Matrix[3,3,dtype], *, rotate_z: Deg[dtype]):
+        self = Matrix[3,3,dtype](uninitialized=True)
         self.set_rotate_z(rotate_z)
 
-    fn set_rotate_z(mut self: Self.D3[dtype], angle: Rad[dtype]):
+    fn set_rotate_z(mut self: Matrix[3,3,dtype], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
-        self = Self.D3[dtype].row_major(
+        self = Matrix[3,3,dtype].row_major(
             c, -s, 0,
             s, c, 0,
             0, 0, 1
         )
 
-    fn set_rotate_z(mut self: Self.D3[dtype], angle: Deg[dtype]):
+    fn set_rotate_z(mut self: Matrix[3,3,dtype], angle: Deg[dtype]):
         self.set_rotate_z(angle.to_rad())
 
     # modifiers
@@ -218,29 +215,29 @@ struct Matrix[
                     v += self[r,i]*rhs[i,c]
                 product[r,c] = v
 
-    fn __mul__[dim: Dimension, simd_width: Int](
+    fn __mul__[dim: Int, simd_width: Int](
         self,
-        vec: Vec[SIMD[dtype,simd_width],dim],
-        out result: Vec[SIMD[dtype,simd_width],dim]
+        vec: Vec[dim,SIMD[dtype,simd_width]],
+        out result: Vec[dim,SIMD[dtype,simd_width]]
     ):
         constrained[
-            rows == dim.rank and cols == dim.rank,
-            String("Matrix size (", rows, ", ", cols, ") doesn't match vector size (", dim.rank,  ")")
+            rows == dim and cols == dim,
+            String("Matrix size (", rows, ", ", cols, ") doesn't match vector size (", dim,  ")")
         ]()
 
-        result = Vec[SIMD[dtype,simd_width],dim](uninitialized=True)
+        result = Vec[dim,SIMD[dtype,simd_width]](uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             var v = SIMD[dtype,simd_width](0)
             @parameter
-            for i in range(dim.rank):
+            for i in range(dim):
                 v += self[d,i]*vec[i]
             result[d] = v
 
-    fn __mul__[dim: Dimension, utype: UnitType](
+    fn __mul__[dim: Int, utype: UnitType](
         self,
-        vec: Vec[Unit[utype,dtype],dim],
-        out result: Vec[Unit[utype,dtype],dim]
+        vec: Vec[dim,Unit[utype,dtype]],
+        out result: Vec[dim,Unit[utype,dtype]]
     ):
         result = (self*vec.map_value()).map_unit[utype]()
 

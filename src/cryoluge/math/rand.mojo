@@ -4,10 +4,7 @@ from os import abort
 from sys import size_of
 from utils.numerics import FPUtils, isfinite
 
-# TEMP
-import random
-
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 
 
 comptime default_seed = 12345
@@ -133,7 +130,7 @@ struct Rand:
 
 struct VecRand[
     dtype: DType,
-    dim: Dimension
+    dim: Int
 ]:
     """
     A utility to easily generate random numbers in multi-dimensional ranges.
@@ -147,7 +144,7 @@ struct VecRand[
     var max: Self.Vec
     var _rand: Rand
 
-    comptime Vec = Vec[Scalar[dtype],dim]
+    comptime Vec = Vec[dim,Scalar[dtype]]
 
     fn __init__(
         out self,

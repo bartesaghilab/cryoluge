@@ -1,13 +1,13 @@
 
 from math import pi, cos, sin, floor
 
-from cryoluge.math import Dimension, Vec, ComplexScalar, Matrix
+from cryoluge.math import Vec, ComplexScalar, Matrix
 from cryoluge.image import ComplexImage
 from cryoluge.ctf import CTF
 
 
 struct FFTImage[
-    dim: Dimension,
+    dim: Int,
     dtype: DType
 ](Copyable, Movable):
     """
@@ -15,12 +15,9 @@ struct FFTImage[
     to enable coordinate transfomrations between real-space and fourier-space.
     """
 
-    var sizes_real: Vec[Int,dim]
+    var sizes_real: Vec[dim,Int]
     var complex: ComplexImage[dim,dtype]
 
-    comptime D1 = FFTImage[Dimension.D1,_]
-    comptime D2 = FFTImage[Dimension.D2,_]
-    comptime D3 = FFTImage[Dimension.D3,_]
     comptime Vec = ComplexImage[dim,dtype].Vec
     comptime PixelType = ComplexImage[dim,dtype].PixelType
     comptime PixelVec = ComplexImage[dim,dtype].PixelVec
@@ -46,7 +43,7 @@ struct FFTImage[
 
         # make sure the destination image is smaller (or the same size) as this one
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             debug_assert(
                 dst.sizes_real[d] <= self.sizes_real[d],
                 "Crop destination real sizes ", dst.sizes_real,
@@ -103,10 +100,10 @@ struct FFTImage[
         out pixel: ComplexScalar[dtype]
     ):
         # discretize the frequency coordinates, and keep track of distances
-        var start = Vec[Int,dim](uninitialized=True)
-        var dists = Vec[Scalar[dtype_coords],dim](uninitialized=True)
+        var start = Vec[dim,Int](uninitialized=True)
+        var dists = Vec[dim,Scalar[dtype_coords]](uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             var floor = floor(f_lerp[d])
             start[d] = Int(floor)
             dists[d] = f_lerp[d] - floor
@@ -123,7 +120,7 @@ struct FFTImage[
 
 @fieldwise_init
 struct Delta[
-    dim: Dimension,
+    dim: Int,
     dtype: DType
 ](
     Copyable,
@@ -133,17 +130,17 @@ struct Delta[
     Stringable
 ):
     var d: Int
-    var pos: Vec[Int,dim]
+    var pos: Vec[dim,Int]
     """[0], unless flipped, then 1@d."""
-    var pos_f: Vec[Scalar[dtype],dim]
+    var pos_f: Vec[dim,Scalar[dtype]]
     """[1], unless flipped, then 0@d."""
-    var dir: Vec[Scalar[dtype],dim]
+    var dir: Vec[dim,Scalar[dtype]]
     """[-1], unless flipped, then 1@d."""
 
     @staticmethod
     fn build(out deltas: List[Delta[dim,dtype]]):
         deltas = [Delta[dim,dtype]()]
-        for d in range(dim.rank):
+        for d in range(dim):
             for i in range(len(deltas)):
                 var delta = deltas[i].copy()
                 delta.d = d
@@ -165,9 +162,9 @@ struct Delta[
 
     fn __init__(out self):
         self.d = 0
-        self.pos = Vec[Int,dim](fill=0)
-        self.pos_f = Vec[Scalar[dtype],dim](fill=1)
-        self.dir = Vec[Scalar[dtype],dim](fill=-1)
+        self.pos = Vec[dim,Int](fill=0)
+        self.pos_f = Vec[dim,Scalar[dtype]](fill=1)
+        self.dir = Vec[dim,Scalar[dtype]](fill=-1)
 
     fn flip(mut self):
         self.pos[self.d] = 1

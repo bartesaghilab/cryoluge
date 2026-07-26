@@ -25,7 +25,7 @@ fn ccd[
     for _ in range(max_iterations):
 
         @parameter
-        for d in range(info.dim.rank):
+        for d in range(info.dim):
 
             @parameter
             fn line(x: Coord[info], out fx: Value[info]):

@@ -33,7 +33,7 @@ struct EulerAnglesZYZ[dtype: DType](
         self.theta = theta.to_rad()
         self.phi = phi.to_rad()
 
-    fn __init__(out self, *, from_mat: Matrix.D3[dtype], match_csp1: Bool = False):
+    fn __init__(out self, *, from_mat: Matrix[3,3,dtype], match_csp1: Bool = False):
         ref m = from_mat
 
         if match_csp1:
@@ -73,10 +73,10 @@ struct EulerAnglesZYZ[dtype: DType](
     fn __str__(self) -> String:
         return String.write(self)
 
-    fn to_matrix(self, mut mat: Matrix.D3[dtype]):
-        var rot_psi = Matrix.D3[dtype](rotate_z=self.psi)
-        var rot_theta = Matrix.D3[dtype](rotate_y=self.theta)
-        var rot_phi = Matrix.D3[dtype](rotate_z=self.phi)
+    fn to_matrix(self, mut mat: Matrix[3,3,dtype]):
+        var rot_psi = Matrix[3,3,dtype](rotate_z=self.psi)
+        var rot_theta = Matrix[3,3,dtype](rotate_y=self.theta)
+        var rot_phi = Matrix[3,3,dtype](rotate_z=self.phi)
         mat = rot_phi*rot_theta*rot_psi
 
     fn normalize(self, out normalized: Self):

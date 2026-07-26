@@ -4,13 +4,13 @@ from sys.info import size_of
 from complex import ComplexFloat32
 from memory import bitcast, memcpy
 
-from cryoluge.math import Dimension, Vec, unrecognized_dimension, expect_at_least_rank
+from cryoluge.math import Vec, unrecognized_dimension, expect_at_least_rank
 from cryoluge.math.error import err, err_rel, err_abs, is_err_small, ErrFn
 from cryoluge.io import FileReader, Endian, ByteBuffer
 
 
 struct DimensionalBuffer[
-    dim: Dimension,
+    dim: Int,
     T: Copyable & Movable
 ](
     Copyable,
@@ -21,26 +21,23 @@ struct DimensionalBuffer[
     """the element strides, not the byte strides"""
     var _buf: ByteBuffer
 
-    comptime D1 = DimensionalBuffer[Dimension.D1,_]
-    comptime D2 = DimensionalBuffer[Dimension.D2,_]
-    comptime D3 = DimensionalBuffer[Dimension.D3,_]
-    comptime Vec = Vec[_,dim]
+    comptime Vec = Vec[dim,_]
     comptime _elem_size = size_of[T]()
 
     fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         """WARNING: produces un-initialized memory."""
         self._sizes = sizes.copy()
         @parameter
-        if dim == Dimension.D1:
+        if dim == 1:
             var sx = self._sizes.x()
             self._strides = Self.Vec[Int](x=1)
             self._buf = ByteBuffer(sx*Self._elem_size, alignment=alignment)
-        elif dim == Dimension.D2:
+        elif dim == 2:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
             self._strides = Self.Vec[Int](x=1, y=sx)
             self._buf = ByteBuffer(sx*sy*Self._elem_size, alignment=alignment)
-        elif dim == Dimension.D3:
+        elif dim == 3:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
             var sz = self._sizes.z()
@@ -50,7 +47,7 @@ struct DimensionalBuffer[
             return unrecognized_dimension[dim,Self]()
 
     fn rank(self) -> Int:
-        return dim.rank
+        return dim
 
     fn num_elements(self) -> Int:
         return self._sizes.product()
@@ -79,7 +76,7 @@ struct DimensionalBuffer[
         offset = 0
 
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             var coord = i[d]
             var size = self._sizes[d]
             debug_assert(
@@ -93,7 +90,7 @@ struct DimensionalBuffer[
         var offset: Int = 0
 
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             var coord = i[d]
             var size = self._sizes[d]
             if coord >= 0 and coord < size:
@@ -161,7 +158,7 @@ struct DimensionalBuffer[
         var offset: Int = 0
 
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             if i[d] >= 0 and i[d] < self._sizes[d]:
                 offset += i[d]*self._strides[d]
             else:
@@ -328,7 +325,7 @@ struct DimensionalBuffer[
         var mismatches = List[Self.Vec[Int]]()
         var expi = 0
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
@@ -393,7 +390,7 @@ struct DimensionalBuffer[
         var mismatches = List[Self.Vec[Int]]()
         var expi = 0
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
@@ -436,12 +433,12 @@ struct DimensionalBuffer[
     ) raises:
         var rank = reader.read_i32[Endian.Little]()
         debug_assert(
-            rank == dim.rank,
-            msg, ": Expected rank ", rank, " but image has rank ", dim.rank
+            rank == dim,
+            msg, ": Expected rank ", rank, " but image has rank ", dim
         )
         var sizes = Self.Vec[Int](uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             sizes[d] = Int(reader.read_i32[Endian.Little]())
         debug_assert(
             self.sizes() == sizes,

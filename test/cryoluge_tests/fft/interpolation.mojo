@@ -3,7 +3,7 @@ from complex import ComplexScalar
 from testing import assert_equal
 from builtin._location import __call_location
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.math.error import err_abs
 from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior
 from cryoluge.test import assert_equal_float
@@ -15,17 +15,17 @@ comptime funcs = __functions_in_module()
 comptime dtype = DType.float32
 comptime err_fn = err_abs[dtype]
 comptime Cx = ComplexScalar[dtype]
-comptime Coords1 = Vec.D1[Float32]
-comptime Coords2 = Vec.D2[Float32]
-comptime Coords3 = Vec.D3[Float32]
+comptime Coords1 = Vec[1,Float32]
+comptime Coords2 = Vec[2,Float32]
+comptime Coords3 = Vec[3,Float32]
 comptime ScalarInt = Scalar[DType.int]
-comptime ICoords1 = Vec.D1[ScalarInt]
-comptime ICoords2 = Vec.D2[ScalarInt]
+comptime ICoords1 = Vec[1,ScalarInt]
+comptime ICoords2 = Vec[2,ScalarInt]
 
 
 def test_lerp_1d():
 
-    var img = FFTImage.D1[dtype](Vec.D1(x=3))
+    var img = FFTImage[1,dtype](Vec[1](x=3))
 
     img.complex[i=0] = Cx(1, 2)  # f=(0)
     img.complex[i=1] = Cx(3, 4)  # f=(1);(-1)*
@@ -50,7 +50,7 @@ def test_lerp_1d():
 
 def test_lerp_2d():
 
-    var img = FFTImage.D2[dtype](Vec.D2(x=3, y=3))
+    var img = FFTImage[2,dtype](Vec[2](x=3, y=3))
 
     img.complex[i=0] = Cx(1, 2)  # f=(0,0)
     img.complex[i=1] = Cx(3, 4)  # f=(1,0);(-1,0)*
@@ -141,18 +141,18 @@ alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](0, 0))
 
 def test_plerp_i2f_1d_full():
 
-    var img = FFTImage.D1[dtype](Vec.D1(x=3))
+    var img = FFTImage[1,dtype](Vec[1](x=3))
     var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
 
-    assert_equal(plerp._i2f(Vec.D1(x=0)), Vec.D1(x=-2))
-    assert_equal(plerp._i2f(Vec.D1(x=1)), Vec.D1(x=-1))
-    assert_equal(plerp._i2f(Vec.D1(x=2)), Vec.D1(x=0))
-    assert_equal(plerp._i2f(Vec.D1(x=3)), Vec.D1(x=1))
+    assert_equal(plerp._i2f(Vec[1](x=0)), Vec[1](x=-2))
+    assert_equal(plerp._i2f(Vec[1](x=1)), Vec[1](x=-1))
+    assert_equal(plerp._i2f(Vec[1](x=2)), Vec[1](x=0))
+    assert_equal(plerp._i2f(Vec[1](x=3)), Vec[1](x=1))
 
 
 def test_plerp_f2i_1d_full():
 
-    var img = FFTImage.D1[dtype](Vec.D1(x=3))
+    var img = FFTImage[1,dtype](Vec[1](x=3))
     var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
 
     assert_equal(plerp._f2i(ICoords1(x=-3)), ICoords1(x=-1))  # out of range
@@ -165,7 +165,7 @@ def test_plerp_f2i_1d_full():
 
 def test_plerp_1d():
 
-    var img = FFTImage.D1[dtype](Vec.D1(x=3))
+    var img = FFTImage[1,dtype](Vec[1](x=3))
 
     img.complex[i=0] = Cx(1, 2)  # f=(0)
     img.complex[i=1] = Cx(3, 4)  # f=(1);(-1)*
@@ -211,7 +211,7 @@ def test_plerp_1d():
 
 def test_plerp_f2i_2d_full():
 
-    var img = FFTImage.D2[dtype](Vec.D2(x=3, y=3))
+    var img = FFTImage[2,dtype](Vec[2](x=3, y=3))
     var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
 
     assert_equal(plerp._f2i(ICoords2(x=-2, y=-3)), ICoords2(x=0, y=-1))  # out of range
@@ -245,7 +245,7 @@ def test_plerp_f2i_2d_full():
 
 def test_plerp_2d():
 
-    var img = FFTImage.D2[dtype](Vec.D2(x=3, y=3))
+    var img = FFTImage[2,dtype](Vec[2](x=3, y=3))
 
     img.complex[i=0] = Cx(1, 2)  # f=(0,0)
     img.complex[i=1] = Cx(3, 4)  # f=(1,0);(-1,0)*
@@ -344,7 +344,7 @@ def test_plerp_2d():
 
 def test_plerp_2d_big_odd():
 
-    var img = FFTImage.D2[dtype](Vec.D2(x=7, y=7))
+    var img = FFTImage[2,dtype](Vec[2](x=7, y=7))
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
@@ -374,7 +374,7 @@ def test_plerp_2d_big_odd():
 
 def test_plerp_2d_big_even():
 
-    var img = FFTImage.D2[dtype](Vec.D2(x=6, y=6))
+    var img = FFTImage[2,dtype](Vec[2](x=6, y=6))
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
@@ -404,7 +404,7 @@ def test_plerp_2d_big_even():
 
 def test_plerp_3d_big_odd():
 
-    var img = FFTImage.D3[dtype](Vec.D3(x=7, y=7, z=7))
+    var img = FFTImage[3,dtype](Vec[3](x=7, y=7, z=7))
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
@@ -437,7 +437,7 @@ def test_plerp_3d_big_odd():
 
 def test_plerp_3d_big_even():
 
-    var img = FFTImage.D3[dtype](Vec.D3(x=6, y=6, z=6))
+    var img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6))
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
@@ -494,7 +494,7 @@ fn lerp2(
 fn sample_range[
     num_samples: Int,
     d: Int,
-    dim: Dimension
+    dim: Int
 ](
     coords: FFTCoords[dim],
     i: Int

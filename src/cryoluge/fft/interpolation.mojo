@@ -2,7 +2,7 @@
 from math import floor, ceildiv
 from complex import ComplexSIMD
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.image import DimensionalBuffer
 from cryoluge.fft import FFTCoordsFull, Delta
 
@@ -31,7 +31,7 @@ struct OutOfRangeBehavior[dtype: DType](
 
 
 struct PrecomputedFFTInterpolationFull[
-    dim: Dimension,
+    dim: Int,
     dtype: DType,
     *,
     dtype_coords: DType = dtype
@@ -44,7 +44,7 @@ struct PrecomputedFFTInterpolationFull[
              Profiling generally shows the overall performance improvement is worth it,
              although the gains start to diminish with increasing image size.
     """
-    var _sizes_real: Vec[Int,dim]
+    var _sizes_real: Vec[dim,Int]
     var _samples: DimensionalBuffer[dim,Self.Pixel]
 
     comptime deltas = Delta[dim,dtype_coords].build()
@@ -72,7 +72,7 @@ struct PrecomputedFFTInterpolationFull[
 
         # precompute all the pixel samples
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
 
             var f = self._i2f(i)
             var pixel = Self.Pixel(0, 0)
@@ -119,24 +119,24 @@ struct PrecomputedFFTInterpolationFull[
             imax |= 0b1
 
     @always_inline
-    fn _i2f(self, i: Vec[Int,dim], out f: Vec[Int,dim]):
+    fn _i2f(self, i: Vec[dim,Int], out f: Vec[dim,Int]):
         """
         Maps interpolation storage coordinates into frequency coordinates.
         NOTE: This is not the same transformation as FFTCoords.i2f(),
               since the storage layouts are different.
         """
 
-        f = Vec[Int,dim](uninitialized=True)
+        f = Vec[dim,Int](uninitialized=True)
 
         @parameter
-        for d in range(0, dim.rank):
+        for d in range(0, dim):
             f[d] = i[d] - self._offset[d]()
         
     @always_inline
     fn _f2i[simd_width: Int](
         self,
-        f: Vec[SIMDInt[simd_width],dim],
-        out i: Vec[SIMDInt[simd_width],dim]
+        f: Vec[dim,SIMDInt[simd_width]],
+        out i: Vec[dim,SIMDInt[simd_width]]
     ):
         """
         Maps frequency coordinates into the interpolation storage coordinates.
@@ -144,10 +144,10 @@ struct PrecomputedFFTInterpolationFull[
               since the storage layouts are different.
         """
         
-        i = Vec[SIMDInt[simd_width],dim](uninitialized=True)
+        i = Vec[dim,SIMDInt[simd_width]](uninitialized=True)
 
         @parameter
-        for d in range(0, dim.rank):
+        for d in range(0, dim):
             i[d] = f[d] + self._offset[d]()
 
             # if out of range, replace with -1
@@ -164,14 +164,14 @@ struct PrecomputedFFTInterpolationFull[
     ](
         self,
         *,
-        f: Vec[SIMD[dtype_coords,simd_width],dim],
+        f: Vec[dim,SIMD[dtype_coords,simd_width]],
         out v: ComplexSIMD[dtype,simd_width]
     ):
         # discretize the frequency coordinates, and keep track of distances
-        var start = Vec[SIMDInt[simd_width],dim](uninitialized=True)
-        var dists = Vec[SIMD[dtype_coords,simd_width],dim](uninitialized=True)
+        var start = Vec[dim,SIMDInt[simd_width]](uninitialized=True)
+        var dists = Vec[dim,SIMD[dtype_coords,simd_width]](uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             var floor = floor(f[d])
             start[d] = SIMDInt[simd_width](floor)
             dists[d] = f[d] - floor
@@ -188,7 +188,7 @@ struct PrecomputedFFTInterpolationFull[
 
             # apply sample weights based on the distances
             @parameter
-            for d in range(dim.rank):
+            for d in range(dim):
                 var t = SIMD[dtype,Self.num_samples](dists[d][w])
                 var omt = SIMD[dtype,Self.num_samples](1 - dists[d][w])
                 comptime selector = _make_selector[dim,Self.num_samples](d)
@@ -202,7 +202,7 @@ struct PrecomputedFFTInterpolationFull[
 
 
 struct PrecomputedFFTInterpolationNop[
-    dim: Dimension,
+    dim: Int,
     dtype: DType,
     *,
     dtype_coords: DType = dtype
@@ -238,14 +238,14 @@ struct PrecomputedFFTInterpolationNop[
     ](
         self,
         *,
-        f: Vec[SIMD[dtype_coords,simd_width],dim],
+        f: Vec[dim,SIMD[dtype_coords,simd_width]],
         out v: ComplexSIMD[dtype,simd_width]
     ):
         # discretize the frequency coordinates, and keep track of distances
-        var start = Vec[SIMDInt[simd_width],dim](uninitialized=True)
-        var dists = Vec[SIMD[dtype_coords,simd_width],dim](uninitialized=True)
+        var start = Vec[dim,SIMDInt[simd_width]](uninitialized=True)
+        var dists = Vec[dim,SIMD[dtype_coords,simd_width]](uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             var floor = floor(f[d])
             start[d] = SIMDInt[simd_width](floor)
             dists[d] = f[d] - floor
@@ -270,7 +270,7 @@ struct PrecomputedFFTInterpolationNop[
 
             # apply sample weights based on the distances
             @parameter
-            for d in range(dim.rank):
+            for d in range(dim):
                 var t = SIMD[dtype,Self.num_samples](dists[d][w])
                 var omt = SIMD[dtype,Self.num_samples](1 - dists[d][w])
                 comptime selector = _make_selector[dim,Self.num_samples](d)
@@ -286,7 +286,7 @@ struct PrecomputedFFTInterpolationNop[
 comptime _Selector[num_samples: Int] = SIMD[DType.bool,num_samples]
 
 fn _make_selector[
-    dim: Dimension,
+    dim: Int,
     num_samples: Int
 ](d: Int, out selector: _Selector[num_samples]):
     
@@ -296,15 +296,15 @@ fn _make_selector[
     var s0 = SIMD[DType.bool,2](omt, t)
 
     @parameter
-    if dim.rank == 1:
+    if dim == 1:
         selector = rebind[S](s0)
-    elif dim.rank == 2:
+    elif dim == 2:
         if d == 0:selector = rebind[S](s0.join(s0))
         elif d == 1:
             selector = rebind[S](s0.interleave(s0))
         else:
             selector = abort[S]("d exceeds rank 2")
-    elif dim.rank == 3:
+    elif dim == 3:
         if d == 0:
             var s1 = s0.join(s0)
             selector = rebind[S](s1.join(s1))
@@ -332,15 +332,15 @@ struct VolumeNeighborhoods[
     *,
     dtype_coords: DType = dtype
 ](Movable):
-    var _sizes_real: Vec.D3[Int]
-    var _segments: DimensionalBuffer.D3[Self.Segment]
+    var _sizes_real: Vec[3,Int]
+    var _segments: DimensionalBuffer[3,Self.Segment]
 
     comptime Segment = ComplexSIMD[dtype,simd_width]
     comptime num_neighborhoods_in_segment = simd_width - 1
     # one less nieghborhood, due to needing two pixels per neighborhood
-    comptime deltas = Delta[Dimension.D3,dtype_coords].build()
+    comptime deltas = Delta[3,dtype_coords].build()
 
-    fn __init__(out self, img: FFTImage.D3[dtype]):
+    fn __init__(out self, img: FFTImage[3,dtype]):
 
         self._sizes_real = img.sizes_real.copy()
 
@@ -351,11 +351,11 @@ struct VolumeNeighborhoods[
         var sizes_segments.x() = ceildiv(sizes_fourier.x(), Self.num_neighborhoods_in_segment)
         
         # allocate storage for all the segments
-        self._segments = DimensionalBuffer.D3[Self.Segment](sizes_segments)
+        self._segments = DimensionalBuffer[3,Self.Segment](sizes_segments)
 
         # pack all the segments
         @parameter
-        fn func(s: Vec.D3[Int]):
+        fn func(s: Vec[3,Int]):
 
             var segment = Self.Segment(0, 0)
 
@@ -368,7 +368,7 @@ struct VolumeNeighborhoods[
             for w in range(Self.num_neighborhoods_in_segment):
                 # if the pixel is inside the volume, pack it
                 # (otherwise, leave it zero)
-                var iw = i + Vec.D3(x=w, y=0, z=0)
+                var iw = i + Vec[3](x=w, y=0, z=0)
                 if iw.x() < sizes_fourier.x():
                     var pixel = img.complex[i=iw]
                     segment.re[w] = pixel.re
@@ -381,10 +381,10 @@ struct VolumeNeighborhoods[
         # TEMP: extend lifetimes to work around compiler bug
         _ = sizes_fourier
 
-    fn coords(self) -> FFTCoords[Dimension.D3,origin_of(self._sizes_real)]:
+    fn coords(self) -> FFTCoords[3,origin_of(self._sizes_real)]:
         return FFTCoords(self._sizes_real)
     
-    fn __getitem__(self, *, i: Vec.D3[Int], out segment: Self.Segment):
+    fn __getitem__(self, *, i: Vec[3,Int], out segment: Self.Segment):
         var s = i.copy()
         s.x() //= Self.num_neighborhoods_in_segment
         segment = self._segments[i=s]

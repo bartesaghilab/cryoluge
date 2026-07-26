@@ -1,5 +1,4 @@
 
-from cryoluge.math import Dimension
 from cryoluge.image import ComplexImage
 
 
@@ -26,12 +25,12 @@ struct PhaseFlipOperator:
         # NOTE: mojo True casts to 1 and False to 0
         result = v*sign
 
-    fn apply[dim: Dimension, dtype: DType](
+    fn apply[dim: Int, dtype: DType](
         self,
         mut image: ComplexImage[dim,dtype]
     ):
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             image[i=i] = self.eval(image[i=i])
 
         image.iterate[func]()

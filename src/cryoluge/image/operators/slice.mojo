@@ -1,5 +1,5 @@
 
-from cryoluge.math import Dimension, Vec, Matrix
+from cryoluge.math import Vec, Matrix
 from cryoluge.fft import FFTImage
 
 
@@ -8,17 +8,17 @@ struct SliceOperator[dtype: DType](
     Movable
 ):
 
-    comptime Src = FFTImage[Dimension.D3,dtype]
-    comptime Dst = FFTImage[Dimension.D2,dtype]
+    comptime Src = FFTImage[3,dtype]
+    comptime Dst = FFTImage[2,dtype]
 
-    var _dst_sizes_real: Vec.D2[Int]
+    var _dst_sizes_real: Vec[2,Int]
     var _res_limit2: Float32
 
     fn __init__(
         out self,
         *,
-        src_sizes_real: Vec.D3[Int],
-        dst_sizes_real: Vec.D2[Int],
+        src_sizes_real: Vec[3,Int],
+        dst_sizes_real: Vec[2,Int],
         res_limit: Float32
     ):
         self._dst_sizes_real = dst_sizes_real.copy()
@@ -33,12 +33,12 @@ struct SliceOperator[dtype: DType](
         self,
         *,
         src: Self.Src,
-        rot: Matrix.D3[DType.float32],
-        f: Vec[Int,Self.Dst.dim],
+        rot: Matrix[3,3,DType.float32],
+        f: Vec[Self.Dst.dim,Int],
         origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
         out pixel: ComplexScalar[dtype]
     ):
-        if f == Vec.D2[Int](x=0, y=0):
+        if f == Vec[2,Int](x=0, y=0):
             pixel = origin_value
         else:
 
@@ -64,8 +64,8 @@ struct SliceOperator[dtype: DType](
         self,
         *,
         src: Self.Src,
-        rot: Matrix.D3[DType.float32],
-        i: Vec[Int,Self.Dst.dim],
+        rot: Matrix[3,3,DType.float32],
+        i: Vec[Self.Dst.dim,Int],
         origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
         out pixel: ComplexScalar[dtype]
     ):
@@ -84,8 +84,8 @@ struct SliceOperator[dtype: DType](
         self,
         *,
         src: Self.Src,
-        mut to: FFTImage.D2[dtype],
-        rot: Matrix.D3[DType.float32],
+        mut to: FFTImage[2,dtype],
+        rot: Matrix[3,3,DType.float32],
         origin_value: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
     ):
         @parameter

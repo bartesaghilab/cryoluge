@@ -4,20 +4,17 @@ from algorithm import vectorize
 from sys import simd_width_of
 
 from cryoluge.io import ByteBuffer
-from cryoluge.math import Dimension, ComplexScalar
+from cryoluge.math import ComplexScalar
 from cryoluge.math.error import ErrFn, err_rel
 
 
 struct ComplexImage[
-    dim: Dimension,
+    dim: Int,
     dtype: DType
 ](Copyable, Movable):
     var _buf: DimensionalBuffer[dim,Self.PixelType]
 
-    comptime D1 = ComplexImage[Dimension.D1,_]
-    comptime D2 = ComplexImage[Dimension.D2,_]
-    comptime D3 = ComplexImage[Dimension.D3,_]
-    comptime Vec = Vec[_,dim]
+    comptime Vec = Vec[dim,_]
     comptime PixelType = ComplexScalar[dtype]
     comptime PixelVec = ComplexSIMD[dtype,_]
     comptime ScalarType = Scalar[dtype]
@@ -162,7 +159,7 @@ struct ComplexImage[
         )
 
     # TEMP
-    fn _load[width: Int](self, *, i: Vec[Int,dim], out v: Self.PixelVec[width]):
+    fn _load[width: Int](self, *, i: Vec[dim,Int], out v: Self.PixelVec[width]):
         v = self._load[width](self._buf._offset(i))
 
     fn _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):

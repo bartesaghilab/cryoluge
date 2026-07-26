@@ -27,7 +27,7 @@ def test_read_3d_int8():
         var file_reader = FileReader(f)
         var mrc_reader = Reader(file_reader)
 
-        var img = Image.D3[DType.int8](mrc_reader.size_3())
+        var img = Image[3,DType.int8](mrc_reader.size_3())
         mrc_reader.read_3d_int8(img)
         assert_equal(img.rank(), 3)
         assert_equal(img.sizes().x(), 16)
@@ -52,7 +52,7 @@ def test_read_2d_int8():
         var file_reader = FileReader(f)
         var mrc_reader = Reader(file_reader)
 
-        var img = Image.D2[DType.int8](mrc_reader.size_2())
+        var img = Image[2,DType.int8](mrc_reader.size_2())
         mrc_reader.read_2d_int8(img)
         assert_equal(img.rank(), 2)
         assert_equal(img.sizes().x(), 16)

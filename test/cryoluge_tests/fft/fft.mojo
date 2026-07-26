@@ -15,7 +15,7 @@ comptime funcs = __functions_in_module()
 
 def test_1d_f32_r2c():
 
-    var real = Image.D1[DType.float32](sx=4)
+    var real = Image[1,DType.float32](sx=4)
     var fourier = FFTImage(of=real)
 
     real[x=0] = 1.0
@@ -33,7 +33,7 @@ def test_1d_f32_r2c():
 
 def test_1d_f32_c2r():
 
-    var real = Image.D1[DType.float32](sx=4)
+    var real = Image[1,DType.float32](sx=4)
     var fourier = FFTImage(of=real)
 
     fourier.complex[x=0] = ComplexFloat32( 2.5, 0.0)
@@ -51,7 +51,7 @@ def test_1d_f32_c2r():
 
 def test_2d_f32_r2c():
 
-    var real = Image.D2[DType.float32](sx=2, sy=2)
+    var real = Image[2,DType.float32](sx=2, sy=2)
     var fourier = FFTImage(of=real)
 
     real[x=0, y=0] = 1.0
@@ -70,7 +70,7 @@ def test_2d_f32_r2c():
 
 def test_2d_f32_c2r():
 
-    var real = Image.D2[DType.float32](sx=2, sy=2)
+    var real = Image[2,DType.float32](sx=2, sy=2)
     var fourier = FFTImage(of=real)
 
     fourier.complex[x=0, y=0] = ComplexFloat32( 2.5, 0.0)
@@ -94,7 +94,7 @@ def test_2d_f32_c2r():
 def test_1d_plans():
 
     # just make sure we don't trip any asserts, for now
-    var plans = FFTPlans[DType.float32](Vec.D1(x=32))
+    var plans = FFTPlans[DType.float32](Vec[1](x=32))
     var real = plans.alloc_real()
     real.fill(0)
     var fourier = plans.alloc_fourier()

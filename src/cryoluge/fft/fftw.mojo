@@ -5,7 +5,7 @@ from os import abort
 from complex import ComplexFloat32
 from memory import ArcPointer
 
-from cryoluge.math import Dimension, Vec, unrecognized_dimension
+from cryoluge.math import Vec, unrecognized_dimension
 from cryoluge.image import Image
 from cryoluge.sync import Mutex
 
@@ -59,7 +59,7 @@ struct FFTDirection(
 
 
 struct FFTPlan[
-    dim: Dimension,
+    dim: Int,
     dtype: DType,
     direction: FFTDirection
 ](
@@ -129,7 +129,7 @@ struct FFTPlan[
         fourier: FFTImage[dim,dtype]
     ) -> Self.PlanPtr:
         @parameter
-        if dim == Dimension.D1:
+        if dim == 1:
 
             @parameter
             if direction == FFTDirection.R2C:
@@ -155,7 +155,7 @@ struct FFTPlan[
             else:
                 return _unrecognized_direction[direction,Self.PlanPtr]()
 
-        elif dim == Dimension.D2:
+        elif dim == 2:
 
             @parameter
             if direction == FFTDirection.R2C:
@@ -183,7 +183,7 @@ struct FFTPlan[
             else:
                 return _unrecognized_direction[direction,Self.PlanPtr]()
 
-        elif dim == Dimension.D3:
+        elif dim == 3:
 
             @parameter
             if direction == FFTDirection.R2C:
@@ -312,7 +312,7 @@ fn _fftw_prefix[dtype: DType]() -> StaticString:
 
 @fieldwise_init
 struct _ImageInfo[
-    dim: Dimension
+    dim: Int
 ](
     Copyable,
     Movable,
@@ -320,7 +320,7 @@ struct _ImageInfo[
     Writable,
     Stringable
 ):
-    var size: Vec[Int,dim]
+    var size: Vec[dim,Int]
     var alignment: Int
 
     fn __eq__(self, other: Self) -> Bool:
@@ -339,13 +339,13 @@ struct _ImageInfo[
 
 struct FFTPlans[
     dtype: DType,
-    dim: Dimension
+    dim: Int
 ](
     Movable
 ):
     var alignment: Int
-    var sizes_real: Vec[Int,dim]
-    var sizes_fourier: Vec[Int,dim]
+    var sizes_real: Vec[dim,Int]
+    var sizes_fourier: Vec[dim,Int]
     var r2c: FFTPlan.R2C[dim,dtype]
     var c2r: FFTPlan.C2R[dim,dtype]
     """
@@ -356,7 +356,7 @@ struct FFTPlans[
 
     fn __init__(
         out self,
-        sizes_real: Vec[Int,dim],
+        sizes_real: Vec[dim,Int],
         *,
         mutex: Optional[ArcPointer[Mutex]] = None
     ) raises:

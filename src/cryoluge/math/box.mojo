@@ -1,9 +1,9 @@
 
-from cryoluge.math import Dimension, Vec, Matrix
+from cryoluge.math import Vec, Matrix
 
 
 struct AlignedBox[
-    dim: Dimension,
+    dim: Int,
     dtype: DType
 ](
     Copyable,
@@ -14,7 +14,23 @@ struct AlignedBox[
     var origin: Self.Vec
     var sizes: Self.Vec
 
-    comptime Vec = Vec[Scalar[dtype],dim]
+    comptime Vec = Vec[dim,Scalar[dtype]]
+
+    @staticmethod
+    fn unit_corners(out corners: List[Vec[dim,Scalar[dtype]]]):
+        """
+        Return a list of vectors pointing to each corner of the unit box.
+        """
+
+        # start with the zero vec
+        corners = [Vec[dim,Scalar[dtype]](fill=0)]
+
+        # add the other deltas by flipping 0s to 1s
+        for d in range(dim):
+            for i in range(len(corners)):
+                var corner = corners[i].copy()
+                corner[d] = 1
+                corners.append(corner^)
 
     fn __init__(out self, *, origin: Self.Vec, sizes: Self.Vec):
         self.origin = origin.copy()
@@ -29,24 +45,24 @@ struct AlignedBox[
 
 
 struct OrientedBox[
-    dim: Dimension,
+    dim: Int,
     dtype: DType
 ](
     Copyable,
     Movable
 ):
     var aligned: AlignedBox[dim,dtype]
-    var orientation: Matrix[dim.rank,dim.rank,dtype]
+    var orientation: Matrix[dim,dim,dtype]
     """A rotation matrix."""
 
-    comptime Vec = Vec[Scalar[dtype],dim]
+    comptime Vec = Vec[dim,Scalar[dtype]]
 
     fn __init__(
         out self,
         *,
         origin: Self.Vec,
         sizes: Self.Vec,
-        orientation: Matrix[dim.rank,dim.rank,dtype]
+        orientation: Matrix[dim,dim,dtype]
     ):
         self.aligned = AlignedBox(origin=origin, sizes=sizes)
         self.orientation = orientation.copy()
@@ -59,9 +75,8 @@ struct OrientedBox[
         
         # iterate over all the corners of the box to find the min and max extents
         @parameter
-        for _corner_vec in Dimension.unit_corners[dim]():
-            var corner_vec = materialize[_corner_vec]().map_scalar[dtype]()
-            var corner = self.aligned.origin + self.orientation*corner_vec
+        for corner_vec in AlignedBox[dim,dtype].unit_corners():
+            var corner = self.aligned.origin + self.orientation*materialize[corner_vec]()
             min = min.min(corner)
             max = max.max(corner)
 

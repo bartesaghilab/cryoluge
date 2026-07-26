@@ -18,7 +18,7 @@ struct SSNR[dtype: DType](
     var _values: List[Scalar[dtype]]
     var _res_factor: Ang[dtype]
 
-    fn __init__[dim: Dimension](
+    fn __init__[dim: Int](
         out self,
         shells: FourierShells[dim],
         pixel_size: Ang[dtype]

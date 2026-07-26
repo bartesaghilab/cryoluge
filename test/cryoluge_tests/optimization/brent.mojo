@@ -1,7 +1,7 @@
 
 from testing import assert_equal, assert_true, assert_false
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.math.error import err_abs
 from cryoluge.optimization import ObjectiveInfo, Coord, Value, brent, BrentLineSearch
 
@@ -20,7 +20,7 @@ def test_quadratic():
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
-        dim = Dimension.D1
+        dim = 1
     )
     @parameter
     fn f(x: Coord[info], out fx: Value[info]):
@@ -44,7 +44,7 @@ def test_line_search():
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
-        dim = Dimension.D1
+        dim = 1
     )
     @parameter
     fn f(x: Coord[info], out fx: Value[info]):

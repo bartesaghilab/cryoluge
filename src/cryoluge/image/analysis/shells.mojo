@@ -1,11 +1,11 @@
 
 from math import sqrt
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.fft import FFTCoords
 
 
-struct FourierShells[dim: Dimension](
+struct FourierShells[dim: Int](
     Copyable,
     Movable,
     Sized
@@ -30,12 +30,9 @@ struct FourierShells[dim: Dimension](
     var count_at_unity: Int
     """The number of shells in the frequency range [0,1]."""
 
-    comptime D2 = FourierShells[Dimension.D2]
-    comptime D3 = FourierShells[Dimension.D3]
-
     fn __init__(out self, *, size_real: Int):
         """Creates a number of Fourier shells equal to the Fourier half-width in pixels, including the center."""
-        var sizes = Vec.D1(x=size_real)
+        var sizes = Vec[1](x=size_real)
         var coords = FFTCoords(sizes)
         self = Self(
             count = coords.sizes_fourier().x()
@@ -81,7 +78,7 @@ struct FourierShells[dim: Dimension](
 
     fn freq_max[dtype: DType](self, out freq_max: Scalar[dtype]):
         """Returns the frequency at the corner of Fourier space farthest from the center."""
-        freq_max = sqrt(Scalar[dtype](dim.rank))/2
+        freq_max = sqrt(Scalar[dtype](dim))/2
     
     fn shelli_max(self, out shelli_max: Int):
         """Returns the index of the Fourier shell at the corner of Fourier space farthest from the center."""

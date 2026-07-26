@@ -1,7 +1,7 @@
 
 from testing import assert_equal, assert_true, assert_false
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.math.error import err_abs
 from cryoluge.optimization import ObjectiveInfo, Coord, Coords, Value, BrentLineSearch, ccd, CCDMinimizer
 
@@ -20,7 +20,7 @@ def test_quadratic():
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
-        dim = Dimension.D1
+        dim = 1
     )
     @parameter
     fn f(x: Coords[info], out fx: Value[info]):
@@ -48,7 +48,7 @@ def test_biquadratic():
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
-        dim = Dimension.D2
+        dim = 2
     )
     @parameter
     fn f(x: Coords[info], out fx: Value[info]):
@@ -77,7 +77,7 @@ def test_minimizer():
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
-        dim = Dimension.D2
+        dim = 2
     )
     @parameter
     fn f(x: Coords[info], out fx: Value[info]):

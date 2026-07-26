@@ -1,9 +1,9 @@
 
-from cryoluge.math import Dimension, Vec, is_odd
+from cryoluge.math import Vec, is_odd
 
 
 struct FFTCoords[
-    dim: Dimension,
+    dim: Int,
     origin: Origin[mut=False]
 ](
     Copyable,
@@ -32,7 +32,7 @@ struct FFTCoords[
 
     var _sizes_real: Pointer[Self.Vec, origin]
 
-    comptime Vec = Vec[Int,dim]
+    comptime Vec = Vec[dim,Int]
 
     fn __init__(out self, ref [origin] sizes_real: Self.Vec):
         self._sizes_real = Pointer(to=sizes_real)
@@ -52,7 +52,7 @@ struct FFTCoords[
     fn sizes_fourier(self, out sizes_fourier: Self.Vec):
         sizes_fourier = Self.Vec(uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             sizes_fourier[d] = self.size_fourier[d]()
 
     @always_inline
@@ -78,7 +78,7 @@ struct FFTCoords[
         """Returns the lower bound (inclusive) on fourier coordinates."""
         fmin = Self.Vec(uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             fmin[d] = self.fmin[d]()
 
     @always_inline
@@ -94,7 +94,7 @@ struct FFTCoords[
         """Returns the upper bound (inclusive) on fourier coordinates."""
         fmax = Self.Vec(uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             fmax[d] = self.fmax[d]()
 
     @always_inline
@@ -108,7 +108,7 @@ struct FFTCoords[
     @always_inline
     fn f_in_range(self, f: Self.Vec) -> Bool:
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             if not self.f_in_range[d](f[d]):
                 return False
         return True
@@ -133,7 +133,7 @@ struct FFTCoords[
 
         i[0] = _f[0]
         @parameter
-        for d in range(1, dim.rank):
+        for d in range(1, dim):
             if _f[d] < 0:
                 i[d] = _f[d] + self.size_fourier[d]()
             else:
@@ -166,7 +166,7 @@ struct FFTCoords[
         # no transformation needed for x
         # but apply the transformation to y,z
         @parameter
-        for d in range(1, dim.rank):
+        for d in range(1, dim):
             if i[d] >= self._pivot[d]():
                 f[d] -= self.size_fourier[d]()
 
@@ -174,8 +174,8 @@ struct FFTCoords[
     fn freqs[dtype: DType](
         self,
         *,
-        f: Vec[Int,dim],
-        out freqs: Vec[Scalar[dtype],dim]
+        f: Vec[dim,Int],
+        out freqs: Vec[dim,Scalar[dtype]]
     ):
         """Returns the normalized frequencies of the Fourier coordinates."""
         var f_dt = f.map_scalar[dtype]()
@@ -185,8 +185,8 @@ struct FFTCoords[
     fn freqs[dtype: DType](
         self,
         *,
-        f: Vec[Scalar[dtype],dim],
-        out freqs: Vec[Scalar[dtype],dim]
+        f: Vec[dim,Scalar[dtype]],
+        out freqs: Vec[dim,Scalar[dtype]]
     ):
         """Returns the normalized frequencies of the Fourier coordinates."""
         var sizes_real_dt = self.sizes_real().map_scalar[dtype]()
@@ -198,8 +198,8 @@ struct FFTCoords[
     fn freqs[dtype: DType](
         self,
         *,
-        i: Vec[Int,dim],
-        out freqs: Vec[Scalar[dtype],dim]
+        i: Vec[dim,Int],
+        out freqs: Vec[dim,Scalar[dtype]]
     ):
         """Returns the normalized frequencies of the image coordinates."""
         freqs = self.freqs[dtype](f=self.i2f(i))
@@ -213,7 +213,7 @@ struct FFTCoords[
 
 
 struct FFTCoordsFull[
-    dim: Dimension,
+    dim: Int,
     origin: Origin[mut=False]
 ](
     Copyable,
@@ -233,7 +233,7 @@ struct FFTCoordsFull[
 
     var _sizes_real: Pointer[Self.Vec, origin]
 
-    comptime Vec = Vec[Int,dim]
+    comptime Vec = Vec[dim,Int]
 
     fn __init__(out self, ref [origin] sizes_real: Self.Vec):
         self._sizes_real = Pointer(to=sizes_real)
@@ -256,7 +256,7 @@ struct FFTCoordsFull[
     fn sizes_fourier(self, out sizes_fourier: Self.Vec):
         sizes_fourier = Self.Vec(uninitialized=True)
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             sizes_fourier[d] = self.size_fourier[d]()
 
     @always_inline
@@ -305,7 +305,7 @@ struct FFTCoordsFull[
         i = Self.Vec(uninitialized=True)
 
         @parameter
-        for d in range(dim.rank):
+        for d in range(dim):
             if f[d] < 0:
                 i[d] = f[d] + self.size_fourier[d]()
             else:
@@ -322,7 +322,7 @@ struct FFTCoordsFull[
         f = Self.Vec(uninitialized=True)
 
         @parameter
-        for d in range(0, dim.rank):
+        for d in range(0, dim):
             if i[d] >= self._pivot[d]():
                 f[d] = i[d] - self.size_fourier[d]()
             else:
@@ -331,15 +331,15 @@ struct FFTCoordsFull[
     fn freqs[dtype: DType](
         self,
         *,
-        f: Vec[Int,dim],
-        out freqs: Vec[Scalar[dtype],dim]
+        f: Vec[dim,Int],
+        out freqs: Vec[dim,Scalar[dtype]]
     ):
         freqs = self._half().freqs[dtype](f=f)
 
     fn freqs[dtype: DType](
         self,
         *,
-        i: Vec[Int,dim],
-        out freqs: Vec[Scalar[dtype],dim]
+        i: Vec[dim,Int],
+        out freqs: Vec[dim,Scalar[dtype]]
     ):
         freqs = self._half().freqs[dtype](i=i)

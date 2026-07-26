@@ -1,19 +1,19 @@
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 from cryoluge.math.units import Px
 
 
-struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Dimension]:
+struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Int]:
 
     var phase_shift_op: PhaseShiftOperator[dtype,dim]
 
     @staticmethod
-    fn shifts(sizes_real: Vec[Int,dim], out result: Vec[Px[dtype],dim]):
+    fn shifts(sizes_real: Vec[dim,Int], out result: Vec[dim,Px[dtype]]):
         result = sizes_real.map_scalar[dtype]().map_unit[Px.utype]()/2
 
     fn __init__(
         out self,
-        sizes_real: Vec[Int,dim]
+        sizes_real: Vec[dim,Int]
     ):
         self.phase_shift_op = PhaseShiftOperator[dtype](
             sizes_real=sizes_real.copy(),
@@ -23,7 +23,7 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Dimension]:
     fn eval(
         self,
         *,
-        f: Vec[Int,dim],
+        f: Vec[dim,Int],
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
@@ -36,7 +36,7 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Dimension]:
         var coords = img.coords()
 
         @parameter
-        fn func(i: Vec[Int,dim]):
+        fn func(i: Vec[dim,Int]):
             var f = coords.i2f(i)
             img.complex[i=i] = self.eval(f=f, v=img.complex[i=i])
 

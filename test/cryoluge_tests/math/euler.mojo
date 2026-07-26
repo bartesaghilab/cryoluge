@@ -24,7 +24,7 @@ def test_mat_roundtrip():
         exp: Optional[EulerAnglesZYZ[dtype]] = None,
         eps: Scalar[dtype] = 1e-5
     ):
-        var mat = Matrix.D3[dtype](uninitialized=True)
+        var mat = Matrix[3,3,dtype](uninitialized=True)
         euler.to_matrix(mat)
         var obs = EulerAnglesZYZ(from_mat=mat)
         assert_equal_angles(obs, exp.or_else(euler), eps=eps)

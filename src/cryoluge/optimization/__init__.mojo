@@ -1,5 +1,5 @@
 
-from cryoluge.math import Dimension, Vec
+from cryoluge.math import Vec
 
 from ._golden_section import *
 from ._brent import *
@@ -11,14 +11,14 @@ from ._powell import *
 struct ObjectiveInfo:
     var dtype_coord: DType
     var dtype_value: DType
-    var dim: Dimension
+    var dim: Int
 
     fn d1(self, out info_1d: ObjectiveInfo):
-        info_1d = Self(self.dtype_coord, self.dtype_value, Dimension.D1)
+        info_1d = Self(self.dtype_coord, self.dtype_value, 1)
 
 
 comptime Coord[info: ObjectiveInfo] = Scalar[info.dtype_coord]
-comptime Coords[info: ObjectiveInfo] = Vec[Coord[info],info.dim]
+comptime Coords[info: ObjectiveInfo] = Vec[info.dim,Coord[info]]
 comptime Value[info: ObjectiveInfo] = Scalar[info.dtype_value]
 
 

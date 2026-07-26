@@ -8,12 +8,12 @@ from cryoluge.math import Matrix, Vec
 comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float32
-comptime M1 = Matrix.D1[dtype]
-comptime M2 = Matrix.D2[dtype]
-comptime M3 = Matrix.D3[dtype]
-comptime V1 = Vec.D1[Scalar[dtype]]
-comptime V2 = Vec.D2[Scalar[dtype]]
-comptime V3 = Vec.D3[Scalar[dtype]]
+comptime M1 = Matrix[1,1,dtype]
+comptime M2 = Matrix[2,2,dtype]
+comptime M3 = Matrix[3,3,dtype]
+comptime V1 = Vec[1,Scalar[dtype]]
+comptime V2 = Vec[2,Scalar[dtype]]
+comptime V3 = Vec[3,Scalar[dtype]]
 
 
 def test_mul_1x1():

@@ -12,7 +12,7 @@ comptime funcs = __functions_in_module()
 def test_multiply_4():
     # should be evenly-divisible by one vector instruction, with no draining
 
-    var fourier = ComplexImage.D1[DType.float32](Vec.D1(x=4))
+    var fourier = ComplexImage[1,DType.float32](Vec[1](x=4))
 
     fourier[x=0] = ComplexFloat32(1.0, 2.0)
     fourier[x=1] = ComplexFloat32(3.0, 4.0)
@@ -30,7 +30,7 @@ def test_multiply_4():
 def test_multiply_5():
     # should require one vector instruction, and drain with one scalar instruction
 
-    var fourier = ComplexImage.D1[DType.float32](Vec.D1(x=5))
+    var fourier = ComplexImage[1,DType.float32](Vec[1](x=5))
 
     fourier[x=0] = ComplexFloat32(1.0, 2.0)
     fourier[x=1] = ComplexFloat32(3.0, 4.0)
@@ -50,8 +50,8 @@ def test_multiply_5():
 def test_multiply_max():
     # should require one vector instruction, with no draining
 
-    comptime max_width = ComplexImage.D1[DType.float32].pixel_vec_max_width
-    var fourier = ComplexImage.D1[DType.float32](Vec.D1(x=max_width))
+    comptime max_width = ComplexImage[1,DType.float32].pixel_vec_max_width
+    var fourier = ComplexImage[1,DType.float32](Vec[1](x=max_width))
 
     @parameter
     for i in range(max_width):
