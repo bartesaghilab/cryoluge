@@ -24,6 +24,12 @@ struct WeightBySSNROperator[
     ):
         self.shells = Pointer(to=shells)
 
+        # check the SSNR size
+        debug_assert(
+            len(ssnr) == len(shells),
+            "SSNR entry count (", len(ssnr), ") doesn't match fourier shell count (", len(shells), ")"
+        )
+
         # compute the scale factor (ratio of particle area to image area)
         var particle = SphericalParticle(mass_kda=mass_kda)
         var particle_area_px = particle.cross_area_a().to_px(pixel_size**2)

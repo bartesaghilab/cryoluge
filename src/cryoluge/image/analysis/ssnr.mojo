@@ -7,7 +7,8 @@ from cryoluge.model import SphericalParticle
 
 struct SSNR[dtype: DType](
     Copyable,
-    Movable
+    Movable,
+    Sized
 ):
     """
     Spectral Signal-to-Noise Ratio
@@ -23,7 +24,7 @@ struct SSNR[dtype: DType](
         shells: FourierShells[dim],
         pixel_size: Ang[dtype]
     ):
-        self._values = List[Scalar[dtype]](length=shells.shelli_max(), fill=Scalar[dtype](0))
+        self._values = List[Scalar[dtype]](length=len(shells), fill=Scalar[dtype](0))
         self._res_factor = Ang[dtype](shells.count_at_unity)*pixel_size
     
     fn resolution(self, shelli: Int) -> Ang[dtype]:
@@ -82,6 +83,9 @@ struct SSNR[dtype: DType](
             # Approximate formula derived from part_SSNR curve for VSV-L
             var resolution = self.resolution(shelli).value
             self._values[shelli] = precalc_1*(800*exp(-3.5*diameter_a/resolution) + exp(-25.0/resolution))
+
+    fn __len__(self) -> Int:
+        return len(self._values)
 
     fn __getitem__(self, shelli: Int) -> Scalar[dtype]:
         return self._values[shelli]
