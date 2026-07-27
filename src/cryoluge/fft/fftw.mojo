@@ -338,8 +338,8 @@ struct _ImageInfo[
 
 
 struct FFTPlans[
-    dtype: DType,
-    dim: Int
+    dim: Int,
+    dtype: DType
 ](
     Movable
 ):

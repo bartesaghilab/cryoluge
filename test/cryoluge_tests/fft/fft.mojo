@@ -94,7 +94,7 @@ def test_2d_f32_c2r():
 def test_1d_plans():
 
     # just make sure we don't trip any asserts, for now
-    var plans = FFTPlans[DType.float32](Vec[1](x=32))
+    var plans = FFTPlans[1,DType.float32](Vec[1](x=32))
     var real = plans.alloc_real()
     real.fill(0)
     var fourier = plans.alloc_fourier()
