@@ -461,7 +461,7 @@ def test_plerp_3d_big_even():
                 check(Coords3(x=fx, y=fy, z=fz))
 
 
-def test_scan():
+def test_scan_even():
     _test_scan(
         img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
         proj_to_volume = make_rot(5, 7, 9),
@@ -469,7 +469,7 @@ def test_scan():
     )
 
 
-def test_scan_more_rot():
+def test_scan_even_more_rot():
     _test_scan(
         img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
         proj_to_volume = make_rot(30, 40, 50),
@@ -477,7 +477,7 @@ def test_scan_more_rot():
     )
 
 
-def test_scan_bigger_proj():
+def test_scan_even_bigger_proj():
     _test_scan(
         img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
         proj_to_volume = make_rot(5, 7, 9),

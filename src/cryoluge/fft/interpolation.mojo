@@ -563,13 +563,8 @@ struct VolumeNeighborhoods[
                                     # make the sample point
                                     var sf_pi = Vec[2](x=xs, y=ys)
 
-                                    # apply the filter
-                                    if not filter(sf_pi):
-                                        continue
-
-                                    # TODO: move to filter
                                     # check the projection bounds
-                                    if coords_proj.maybe_f2i(sf_pi) is None:
+                                    if not coords_proj.f_in_range(sf_pi):
                                         # nope: skip this sample
                                         # TEMP
                                         if debug_v:
@@ -577,17 +572,9 @@ struct VolumeNeighborhoods[
                                         continue
                                     var sf_pf = sf_pi.map_scalar[dtype]()
 
-                                    # TODO: move to filter
-                                    # # check the frequency limits
-                                    # var freq2 = coords_proj.freqs(f=sf_pf).len2()
-                                    # # TODO: use the FrequencyLimits instance
-                                    # # TODO: can alternatively do this on the reference volume, right?
-                                    # if freq2 < 0.011560549 or freq2 > 0.23885429:
-                                    #     # out of frequency range: skip this sample
-                                    #     # TEMP
-                                    #     if debug_v:
-                                    #         print("\tskip: freq2=", freq2, " out of range")
-                                    #     continue
+                                    # apply the filter
+                                    if not filter(sf_pi):
+                                        continue
 
                                     # transform back into reference volume space to check voxel intersection
                                     # (easier there since voxels are axis-aligned in reference volume space)

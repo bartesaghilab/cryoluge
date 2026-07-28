@@ -44,8 +44,7 @@ struct AlignedBox[
         )
 
     fn corner(self, dir: Vec[dim,Scalar[dtype]]) -> Self.Vec:
-        var scaled_dir = dir*self.sizes
-        return self.origin + scaled_dir
+        return self.origin + dir*self.sizes
 
     fn max(self, out max: Self.Vec):
         max = self.origin + self.sizes
