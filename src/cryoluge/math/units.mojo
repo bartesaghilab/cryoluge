@@ -1,5 +1,5 @@
 
-from math import sin, cos, tan, asin, acos, atan2, pi as pi_std, sqrt
+from math import sin, cos, tan, asin, acos, atan2, pi as pi_std, sqrt, floor, ceil
 
 
 @fieldwise_init
@@ -475,6 +475,12 @@ struct Unit[
 
     fn abs(self) -> Self:
         return Self(abs(self.value))
+
+    fn floor(self) -> Self:
+        return Self(floor(self.value))
+
+    fn ceil(self) -> Self:
+        return Self(ceil(self.value))
 
     # TODO: dist? that works on everything but angles?
     

@@ -46,6 +46,64 @@ def test_unit_corners():
     assert_equal(len(corners3), 8)
 
 
+def test_oriented_corners():
+
+    # 1D is kind of trivial, but whatever
+    var obb1 = OrientedBox(
+        origin = V1(x=0),
+        sizes = V1(x=1),
+        orientation = M1.identity()
+    )
+    assert_equal(obb1.corner(V1(x=0)), V1(x=0))
+    assert_equal(obb1.corner(V1(x=1)), V1(x=1))
+
+    # test 2D, identity
+    var obb2 = OrientedBox(
+        origin = V2(x=0, y=0),
+        sizes = V2(x=1, y=1),
+        orientation = M2.identity()
+    )
+    assert_equal(obb2.corner(V2(x=0, y=0)), V2(x=0, y=0))
+    assert_equal(obb2.corner(V2(x=1, y=0)), V2(x=1, y=0))
+    assert_equal(obb2.corner(V2(x=0, y=1)), V2(x=0, y=1))
+    assert_equal(obb2.corner(V2(x=1, y=1)), V2(x=1, y=1))
+
+    # test 2D, scaled
+    var obb3 = OrientedBox(
+        origin = V2(x=0, y=0),
+        sizes = V2(x=5, y=7),
+        orientation = M2.identity()
+    )
+    assert_equal(obb3.corner(V2(x=0, y=0)), V2(x=0, y=0))
+    assert_equal(obb3.corner(V2(x=1, y=0)), V2(x=5, y=0))
+    assert_equal(obb3.corner(V2(x=0, y=1)), V2(x=0, y=7))
+    assert_equal(obb3.corner(V2(x=1, y=1)), V2(x=5, y=7))
+
+    # test 2D, rotated
+    var obb4 = OrientedBox(
+        origin = V2(x=0, y=0),
+        sizes = V2(x=1, y=1),
+        orientation = M2(rotate=Deg[dtype](30))
+    )
+    var r3o2 = sqrt(Scalar[dtype](3))/2
+    var h = Scalar[dtype](0.5)
+    assert_equal(obb4.corner(V2(x=0, y=0)), V2(x=0, y=0))
+    assert_equal(obb4.corner(V2(x=1, y=0)), V2(x=r3o2, y=h))
+    assert_equal(obb4.corner(V2(x=0, y=1)), V2(x=-h, y=r3o2))
+    assert_equal(obb4.corner(V2(x=1, y=1)), V2(x=r3o2-h, y=h+r3o2))
+
+    # test 2D, translated, rotated
+    var obb5 = OrientedBox(
+        origin = V2(x=5, y=7),
+        sizes = V2(x=1, y=1),
+        orientation = M2(rotate=Deg[dtype](30))
+    )
+    assert_equal(obb5.corner(V2(x=0, y=0)), V2(x=5, y=7))
+    assert_equal(obb5.corner(V2(x=1, y=0)), V2(x=5+r3o2, y=7+h))
+    assert_equal(obb5.corner(V2(x=0, y=1)), V2(x=5-h, y=7+r3o2))
+    assert_equal(obb5.corner(V2(x=1, y=1)), V2(x=5+r3o2-h, y=7+h+r3o2 + 1e-6))
+
+
 def test_oriented_bound():
 
     # 1D is kind of trivial, but whatever
@@ -68,10 +126,10 @@ def test_oriented_bound():
     assert_equal(aabb2.origin, V2(x=0, y=0))
     assert_equal(aabb2.sizes, V2(x=1, y=1))
 
-    # test 2D, non-trivial rotation
+    # test 2D, rotated
     var obb3 = OrientedBox(
         origin = V2(x=0, y=0),
-        sizes = V2(x=1, y=2),
+        sizes = V2(x=1, y=1),
         orientation = M2(rotate=Deg[dtype](30))
     )
     var aabb3 = obb3.bounding_box()

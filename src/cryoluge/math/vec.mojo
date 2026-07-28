@@ -1,5 +1,5 @@
 
-from math import sqrt
+from math import sqrt, floor, ceil
 from utils.numerics import isnan
 
 from cryoluge.math import unrecognized_dimension
@@ -699,7 +699,72 @@ struct Vec[
         fn func(i: Unit[utype,dtype]) -> Unit[utype,dtype]:
             return i.abs()
         result = self.map[mapper=func]()
-        
+
+    fn floor[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
+        @parameter
+        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
+            return floor(i)
+        result = self.map[mapper=func]()
+
+    fn floor[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], out result: Vec[dim,Unit[utype,dtype]]):
+        @parameter
+        fn func(i: Unit[utype,dtype]) -> Unit[utype,dtype]:
+            return i.floor()
+        result = self.map[mapper=func]()
+
+    fn ceil[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
+        @parameter
+        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
+            return ceil(i)
+        result = self.map[mapper=func]()
+
+    fn ceil[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], out result: Vec[dim,Unit[utype,dtype]]):
+        @parameter
+        fn func(i: Unit[utype,dtype]) -> Unit[utype,dtype]:
+            return i.ceil()
+        result = self.map[mapper=func]()
+
+    # comparisons
+    # NOTE: don't use operator overloads, since we need to explicitly pick all or any aggregators
+
+    fn lt_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] < other[d]
+
+    fn lt_any[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] < other[d]
+
+    fn le_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] <= other[d]
+
+    fn gt_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] > other[d]
+
+    fn ge_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] >= other[d]
+
+    fn ge_any[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] >= other[d]
+
+    # TODO: other comparisons
+
     # mappings
 
     fn map[

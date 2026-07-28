@@ -43,6 +43,9 @@ struct AlignedBox[
             sizes = max - min
         )
 
+    fn max(self, out max: Self.Vec):
+        max = self.origin + self.sizes
+
 
 struct OrientedBox[
     dim: Int,
@@ -67,6 +70,13 @@ struct OrientedBox[
         self.aligned = AlignedBox(origin=origin, sizes=sizes)
         self.orientation = orientation.copy()
 
+    fn sizes(ref self) -> ref [origin_of(self.aligned.sizes)] Self.Vec:
+        return self.aligned.sizes
+
+    fn corner(self, dir: Vec[dim,Scalar[dtype]]) -> Self.Vec:
+        var scaled_dir = dir*self.aligned.sizes
+        return self.aligned.origin + self.orientation*scaled_dir
+
     fn bounding_box(self) -> AlignedBox[dim,dtype]:
 
         # start with the origin
@@ -75,8 +85,8 @@ struct OrientedBox[
         
         # iterate over all the corners of the box to find the min and max extents
         @parameter
-        for corner_vec in AlignedBox[dim,dtype].unit_corners():
-            var corner = self.aligned.origin + self.orientation*materialize[corner_vec]()
+        for dir in AlignedBox[dim,dtype].unit_corners():
+            var corner = self.corner(materialize[dir]())
             min = min.min(corner)
             max = max.max(corner)
 

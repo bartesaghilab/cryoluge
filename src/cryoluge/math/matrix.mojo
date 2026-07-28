@@ -234,6 +234,18 @@ struct Matrix[
                 v += self[d,i]*vec[i]
             result[d] = v
 
+    fn __mul__(
+        self,
+        f: Scalar[dtype],
+        out result: Self
+    ):
+        result = Self(uninitialized=True)
+        @parameter
+        for r in range(rows):
+            @parameter
+            for c in range(cols):
+                result[r,c] = self[r,c]*f
+    
     fn __mul__[dim: Int, utype: UnitType](
         self,
         vec: Vec[dim,Unit[utype,dtype]],
