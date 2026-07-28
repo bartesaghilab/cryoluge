@@ -1,7 +1,7 @@
 
 from complex import ComplexScalar
 
-from cryoluge.math import EulerAnglesZYZ
+from cryoluge.math import EulerAnglesZYZ, Vec
 from cryoluge.math.error import ErrFn, err, is_err_small
 
 from testing import assert_equal, assert_true
@@ -88,6 +88,31 @@ def assert_equal_float[dtype: DType, //, err_fn: ErrFn[dtype]](
             "\tobserved: ", obs, "\n",
             "\texpected: ", exp, "\n",
             "\t     err: ", err
+        ),
+        location=location.or_else(__call_location())
+    )
+
+
+@always_inline
+def assert_equal_float[dim: Int, dtype: DType, //, err_fn: ErrFn[dtype]](
+    obs: Vec[dim,Scalar[dtype]],
+    exp: Vec[dim,Scalar[dtype]],
+    msg: Optional[String] = None,
+    *,
+    eps: Scalar[dtype] = 1e-5,
+    location: Optional[_SourceLocation] = None
+):
+    var err_sum = Scalar[dtype](0)
+    @parameter
+    for d in range(dim):
+        err_sum += err[dtype,err_fn](obs[d], exp[d])
+    assert_true(
+        is_err_small(err_sum, eps=eps),
+        String("Floats mismatch!\n",
+            String("\t     msg: ", msg.value(), "\n") if msg is not None else "",
+            "\tobserved: ", obs, "\n",
+            "\texpected: ", exp, "\n",
+            "\t     err: ", err_sum
         ),
         location=location.or_else(__call_location())
     )

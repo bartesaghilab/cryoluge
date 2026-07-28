@@ -390,6 +390,12 @@ struct Vec[
         for d in range(dim):
             result[d] = self[d] * other[d]
 
+    fn __mul__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Int], out result: Vec[dim,Scalar[dtype]]):
+        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d] * other[d]
+
     fn __mul__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
         result = self * Vec[dim,Scalar[dtype]](fill=other)
 
