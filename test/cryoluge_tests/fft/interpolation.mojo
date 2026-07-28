@@ -3,9 +3,10 @@ from complex import ComplexScalar
 from testing import assert_equal
 from builtin._location import __call_location
 
-from cryoluge.math import Vec
+from cryoluge.math import Vec, Matrix, EulerAnglesZYZ
+from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
-from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior
+from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods
 from cryoluge.test import assert_equal_float
 
 
@@ -352,14 +353,12 @@ def test_plerp_2d_big_odd():
 
     var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
 
-    @always_inline
     @parameter
     def check(f: Coords2):
         assert_equal_float[err_fn](
             plerp.get(f=f),
             img.get(f_lerp=f),
-            String("f=", f),
-            location=__call_location()
+            String("f=", f)
         )
 
     # sample finely in frequency space
@@ -382,14 +381,12 @@ def test_plerp_2d_big_even():
 
     var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
 
-    @always_inline
     @parameter
     def check(f: Coords2):
         assert_equal_float[err_fn](
             plerp.get(f=f),
             img.get(f_lerp=f),
-            String("f=", f),
-            location=__call_location()
+            String("f=", f)
         )
 
     # sample finely in frequency space
@@ -412,15 +409,13 @@ def test_plerp_3d_big_odd():
 
     var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
 
-    @always_inline
     @parameter
     def check(f: Coords3):
         assert_equal_float[err_fn](
             plerp.get(f=f),
             img.get(f_lerp=f),
             String("f=", f),
-            eps=1e-4,
-            location=__call_location()
+            eps=1e-4
         )
 
     # sample finely in frequency space
@@ -445,15 +440,13 @@ def test_plerp_3d_big_even():
 
     var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
 
-    @always_inline
     @parameter
     def check(f: Coords3):
         assert_equal_float[err_fn](
             plerp.get(f=f),
             img.get(f_lerp=f),
             String("f=", f),
-            eps=1e-4,
-            location=__call_location()
+            eps=1e-4
         )
 
     # sample finely in frequency space
@@ -466,6 +459,120 @@ def test_plerp_3d_big_even():
             for x in range(NUM_SAMPLES):
                 var fx = sample_range[NUM_SAMPLES, d=0](coords, x)
                 check(Coords3(x=fx, y=fy, z=fz))
+
+
+def test_scan():
+    _test_scan(
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_more_rot():
+    _test_scan(
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(30, 40, 50),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_bigger_proj():
+    _test_scan(
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=9, y=9)
+    )
+
+
+def _test_scan(
+    *,
+    var img: FFTImage[3,dtype],
+    sizes_real_proj: Vec[2,Int],
+    proj_to_volume: Matrix[3,3,dtype]
+):
+
+    # fill the image with arbitrary (but deterministic, and recognizable) numbers
+    @parameter
+    fn fill(i: Vec[3,Int]):
+        var s = String(i.x(), i.y(), i.z())
+        var ni = 0
+        try:
+            ni = atol(s)
+        except:
+            from os import abort
+            abort(String("failed to parse int: ", s))
+        var nf = Scalar[dtype](ni)
+        img.complex[i=i] = Cx(re=nf, im=-nf)
+
+    img.complex.iterate[fill]()
+
+    # TODO: bigger simd_width
+    var vol = VolumeNeighborhoods[dtype,2](img)
+
+    # TEMP
+    print("vol freqs  min=", vol.coords().fmin(), "max=", vol.coords().fmax())
+
+    # TEMP
+    var interp = PrecomputedFFTInterpolationFull(
+        img,
+        out_of_range=OutOfRangeBehavior.interpolate(ComplexScalar[dtype](0, 0))
+    )
+
+    @parameter
+    fn find(f_pi: Vec[2,Int], out results: List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]):
+
+        results = List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]()
+
+        @parameter
+        fn filter(obs_f_pi: Vec[2,Int], out keep: Bool):
+            keep = obs_f_pi == f_pi
+
+        @parameter
+        fn check(var obs_f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
+            if obs_f_pi == f_pi:
+                results.append((f_vf^, sv))
+
+        vol.scan[filter=filter, func=check](
+            proj_to_volume=proj_to_volume,
+            sizes_real_proj=sizes_real_proj
+        )
+
+    @parameter
+    def check(f_pi: Vec[2,Int]):
+
+        # rotate into volume space and interpolate the volume
+        var exp_f_vf = proj_to_volume*f_pi.map_scalar[dtype]().lift(z=0)
+        var exp_v = interp.get(f=exp_f_vf, debug=0)
+
+        var context = String(
+            "f_pi=", f_pi,
+            "  f_vi=", exp_f_vf.floor().map_int(),
+            "  f_vf=", exp_f_vf
+        )
+
+        # find the same value by scanning the volume
+        var results = find(f_pi)
+
+        assert_equal(
+            len(results), 1,
+            String("expected one sample, but got ", len(results), ". ") + context
+        )
+
+        var obs_f_vf = results[0][0].copy()
+        var obs_v = results[0][1]
+
+        assert_equal_float[err_fn](obs_f_vf, exp_f_vf, context)
+        assert_equal_float[err_fn](obs_v, exp_v, context)
+
+        # TEMP
+        print("OK: ", context)
+
+    # iterate the projection grid
+    var coords_proj = FFTCoords(sizes_real_proj)
+    for y in range(coords_proj.fmin[1](), coords_proj.fmax[1]() + 1):
+        for x in range(0, coords_proj.fmax[0]() + 1):
+            check(Vec[2,Int](x=x, y=y))
 
 
 # NOTE: helper functions have to go after tests or the test runner won't find all the tests
@@ -514,3 +621,17 @@ fn sample_range[
 
     var width = max - min
     return Float32(width*i)/Float32(num_samples - 1) + Float32(min)
+
+
+fn make_rot(
+    psi: Scalar[dtype],
+    theta: Scalar[dtype],
+    phi: Scalar[dtype],
+    out rot: Matrix[3,3,dtype]
+):
+    rot = Matrix[3,3,dtype](uninitialized=True)
+    EulerAnglesZYZ[dtype](
+        psi=Deg[dtype](psi),
+        theta=Deg[dtype](theta),
+        phi=Deg[dtype](phi)
+    ).to_matrix(mat=rot)
