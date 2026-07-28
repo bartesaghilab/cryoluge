@@ -165,7 +165,9 @@ struct PrecomputedFFTInterpolationFull[
         self,
         *,
         f: Vec[dim,SIMD[dtype_coords,simd_width]],
-        out v: ComplexSIMD[dtype,simd_width]
+        out v: ComplexSIMD[dtype,simd_width],
+        # TEMP
+        debug: Optional[Int] = None
     ):
         # discretize the frequency coordinates, and keep track of distances
         var start = Vec[dim,SIMDInt[simd_width]](uninitialized=True)
@@ -186,19 +188,46 @@ struct PrecomputedFFTInterpolationFull[
             var samples = self._samples.get(i[slice=w].map_int())
                 .or_else(Self.EmptySamples[or_else])
 
-            # apply sample weights based on the distances
-            @parameter
-            for d in range(dim):
-                var t = SIMD[dtype,Self.num_samples](dists[d][w])
-                var omt = SIMD[dtype,Self.num_samples](1 - dists[d][w])
-                comptime selector = _make_selector[dim,Self.num_samples](d)
-                var w = selector.select(omt, t)
-                samples.re *= w
-                samples.im *= w
+            # TEMP
+            if debug == w:
+                print("\t\tinterpolate:",
+                    "f=", f[slice=w],
+                    "start=", start[slice=w],
+                    "i=", FFTCoords(self._sizes_real).f2i(start[slice=w].map_int()),
+                    "dists=", dists[slice=w]
+                )
+                print("\t\tsamples=", samples)
 
-            # the final interpolated pixel is the sum of the weighted samples
-            v.re[w] = samples.re.reduce_add()
-            v.im[w] = samples.im.reduce_add()
+            var vw = interpolate(dists[slice=w], samples)
+            v.re[w] = vw.re
+            v.im[w] = vw.im
+
+
+fn interpolate[
+    dim: Int,
+    dtype: DType,
+    dtype_coords: DType,
+    num_samples: Int
+](
+    dists: Vec[dim,Scalar[dtype_coords]],
+    var samples: ComplexSIMD[dtype,num_samples],
+    out v: ComplexScalar[dtype]
+):
+    v = ComplexScalar[dtype](re=0, im=0)
+
+    # apply sample weights based on the distances
+    @parameter
+    for d in range(dim):
+        var t = SIMD[dtype,num_samples](dists[d])
+        var omt = SIMD[dtype,num_samples](1 - dists[d])
+        comptime selector = _make_selector[dim,num_samples](d)
+        var w = selector.select(omt, t)
+        samples.re *= w
+        samples.im *= w
+
+    # the final interpolated pixel is the sum of the weighted samples
+    v.re = samples.re.reduce_add()
+    v.im = samples.im.reduce_add()
 
 
 struct PrecomputedFFTInterpolationNop[
@@ -268,19 +297,9 @@ struct PrecomputedFFTInterpolationNop[
 
                 # TODO: handle out-of-range=override behavior
 
-            # apply sample weights based on the distances
-            @parameter
-            for d in range(dim):
-                var t = SIMD[dtype,Self.num_samples](dists[d][w])
-                var omt = SIMD[dtype,Self.num_samples](1 - dists[d][w])
-                comptime selector = _make_selector[dim,Self.num_samples](d)
-                var w = selector.select(omt, t)
-                samples.re *= w
-                samples.im *= w
-
-            # the final interpolated pixel is the sum of the weighted samples
-            v.re[w] = samples.re.reduce_add()
-            v.im[w] = samples.im.reduce_add()
+            var vw = interpolate(dists[slice=w], samples)
+            v.re[w] = vw.re
+            v.im[w] = vw.im
 
 
 comptime _Selector[num_samples: Int] = SIMD[DType.bool,num_samples]
@@ -334,6 +353,8 @@ struct VolumeNeighborhoods[
 ](Movable):
     var _sizes_real: Vec[3,Int]
     var _segments: DimensionalBuffer[3,Self.Segment]
+    # TEMP
+    var _img: FFTImage[3,dtype]
 
     comptime Segment = ComplexSIMD[dtype,simd_width]
     comptime num_neighborhoods_in_segment = simd_width - 1
@@ -353,6 +374,9 @@ struct VolumeNeighborhoods[
         # allocate storage for all the segments
         self._segments = DimensionalBuffer[3,Self.Segment](sizes_segments)
 
+        # TEMP
+        self._img = img.copy()
+
         # pack all the segments
         @parameter
         fn func(s: Vec[3,Int]):
@@ -365,7 +389,7 @@ struct VolumeNeighborhoods[
 
             # pack all the pixels into this segment
             @parameter
-            for w in range(Self.num_neighborhoods_in_segment):
+            for w in range(Self.simd_width):
                 # if the pixel is inside the volume, pack it
                 # (otherwise, leave it zero)
                 var iw = i + Vec[3](x=w, y=0, z=0)
@@ -385,6 +409,29 @@ struct VolumeNeighborhoods[
         return FFTCoords(self._sizes_real)
     
     fn __getitem__(self, *, i: Vec[3,Int], out segment: Self.Segment):
+
+        # check range
+        if i.lt_any(Vec[3](fill=0)) or i.ge_any(FFTCoords(self._sizes_real).sizes_fourier()):
+            # TODO: configure out-of-range behavior
+            return Self.Segment(0, 0)
+
+        # map to segment indices
         var s = i.copy()
         s.x() //= Self.num_neighborhoods_in_segment
+
         segment = self._segments[i=s]
+
+        # TEMP: check against the original image
+        var w = s.x() % Self.num_neighborhoods_in_segment
+        import cryoluge.math.complex
+        var v1 = complex.slice(segment, w)
+        var v2 = self._img.complex[i=i]
+        if v1 != v2:
+            print("NOPE!", v1, v2)
+
+    fn __getitem__(self, *, f: Vec[3,Int], out segment: Self.Segment):
+        var i = self.coords().maybe_f2i(f=f)
+        if i is None:
+            # TODO: configure out-of-range behavior
+            return Self.Segment(0, 0)
+        segment = self[i=i.value()]
