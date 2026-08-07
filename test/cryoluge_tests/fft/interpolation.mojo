@@ -485,6 +485,30 @@ def test_scan_even_bigger_proj():
     )
 
 
+def test_scan_odd():
+    _test_scan(
+        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_odd_more_rot():
+    _test_scan(
+        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
+        proj_to_volume = make_rot(30, 40, 50),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_odd_more_proj():
+    _test_scan(
+        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=9, y=9)
+    )
+
+
 def _test_scan(
     *,
     var img: FFTImage[3,dtype],
@@ -510,10 +534,6 @@ def _test_scan(
     # TODO: bigger simd_width
     var vol = VolumeNeighborhoods[dtype,2](img)
 
-    # TEMP
-    print("vol freqs  min=", vol.coords().fmin(), "max=", vol.coords().fmax())
-
-    # TEMP
     var interp = PrecomputedFFTInterpolationFull(
         img,
         out_of_range=OutOfRangeBehavior.interpolate(ComplexScalar[dtype](0, 0))
@@ -543,12 +563,17 @@ def _test_scan(
 
         # rotate into volume space and interpolate the volume
         var exp_f_vf = proj_to_volume*f_pi.map_scalar[dtype]().lift(z=0)
-        var exp_v = interp.get(f=exp_f_vf, debug=0)
+        var exp_v = interp.get(f=exp_f_vf)
+
+        var start_dists = interp._start_dists(f=exp_f_vf)
+        ref start = start_dists[0]
+        var exp_i_vi = interp._f2i(f=start).map_int()
 
         var context = String(
             "f_pi=", f_pi,
             "  f_vi=", exp_f_vf.floor().map_int(),
-            "  f_vf=", exp_f_vf
+            "  f_vf=", exp_f_vf,
+            "  neighborhood=", interp._neighborhood(i=exp_i_vi)
         )
 
         # find the same value by scanning the volume
@@ -564,9 +589,6 @@ def _test_scan(
 
         assert_equal_float[err_fn](obs_f_vf, exp_f_vf, context)
         assert_equal_float[err_fn](obs_v, exp_v, context)
-
-        # TEMP
-        print("OK: ", context)
 
     # iterate the projection grid
     var coords_proj = FFTCoords(sizes_real_proj)

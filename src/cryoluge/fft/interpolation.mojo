@@ -158,18 +158,17 @@ struct PrecomputedFFTInterpolationFull[
                 false_case = i[d]
             )
 
-    fn get[
-        simd_width: Int,
-        *,
-        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
+    fn _start_dists[
+        simd_width: Int
     ](
         self,
-        *,
         f: Vec[dim,SIMD[dtype_coords,simd_width]],
-        out v: ComplexSIMD[dtype,simd_width],
-        # TEMP
-        debug: Optional[Int] = None
+        out result: Tuple[
+            Vec[dim,SIMDInt[simd_width]],
+            Vec[dim,SIMD[dtype_coords,simd_width]]
+        ]
     ):
+
         # discretize the frequency coordinates, and keep track of distances
         var start = Vec[dim,SIMDInt[simd_width]](uninitialized=True)
         var dists = Vec[dim,SIMD[dtype_coords,simd_width]](uninitialized=True)
@@ -179,27 +178,43 @@ struct PrecomputedFFTInterpolationFull[
             start[d] = SIMDInt[simd_width](floor)
             dists[d] = f[d] - floor
 
-        v = ComplexSIMD[dtype,simd_width](re=0, im=0)
+        result = (start^, dists^)
+
+    fn _neighborhood[
+        *,
+        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
+    ](
+        self,
+        *,
+        i: Vec[dim,Int],
+        out v: ComplexSIMD[dtype,Self.num_samples]
+    ):
+        v = self._samples.get(i)
+            .or_else(Self.EmptySamples[or_else])
+
+    fn get[
+        simd_width: Int,
+        *,
+        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
+        debug: Optional[Int] = None
+    ](
+        self,
+        *,
+        f: Vec[dim,SIMD[dtype_coords,simd_width]],
+        out v: ComplexSIMD[dtype,simd_width]
+    ):
+        var result = self._start_dists(f)
+        ref start = result[0]
+        ref dists = result[1]
 
         var i = self._f2i(start)
+
+        v = ComplexSIMD[dtype,simd_width](re=0, im=0)
+
         @parameter
         for w in range(simd_width):
-
-            # load the samples
-            var samples = self._samples.get(i[slice=w].map_int())
-                .or_else(Self.EmptySamples[or_else])
-
-            # TEMP
-            if debug == w:
-                print("\t\tinterpolate:",
-                    "f=", f[slice=w],
-                    "start=", start[slice=w],
-                    "i=", FFTCoords(self._sizes_real).f2i(start[slice=w].map_int()),
-                    "dists=", dists[slice=w]
-                )
-                print("\t\tsamples=", samples)
-
-            var vw = interpolate(dists[slice=w], samples)
+            var neighborhood = self._neighborhood[or_else=or_else](i=i[slice=w].map_int())
+            var vw = interpolate(dists[slice=w], neighborhood)
             v.re[w] = vw.re
             v.im[w] = vw.im
 
@@ -425,14 +440,6 @@ struct VolumeNeighborhoods[
 
         segment = self._segments[i=s]
 
-        # TEMP: check against the original image
-        var w = s.x() % Self.num_neighborhoods_in_segment
-        import cryoluge.math.complex
-        var v1 = complex.slice(segment, w)
-        var v2 = self._img.complex[i=i]
-        if v1 != v2:
-            print("NOPE!", v1, v2)
-
     fn __getitem__(self, *, f: Vec[3,Int], out segment: Self.Segment):
         var i = self.coords().maybe_f2i(f=f)
         if i is None:
@@ -450,6 +457,8 @@ struct VolumeNeighborhoods[
         proj_to_volume: Matrix[3,3,dtype],
         sizes_real_proj: Vec[2,Int]
     ):
+        # TODO: can we simplify this function at all??
+        
         # invert the rotation so we can go in reverse (reference volume -> particle projection)
         var volume_to_proj = proj_to_volume.copy()
         volume_to_proj.transpose()
@@ -460,10 +469,6 @@ struct VolumeNeighborhoods[
         var box_proj = AlignedBox(
             origin = Vec[2](x=Scalar[dtype](0), y=Scalar[dtype](coords_proj.fmin[1]())),
             sizes = coords_proj.sizes_fourier().map_scalar[dtype]()
-        )
-        print("proj box:",
-            "origin=", box_proj.origin,
-            "sizes=", box_proj.sizes
         )
         var f_v_minf = Vec[3,Scalar[dtype]](uninitialized=True)
         var f_v_maxf = Vec[3,Scalar[dtype]](uninitialized=True)
@@ -479,19 +484,21 @@ struct VolumeNeighborhoods[
                 f_v_minf = f_v_minf.min(corner_v)
                 f_v_maxf = f_v_maxf.max(corner_v)
 
-        # fold the -x halfspace over to push out the +x bounds, if needed
-        f_v_maxf.x() = max(f_v_maxf.x(), -f_v_minf.x())
-        f_v_minf.x() = 0
-
         # discretize the bounds for iteration
         var f_v_mini = f_v_minf.floor().map_int()
         var f_v_maxi = f_v_maxf.ceil().map_int()
 
-        # iterate over voxel coords (in frequency space, with 1-voxel buffers)
+        # fold the -x halfspace over the yz plane to push out the bounds
+        f_v_maxi.x() = max(f_v_maxi.x(), -f_v_mini.x())
+        f_v_mini.x() = 0
+        # need to push out x,y too, in both directions, to account for the inversion symmetry
+        @parameter
+        for d in range(1, 3):
+            f_v_mini[d] = min(f_v_mini[d], -f_v_maxi[d])
+            f_v_maxi[d] = max(f_v_maxi[d], -f_v_mini[d])
+
+        # iterate over the voxel coords that cover the projection range
         var coords_vol = self.coords()
-        #for z in range(coords_vol.fmin[2]() - 1, coords_vol.fmax[2]() + 1):
-        #    for y in range(coords_vol.fmin[1]() - 1, coords_vol.fmax[1]() + 1):
-        #        for x in range(0, coords_vol.fmax[0]() + 1, self.num_neighborhoods_in_segment):
         for z in range(f_v_mini.z(), f_v_maxi.z() + 1):
            for y in range(f_v_mini.y(), f_v_maxi.y() + 1):
                for x in range(0, f_v_maxi.x() + 1, self.num_neighborhoods_in_segment):
@@ -507,14 +514,12 @@ struct VolumeNeighborhoods[
                         if x_halfspace == -1:
                             f_vi -= 1
 
-                        # TEMP
-                        # var debug_v = False
-                        #f=(-0.5817882, 1.9131305, 0.038129136)
-                        var f_vi_focus = Vec[3](x=-1, y=-3, z=0)
-                        var debug_v = f_vi == -f_vi_focus - 1
-                                   or f_vi ==  f_vi_focus
-
-                        var sf_pi_focus = Vec[2](x=-1, y=-2)
+                        # DEBUG
+                        var debug_v = False
+                        # var f_vi_focus = Vec[3](x=-1, y=1, z=0)
+                        # var debug_v = f_vi == -f_vi_focus - 1
+                        #            or f_vi ==  f_vi_focus
+                        # var sf_pi_focus = Vec[2](x=0, y=2)
 
                         # transform the unit voxel at these frequency coords into the projection space
                         var f_vf = f_vi.map_scalar[dtype]()
@@ -524,7 +529,8 @@ struct VolumeNeighborhoods[
                             sizes = Vec[3](fill=Scalar[dtype](1)),
                             orientation = volume_to_proj
                         )
-                        # TEMP
+
+                        # DEBUG
                         if debug_v:
                             print("\t",
                                 "_f_vi=", _f_vi,
@@ -543,18 +549,22 @@ struct VolumeNeighborhoods[
                         var range_max = (voxel_bound_p.max() - voxel_p.sizes())
                             .ceil()
                             .map_int()
-                        # TEMP
+
+                        # DEBUG
                         if debug_v:
                             print("\tvoxel (in p space):", voxel_p.corner(Vec[3](fill=Scalar[dtype](0))), voxel_p.corner(Vec[3](fill=Scalar[dtype](1))))
                             print("\tbounding box:", voxel_bound_p.origin, voxel_bound_p.max())
                             print("\tranges:", "min=", range_min, "max=", range_max)
+
                         for zs in range(range_min.z(), range_max.z() + 1):
 
                             # sample points in projection space only live on z=0
                             if zs != 0:
-                                # TEMP
+
+                                # DEBUG
                                 if debug_v:
                                     print("\tskip: z=", zs, " out of range")
+
                                 continue
 
                             for ys in range(range_min.y(), range_max.y() + 1):
@@ -566,9 +576,11 @@ struct VolumeNeighborhoods[
                                     # check the projection bounds
                                     if not coords_proj.f_in_range(sf_pi):
                                         # nope: skip this sample
-                                        # TEMP
+
+                                        # DEBUG
                                         if debug_v:
                                             print("\tskip: sf_pi=", sf_pi, " out of range")
+
                                         continue
                                     var sf_pf = sf_pi.map_scalar[dtype]()
 
@@ -581,9 +593,11 @@ struct VolumeNeighborhoods[
                                     # and treat the upper boundaries as exclusive
                                     var sf_vf = proj_to_volume*sf_pf.lift(z=0)
                                     var dists = sf_vf - f_vf
-                                    # TEMP
+
+                                    # DEBUG
                                     if debug_v:
                                         print("\tsf_vf=", sf_vf, "f_vf=", f_vf, "dists=", dists)
+
                                     if dists.lt_any(Vec[3](fill=Scalar[dtype](0))) or dists.ge_any(Vec[3](fill=Scalar[dtype](1))):
                                         # not actually in the voxel: skip this sample
                                         continue
@@ -609,8 +623,8 @@ struct VolumeNeighborhoods[
                                                 f_vi_01[d] *= -1
                                             if f_vi_11[d] > coords_vol.fmax[d]():
                                                 f_vi_11[d] *= -1
-                                                
-                                    # TEMP
+     
+                                    # DEBUG
                                     if debug_v:
                                         print("\t"
                                             "f00=", f_vi_00,
@@ -638,7 +652,7 @@ struct VolumeNeighborhoods[
                                         complex.slice(p11, 0), complex.slice(p11, 1)
                                     )
                                     @parameter
-                                    if x_halfspace  == -1:
+                                    if x_halfspace == -1:
 
                                         # in the negative halfspace: flip the coordinates and conjugate
                                         neighborhood.re = neighborhood.re.shuffle[7,6,5,4,3,2,1,0]()
@@ -649,16 +663,13 @@ struct VolumeNeighborhoods[
                                         # so we need to do extra loads
                                         if f_vi.x() == -1:
                                             
+                                            # undo the x,y flips to load the voxels we need
                                             @parameter
                                             for d in range(1, 3):
-                                                if f_vi_00[d] > coords_vol.fmin[d]():
-                                                    f_vi_00[d] *= -1
-                                                if f_vi_10[d] > coords_vol.fmin[d]():
-                                                    f_vi_10[d] *= -1
-                                                if f_vi_01[d] > coords_vol.fmin[d]():
-                                                    f_vi_01[d] *= -1
-                                                if f_vi_11[d] > coords_vol.fmin[d]():
-                                                    f_vi_11[d] *= -1
+                                                f_vi_00[d] *= -1
+                                                f_vi_10[d] *= -1
+                                                f_vi_01[d] *= -1
+                                                f_vi_11[d] *= -1
 
                                             neighborhood = complex.pack[dtype,8](
                                                 complex.slice(neighborhood, 0),
@@ -671,23 +682,47 @@ struct VolumeNeighborhoods[
                                                 complex.slice(self[f = f_vi_00], 0),
                                             )
 
+                                        # apply frequency bounds
+                                        # TODO: rather than zero-out the loaded voxels, maybe don't load them?
+                                        #       but that might add branches? so, profile the impact
+                                        if f_vi[1] == coords_vol.fmax[1]():
+                                            neighborhood = complex.pack[dtype,8](
+                                                complex.slice(neighborhood, 0),
+                                                complex.slice(neighborhood, 1),
+                                                ComplexScalar[dtype](0, 0),
+                                                ComplexScalar[dtype](0, 0),
+                                                complex.slice(neighborhood, 4),
+                                                complex.slice(neighborhood, 5),
+                                                ComplexScalar[dtype](0, 0),
+                                                ComplexScalar[dtype](0, 0)
+                                            )
+                                        if f_vi[2] == coords_vol.fmax[2]():
+                                            neighborhood = complex.pack[dtype,8](
+                                                complex.slice(neighborhood, 0),
+                                                complex.slice(neighborhood, 1),
+                                                complex.slice(neighborhood, 2),
+                                                complex.slice(neighborhood, 3),
+                                                ComplexScalar[dtype](0, 0),
+                                                ComplexScalar[dtype](0, 0),
+                                                ComplexScalar[dtype](0, 0),
+                                                ComplexScalar[dtype](0, 0)
+                                            )
+                                        @parameter
+                                        for d in range(1, 3):
+                                            if f_vi[d] > coords_vol.fmax[d]():
+                                                neighborhood = ComplexSIMD[dtype,8](0, 0)
+
                                     # interpolate the reference volume
                                     var sv = interpolate(dists, neighborhood)
 
-                                    # TEMP
-                                    #var debug_p = False
-                                    #var debug_p = sf_pi.x() == 9
-                                    var debug_p = sf_pi == sf_pi_focus
+                                    # DEBUG
+                                    var debug_p = False
+                                    #var debug_p = sf_pi == sf_pi_focus
+                                    if debug_v:
+                                        print("\t",
+                                            "neighborhood=", neighborhood
+                                        )
                                     if debug_v or debug_p:
-                                        # print("\tinterpolate",
-                                        #     "dists=", dists,
-                                        #     "f=", f_v,
-                                        #     "i=", i_v
-                                        # )
-                                        if debug_v:
-                                            print("\t",
-                                                "neighborhood=", neighborhood
-                                            )
                                         print("\t",
                                             "f_p=", sf_pi,
                                             "f_v=", f_vi,
