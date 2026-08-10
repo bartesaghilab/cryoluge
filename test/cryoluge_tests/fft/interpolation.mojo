@@ -6,7 +6,7 @@ from builtin._location import __call_location
 from cryoluge.math import Vec, Matrix, EulerAnglesZYZ, complex
 from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
-from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods
+from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods, VolumeNeighborhoodsProjection
 from cryoluge.test import assert_equal_float
 
 
@@ -590,6 +590,9 @@ def _test_scan[
 
     # TODO: bigger simd_width
     var vol = VolumeNeighborhoods[dtype,2,out_of_range](img)
+    var projections = [
+        VolumeNeighborhoodsProjection(0, proj_to_volume.copy())
+    ]
 
     var interp = PrecomputedFFTInterpolationFull[3,dtype,out_of_range](img)
 
@@ -599,18 +602,15 @@ def _test_scan[
         results = List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]()
 
         @parameter
-        fn filter(obs_f_pi: Vec[2,Int], out keep: Bool):
+        fn filter(_proj_id: Int, obs_f_pi: Vec[2,Int], out keep: Bool):
             keep = obs_f_pi == f_pi
 
         @parameter
-        fn check(var obs_f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
+        fn check(_proj_id: Int, var obs_f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
             if obs_f_pi == f_pi:
                 results.append((f_vf^, sv))
 
-        vol.scan[filter=filter, func=check](
-            proj_to_volume=proj_to_volume,
-            sizes_real_proj=sizes_real_proj
-        )
+        vol.scan[filter=filter, func=check](sizes_real_proj, projections)
 
     @parameter
     def check(f_pi: Vec[2,Int]):

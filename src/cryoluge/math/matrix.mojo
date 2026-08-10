@@ -197,6 +197,14 @@ struct Matrix[
                 self[r,c] = self[c,r]
                 self[c,r] = s
 
+    fn transposed(self, out result: Self):
+        result = Self(uninitialized=True)
+        @parameter
+        for r in range(rows):
+            @parameter
+            for c in range(cols):
+                result[r,c] = self[c,r]
+
     # operators
 
     fn __mul__[other_cols: Int](
@@ -259,6 +267,27 @@ struct Matrix[
             if self._values[i] != other._values[i]:
                 return False
         return True
+
+    # other math
+
+    fn mul_transpose[dim: Int, simd_width: Int](
+        self,
+        vec: Vec[dim,SIMD[dtype,simd_width]],
+        out result: Vec[dim,SIMD[dtype,simd_width]]
+    ):
+        constrained[
+            rows == dim and cols == dim,
+            String("Matrix size (", rows, ", ", cols, ") doesn't match vector size (", dim,  ")")
+        ]()
+
+        result = Vec[dim,SIMD[dtype,simd_width]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            var v = SIMD[dtype,simd_width](0)
+            @parameter
+            for i in range(dim):
+                v += self[i,d]*vec[i]
+            result[d] = v
 
     # conversion
 
