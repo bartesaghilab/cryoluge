@@ -34,8 +34,9 @@ struct OutOfRangeBehavior[dtype: DType](
 struct PrecomputedFFTInterpolationFull[
     dim: Int,
     dtype: DType,
+    out_of_range: OutOfRangeBehavior[dtype],
     *,
-    dtype_coords: DType = dtype
+    dtype_coords: DType = dtype,
 ](Movable):
     """
     A SIMD-optimized implementation of multi-dimensional linear interpolation
@@ -51,16 +52,15 @@ struct PrecomputedFFTInterpolationFull[
     comptime deltas = Delta[dim,dtype_coords].build()
     comptime num_samples = len(Self.deltas)
     comptime Pixel = ComplexSIMD[dtype,Self.num_samples]
-    comptime EmptySamples[c: ComplexSIMD[dtype,1]] = ComplexSIMD[dtype,Self.num_samples](
-        re=SIMD[dtype,Self.num_samples](c.re),
-        im=SIMD[dtype,Self.num_samples](c.im)
+    comptime empty_samples = ComplexSIMD[dtype,Self.num_samples](
+        re=Self.out_of_range.value.re,
+        im=Self.out_of_range.value.im
     )
     comptime Selector = SIMD[DType.bool,Self.num_samples]
 
     fn __init__(
         out self,
-        img: FFTImage[dim,dtype],
-        out_of_range: OutOfRangeBehavior[dtype]
+        img: FFTImage[dim,dtype]
     ):
 
         self._sizes_real = img.sizes_real.copy()
@@ -87,6 +87,7 @@ struct PrecomputedFFTInterpolationFull[
 
                 # handle out-of-range behavior
                 if v is None:
+                    @parameter
                     if out_of_range.id == OutOfRangeBehavior.Interpolate:
                         # interpolate with the out-of-range value
                         pixel.re[s] = out_of_range.value.re
@@ -180,24 +181,16 @@ struct PrecomputedFFTInterpolationFull[
 
         result = (start^, dists^)
 
-    fn _neighborhood[
-        *,
-        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
-    ](
+    fn _neighborhood(
         self,
         *,
         i: Vec[dim,Int],
         out v: ComplexSIMD[dtype,Self.num_samples]
     ):
         v = self._samples.get(i)
-            .or_else(Self.EmptySamples[or_else])
+            .or_else(Self.empty_samples)
 
-    fn get[
-        simd_width: Int,
-        *,
-        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
-        debug: Optional[Int] = None
-    ](
+    fn get[simd_width: Int](
         self,
         *,
         f: Vec[dim,SIMD[dtype_coords,simd_width]],
@@ -213,7 +206,7 @@ struct PrecomputedFFTInterpolationFull[
 
         @parameter
         for w in range(simd_width):
-            var neighborhood = self._neighborhood[or_else=or_else](i=i[slice=w].map_int())
+            var neighborhood = self._neighborhood(i=i[slice=w].map_int())
             var vw = interpolate(dists[slice=w], neighborhood)
             v.re[w] = vw.re
             v.im[w] = vw.im
@@ -364,23 +357,26 @@ comptime PrecomputedFFTInterpolation = PrecomputedFFTInterpolationFull
 struct VolumeNeighborhoods[
     dtype: DType,
     simd_width: Int,
+    out_of_range: OutOfRangeBehavior[dtype],
     *,
     dtype_coords: DType = dtype
 ](Movable):
     var _sizes_real: Vec[3,Int]
     var _segments: DimensionalBuffer[3,Self.Segment]
-    # TEMP
-    var _img: FFTImage[3,dtype]
 
     comptime Segment = ComplexSIMD[dtype,simd_width]
+    comptime out_of_range_segment = Self.Segment(
+        re=out_of_range.value.re,
+        im=out_of_range.value.im
+    )
     comptime num_neighborhoods_in_segment = simd_width - 1
-    # one less nieghborhood, due to needing two pixels per neighborhood
+    # one less neighborhood, due to needing two x voxels per neighborhood
     comptime deltas = Delta[3,dtype_coords].build()
 
-    fn __init__(out self, img: FFTImage[3,dtype]):
-
-        # TODO: out-of-range behavior
-
+    fn __init__(
+        out self,
+        img: FFTImage[3,dtype]
+    ):
         self._sizes_real = img.sizes_real.copy()
 
         # calculate how many segments we need in each x-row
@@ -392,14 +388,11 @@ struct VolumeNeighborhoods[
         # allocate storage for all the segments
         self._segments = DimensionalBuffer[3,Self.Segment](sizes_segments)
 
-        # TEMP
-        self._img = img.copy()
-
         # pack all the segments
         @parameter
         fn func(s: Vec[3,Int]):
 
-            var segment = Self.Segment(0, 0)
+            var segment = Self.out_of_range_segment
 
             # convert segment indices into image indices
             var i = s.copy()
@@ -409,7 +402,7 @@ struct VolumeNeighborhoods[
             @parameter
             for w in range(Self.simd_width):
                 # if the pixel is inside the volume, pack it
-                # (otherwise, leave it zero)
+                # (otherwise, leave it out-of-range)
                 var iw = i + Vec[3](x=w, y=0, z=0)
                 if iw.x() < sizes_fourier.x():
                     var pixel = img.complex[i=iw]
@@ -426,26 +419,28 @@ struct VolumeNeighborhoods[
     fn coords(self) -> FFTCoords[3,origin_of(self._sizes_real)]:
         return FFTCoords(self._sizes_real)
     
-    fn __getitem__(self, *, i: Vec[3,Int], out segment: Self.Segment):
-
-        # check range
-        var coords = self.coords()
-        if i.lt_any(Vec[3](fill=0)) or i.ge_any(coords.sizes_fourier()):
-            # TODO: configure out-of-range behavior
-            return Self.Segment(0, 0)
-
+    fn _segment(
+        self,
+        *,
+        i: Vec[3,Int],
+        out segment: Self.Segment
+    ):
         # map to segment indices
         var s = i.copy()
         s.x() //= Self.num_neighborhoods_in_segment
 
         segment = self._segments[i=s]
 
-    fn __getitem__(self, *, f: Vec[3,Int], out segment: Self.Segment):
-        var i = self.coords().maybe_f2i(f=f)
-        if i is None:
-            # TODO: configure out-of-range behavior
-            return Self.Segment(0, 0)
-        segment = self[i=i.value()]
+    fn _segment(
+        self,
+        *,
+        i: Optional[Vec[3,Int]],
+        out segment: Self.Segment
+    ):
+        if i is not None:
+            segment = self._segment(i=i.value())
+        else:
+            segment = Self.out_of_range_segment
 
     fn scan[
         *,
@@ -579,41 +574,79 @@ struct VolumeNeighborhoods[
 
                                     # the negative x halfspace has a slightly different topology than the positive one,
                                     # so we need to apply different boundary conditions to the neighborhood
-                                    var out_of_range = coords_vol.fmax() + 1
+                                    var f_vi_out_of_range = coords_vol.fmax() + 1
 
                                     var y_gt = f_vi[1] > coords_vol.fmax[1]()
                                     var z_gt = f_vi[2] > coords_vol.fmax[2]()
                                     var y_ge = f_vi[1] >= coords_vol.fmax[1]()
                                     var z_ge = f_vi[2] >= coords_vol.fmax[2]()
                                     if y_ge or z_ge:
-                                        f_vi_00 = out_of_range.copy()
+                                        f_vi_00 = f_vi_out_of_range.copy()
                                     if y_ge or z_gt:
-                                        f_vi_01 = out_of_range.copy()
+                                        f_vi_01 = f_vi_out_of_range.copy()
                                     if y_gt or z_ge:
-                                        f_vi_10 = out_of_range.copy()
+                                        f_vi_10 = f_vi_out_of_range.copy()
                                     if y_gt or z_gt:
-                                        f_vi_11 = out_of_range.copy()
+                                        f_vi_11 = f_vi_out_of_range.copy()
 
-                                # read the voxel neighborhood into a vector
-                                var neighborhood = complex.pack[8](
-                                    self[f = f_vi_00],
-                                    self[f = f_vi_10],
-                                    self[f = f_vi_01],
-                                    self[f = f_vi_11]
-                                )
+                                # read the voxel neighborhood, where possible
+                                var i_vi_00 = coords_vol.maybe_f2i(f=f_vi_00)
+                                var i_vi_10 = coords_vol.maybe_f2i(f=f_vi_10)
+                                var i_vi_01 = coords_vol.maybe_f2i(f=f_vi_01)
+                                var i_vi_11 = coords_vol.maybe_f2i(f=f_vi_11)
+
+                                # apply out-of-range behvavior
+                                var in_range_00 = i_vi_00 is not None
+                                var in_range_10 = i_vi_10 is not None
+                                var in_range_01 = i_vi_01 is not None
+                                var in_range_11 = i_vi_11 is not None
+                                var in_range_x = f_vi.x() < coords_vol.fmax[0]()
+                                var all_in_range = in_range_00
+                                    and in_range_10
+                                    and in_range_01
+                                    and in_range_11
+                                    and in_range_x
+                                @parameter
+                                if out_of_range.id == OutOfRangeBehavior.Override:
+                                    if not all_in_range:
+                                        i_vi_00 = None
+                                        i_vi_10 = None
+                                        i_vi_01 = None
+                                        i_vi_11 = None
+
+                                var v00 = self._segment(i=i_vi_00)
+                                var v10 = self._segment(i=i_vi_10)
+                                var v01 = self._segment(i=i_vi_01)
+                                var v11 = self._segment(i=i_vi_11)
+
+                                # pack the neighborhood into a vector
+                                var neighborhood = complex.pack[8](v00, v10, v01, v11)
 
                                 @parameter
                                 if x_halfspace == -1:
 
                                     # in the negative halfspace: re-order the voxels and conjugate
-                                    neighborhood.re = neighborhood.re.shuffle[7,6,5,4,3,2,1,0]()
+                                    var in_range_mask = SIMD[DType.bool,8](
+                                        in_range_00,
+                                        in_range_00 and in_range_x,
+                                        in_range_10,
+                                        in_range_10 and in_range_x,
+                                        in_range_01,
+                                        in_range_01 and in_range_x,
+                                        in_range_11,
+                                        in_range_11 and in_range_x,
+                                    )
+                                    neighborhood.im *= in_range_mask.select[dtype](
+                                        true_case=-1,
+                                        false_case=1
+                                    )
                                     neighborhood.im = neighborhood.im.shuffle[7,6,5,4,3,2,1,0]()
-                                    neighborhood.im *= -1
+                                    neighborhood.re = neighborhood.re.shuffle[7,6,5,4,3,2,1,0]()
 
                                     # HACKHACK: f_v.x = -1 doesn't have x-contiguous voxels,
                                     #           so we need to do extra loads
                                     # TODO: can we handle this case in a different loop?
-                                    #       which f_vi coords lead to x = -1 ?
+                                    #       happens when f_vi.x = 0, in the -x halfspace
                                     if f_vi.x() == -1:
                                         
                                         # undo the x,y flips to load the voxels we need
@@ -624,10 +657,28 @@ struct VolumeNeighborhoods[
                                             f_vi_01[d] *= -1
                                             f_vi_11[d] *= -1
 
-                                        complex.splice(neighborhood, 1, self[f = f_vi_11])
-                                        complex.splice(neighborhood, 3, self[f = f_vi_01])
-                                        complex.splice(neighborhood, 5, self[f = f_vi_10])
-                                        complex.splice(neighborhood, 7, self[f = f_vi_00])
+                                        i_vi_00 = coords_vol.maybe_f2i(f=f_vi_00)
+                                        i_vi_10 = coords_vol.maybe_f2i(f=f_vi_10)
+                                        i_vi_01 = coords_vol.maybe_f2i(f=f_vi_01)
+                                        i_vi_11 = coords_vol.maybe_f2i(f=f_vi_11)
+
+                                        @parameter
+                                        if out_of_range.id == OutOfRangeBehavior.Override:
+                                            if not all_in_range:
+                                                i_vi_00 = None
+                                                i_vi_10 = None
+                                                i_vi_01 = None
+                                                i_vi_11 = None
+
+                                        v00 = self._segment(i=i_vi_00)
+                                        v10 = self._segment(i=i_vi_10)
+                                        v01 = self._segment(i=i_vi_01)
+                                        v11 = self._segment(i=i_vi_11)
+
+                                        complex.splice(neighborhood, 1, v11)
+                                        complex.splice(neighborhood, 3, v01)
+                                        complex.splice(neighborhood, 5, v10)
+                                        complex.splice(neighborhood, 7, v00)
 
                                 # interpolate the reference volume
                                 var sv = interpolate(dists, neighborhood)

@@ -3,7 +3,7 @@ from complex import ComplexScalar
 from testing import assert_equal
 from builtin._location import __call_location
 
-from cryoluge.math import Vec, Matrix, EulerAnglesZYZ
+from cryoluge.math import Vec, Matrix, EulerAnglesZYZ, complex
 from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
 from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods
@@ -137,13 +137,14 @@ def test_lerp_2d():
     assert_equal_float[err_fn](img.get(f_lerp=Coords2(x=1.1, y=1.1)), Cx(lerp2(7, 0, 0, 0, 0.1, 0.1), lerp2(8, 0, 0, 0, 0.1, 0.1)))
 
 
-alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](0, 0))
+alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](5, 7))
+alias OOROverride = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](9, 3))
 
 
 def test_plerp_i2f_1d_full():
 
     var img = FFTImage[1,dtype](Vec[1](x=3))
-    var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
+    var plerp = PrecomputedFFTInterpolationFull[1,dtype,OORInterp](img)
 
     assert_equal(plerp._i2f(Vec[1](x=0)), Vec[1](x=-2))
     assert_equal(plerp._i2f(Vec[1](x=1)), Vec[1](x=-1))
@@ -154,7 +155,7 @@ def test_plerp_i2f_1d_full():
 def test_plerp_f2i_1d_full():
 
     var img = FFTImage[1,dtype](Vec[1](x=3))
-    var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
+    var plerp = PrecomputedFFTInterpolationFull[1,dtype,OORInterp](img)
 
     assert_equal(plerp._f2i(ICoords1(x=-3)), ICoords1(x=-1))  # out of range
     assert_equal(plerp._f2i(ICoords1(x=-2)), ICoords1(x=0))
@@ -171,14 +172,15 @@ def test_plerp_1d():
     img.complex[i=0] = Cx(1, 2)  # f=(0)
     img.complex[i=1] = Cx(3, 4)  # f=(1);(-1)*
 
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    comptime oor = OORInterp
+    var plerp = PrecomputedFFTInterpolation[1,dtype,oor](img)
 
     @always_inline
     @parameter
     def check(f: Coords1):
         assert_equal_float[err_fn](
-            plerp.get(f=f),
-            img.get(f_lerp=f),
+            obs=plerp.get(f=f),
+            exp=img.get[or_else=oor.value](f_lerp=f),
             location=__call_location()
         )
 
@@ -213,7 +215,7 @@ def test_plerp_1d():
 def test_plerp_f2i_2d_full():
 
     var img = FFTImage[2,dtype](Vec[2](x=3, y=3))
-    var plerp = PrecomputedFFTInterpolationFull(img, out_of_range=OORInterp)
+    var plerp = PrecomputedFFTInterpolationFull[2,dtype,OORInterp](img)
 
     assert_equal(plerp._f2i(ICoords2(x=-2, y=-3)), ICoords2(x=0, y=-1))  # out of range
     assert_equal(plerp._f2i(ICoords2(x=-2, y=-2)), ICoords2(x=0, y=0))
@@ -255,14 +257,15 @@ def test_plerp_2d():
     img.complex[i=4] = Cx(9, 10)  # f=(0,-1)
     img.complex[i=5] = Cx(11, 12)  # f=(1,-1);(-1,1)*
 
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    comptime oor = OORInterp
+    var plerp = PrecomputedFFTInterpolation[2,dtype,oor](img)
 
     @always_inline
     @parameter
     def check(f: Coords2):
         assert_equal_float[err_fn](
-            plerp.get(f=f),
-            img.get(f_lerp=f),
+            obs=plerp.get(f=f),
+            exp=img.get[or_else=oor.value](f_lerp=f),
             location=__call_location()
         )
 
@@ -351,14 +354,15 @@ def test_plerp_2d_big_odd():
     for i in range(img.complex.num_pixels()):
         img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
 
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    comptime oor = OORInterp
+    var plerp = PrecomputedFFTInterpolation[2,dtype,oor](img)
 
     @parameter
     def check(f: Coords2):
         assert_equal_float[err_fn](
-            plerp.get(f=f),
-            img.get(f_lerp=f),
-            String("f=", f)
+            obs=plerp.get(f=f),
+            exp=img.get[or_else=oor.value](f_lerp=f),
+            msg=String("f=", f)
         )
 
     # sample finely in frequency space
@@ -379,14 +383,15 @@ def test_plerp_2d_big_even():
     for i in range(img.complex.num_pixels()):
         img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
 
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    comptime oor = OORInterp
+    var plerp = PrecomputedFFTInterpolation[2,dtype,oor](img)
 
     @parameter
     def check(f: Coords2):
         assert_equal_float[err_fn](
-            plerp.get(f=f),
-            img.get(f_lerp=f),
-            String("f=", f)
+            obs=plerp.get(f=f),
+            exp=img.get[or_else=oor.value](f_lerp=f),
+            msg=String("f=", f)
         )
 
     # sample finely in frequency space
@@ -407,14 +412,15 @@ def test_plerp_3d_big_odd():
     for i in range(img.complex.num_pixels()):
         img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
 
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    comptime oor = OORInterp
+    var plerp = PrecomputedFFTInterpolation[3,dtype,oor](img)
 
     @parameter
     def check(f: Coords3):
         assert_equal_float[err_fn](
-            plerp.get(f=f),
-            img.get(f_lerp=f),
-            String("f=", f),
+            obs=plerp.get(f=f),
+            exp=img.get[or_else=oor.value](f_lerp=f),
+            msg=String("f=", f),
             eps=1e-4
         )
 
@@ -438,14 +444,15 @@ def test_plerp_3d_big_even():
     for i in range(img.complex.num_pixels()):
         img.complex[i=i] = Cx(i*2 + 1, i*2 + 2)
 
-    var plerp = PrecomputedFFTInterpolation(img, out_of_range=OORInterp)
+    comptime oor = OORInterp
+    var plerp = PrecomputedFFTInterpolation[3,dtype,oor](img)
 
     @parameter
     def check(f: Coords3):
         assert_equal_float[err_fn](
-            plerp.get(f=f),
-            img.get(f_lerp=f),
-            String("f=", f),
+            obs=plerp.get(f=f),
+            exp=img.get[or_else=oor.value](f_lerp=f),
+            msg=String("f=", f),
             eps=1e-4
         )
 
@@ -461,55 +468,105 @@ def test_plerp_3d_big_even():
                 check(Coords3(x=fx, y=fy, z=fz))
 
 
-def test_scan_even():
-    _test_scan(
+def test_scan_even_interpolate():
+    _test_scan[OORInterp](
         img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
         proj_to_volume = make_rot(5, 7, 9),
         sizes_real_proj = Vec[2](x=5, y=5)
     )
 
 
-def test_scan_even_more_rot():
-    _test_scan(
+def test_scan_even_override():
+    _test_scan[OOROverride](
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_even_more_rot_interpolate():
+    _test_scan[OORInterp](
         img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
         proj_to_volume = make_rot(30, 40, 50),
         sizes_real_proj = Vec[2](x=5, y=5)
     )
 
 
-def test_scan_even_bigger_proj():
-    _test_scan(
+def test_scan_even_more_rot_override():
+    _test_scan[OOROverride](
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(30, 40, 50),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_even_bigger_proj_interpolate():
+    _test_scan[OORInterp](
         img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
         proj_to_volume = make_rot(5, 7, 9),
         sizes_real_proj = Vec[2](x=9, y=9)
     )
 
 
-def test_scan_odd():
-    _test_scan(
+def test_scan_even_bigger_proj_override():
+    _test_scan[OOROverride](
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=9, y=9)
+    )
+
+
+def test_scan_odd_interpolate():
+    _test_scan[OORInterp](
         img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
         proj_to_volume = make_rot(5, 7, 9),
         sizes_real_proj = Vec[2](x=5, y=5)
     )
 
 
-def test_scan_odd_more_rot():
-    _test_scan(
+def test_scan_odd_override():
+    _test_scan[OOROverride](
+        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_odd_more_rot_interpolate():
+    _test_scan[OORInterp](
         img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
         proj_to_volume = make_rot(30, 40, 50),
         sizes_real_proj = Vec[2](x=5, y=5)
     )
 
 
-def test_scan_odd_more_proj():
-    _test_scan(
+def test_scan_odd_more_rot_override():
+    _test_scan[OOROverride](
+        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
+        proj_to_volume = make_rot(30, 40, 50),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+def test_scan_odd_more_proj_interpolate():
+    _test_scan[OORInterp](
         img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
         proj_to_volume = make_rot(5, 7, 9),
         sizes_real_proj = Vec[2](x=9, y=9)
     )
 
 
-def _test_scan(
+def test_scan_odd_more_proj_override():
+    _test_scan[OOROverride](
+        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
+        proj_to_volume = make_rot(5, 7, 9),
+        sizes_real_proj = Vec[2](x=9, y=9)
+    )
+
+
+def _test_scan[
+    out_of_range: OutOfRangeBehavior[dtype]
+](
     *,
     var img: FFTImage[3,dtype],
     sizes_real_proj: Vec[2,Int],
@@ -532,12 +589,9 @@ def _test_scan(
     img.complex.iterate[fill]()
 
     # TODO: bigger simd_width
-    var vol = VolumeNeighborhoods[dtype,2](img)
+    var vol = VolumeNeighborhoods[dtype,2,out_of_range](img)
 
-    var interp = PrecomputedFFTInterpolationFull(
-        img,
-        out_of_range=OutOfRangeBehavior.interpolate(ComplexScalar[dtype](0, 0))
-    )
+    var interp = PrecomputedFFTInterpolationFull[3,dtype,out_of_range](img)
 
     @parameter
     fn find(f_pi: Vec[2,Int], out results: List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]):
