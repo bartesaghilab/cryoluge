@@ -745,17 +745,47 @@ struct Vec[
         for d in range(dim):
             result = result or self[d] < other[d]
 
+    fn lt_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = not self.ge_any(other)
+
+    fn lt_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = not self.ge_any(other)
+
     fn le_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
         @parameter
         for d in range(dim):
             result = result or self[d] <= other[d]
 
+    fn le_any[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] <= other[d]
+
+    fn le_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = not self.gt_any(other)
+
+    fn le_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = not self.gt_any(other)
+
     fn gt_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
         @parameter
         for d in range(dim):
             result = result or self[d] > other[d]
+
+    fn gt_any[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self[d] > other[d]
+
+    fn gt_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = not self.le_any(other)
+
+    fn gt_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = not self.le_any(other)
 
     fn ge_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
@@ -769,7 +799,11 @@ struct Vec[
         for d in range(dim):
             result = result or self[d] >= other[d]
 
-    # TODO: other comparisons
+    fn ge_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
+        result = not self.lt_any(other)
+
+    fn ge_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
+        result = not self.lt_any(other)
 
     # mappings
 
