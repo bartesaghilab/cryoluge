@@ -548,7 +548,7 @@ def test_scan_odd_more_rot_override():
     )
 
 
-def test_scan_odd_more_proj_interpolate():
+def test_scan_odd_bigger_proj_interpolate():
     _test_scan[OORInterp](
         img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
         proj_to_volume = make_rot(5, 7, 9),
@@ -556,7 +556,7 @@ def test_scan_odd_more_proj_interpolate():
     )
 
 
-def test_scan_odd_more_proj_override():
+def test_scan_odd_bigger_proj_override():
     _test_scan[OOROverride](
         img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
         proj_to_volume = make_rot(5, 7, 9),
@@ -602,15 +602,11 @@ def _test_scan[
         results = List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]()
 
         @parameter
-        fn filter(_proj_id: Int, obs_f_pi: Vec[2,Int], out keep: Bool):
-            keep = obs_f_pi == f_pi
-
-        @parameter
         fn check(_proj_id: Int, var obs_f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
             if obs_f_pi == f_pi:
                 results.append((f_vf^, sv))
 
-        vol.scan[filter=filter, func=check](sizes_real_proj, projections)
+        vol.scan[check](sizes_real_proj, projections)
 
     @parameter
     def check(f_pi: Vec[2,Int]):

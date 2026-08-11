@@ -1,10 +1,13 @@
 
+from utils.numerics import inf
+
 from cryoluge.math import clamp, Vec
 from cryoluge.math.units import Ang
 from cryoluge.fft import FFTImage, FFTCoords
 from cryoluge.image.analysis import FourierShells
 
 
+@fieldwise_init
 struct FrequencyLimits[dtype: DType](
     Copyable,
     Movable
@@ -32,6 +35,14 @@ struct FrequencyLimits[dtype: DType](
                 var (limit_min, limit_max) = freq2_hi_limits.value()
                 self.freq2_hi = clamp(self.freq2_hi, min=limit_min, max=limit_max)
 
+    @staticmethod
+    fn none(out self: Self):
+        self = Self(
+            freq2_lo = Scalar[dtype](0),
+            freq2_hi = inf[dtype]()
+        )
+
+    @always_inline
     fn contains[
         *,
         inclusive_lo: Bool = True,
