@@ -20,8 +20,7 @@ struct FrequencyLimits[dtype: DType](
         *,
         res_limit_lo: Ang[dtype],
         res_limit_hi: Ang[dtype],
-        pixel_size: Ang[dtype],
-        freq_norm2_hi_limits: Optional[Tuple[Scalar[dtype],Scalar[dtype]]] = None
+        pixel_size: Ang[dtype]
     ):
 
         self.freq_norm2_lo = Scalar[dtype](0)
@@ -83,3 +82,45 @@ struct FrequencyLimits[dtype: DType](
         # bring down the upper boundary, if needed
         if freq_norm_hi is not None:
             self.freq_norm2_hi = min(self.freq_norm2_hi, freq_norm_hi.value()**2)
+
+    fn checker[dim: Int](self, sizes_real: Vec[dim,Int], out checker: FrequencyLimitsChecker[dim,dtype]):
+        checker = FrequencyLimitsChecker(
+            limits = self.copy(),
+            sizes_norm = FFTCoords(sizes_real).sizes_voxel_norm[dtype]()
+        )
+
+
+@fieldwise_init
+struct FrequencyLimitsChecker[dim: Int, dtype: DType](
+    Copyable,
+    Movable
+):
+    var limits: FrequencyLimits[dtype]
+    var sizes_norm: Vec[dim,Scalar[dtype]]
+
+    @always_inline
+    fn contains[
+        *,
+        inclusive_lo: Bool = True,
+        inclusive_hi: Bool = False,
+    ](
+        self,
+        *,
+        f: Vec[dim,Scalar[dtype]],
+        out contains: Bool
+    ):
+        var freq_norm2 = (f*self.sizes_norm).len2()
+        contains = self.limits.contains[inclusive_lo=inclusive_lo, inclusive_hi=inclusive_hi](freq_norm2=freq_norm2)
+
+    @always_inline
+    fn contains[
+        *,
+        inclusive_lo: Bool = True,
+        inclusive_hi: Bool = False,
+    ](
+        self,
+        *,
+        f: Vec[dim,Int],
+        out contains: Bool
+    ):
+        contains = self.contains[inclusive_lo=inclusive_lo, inclusive_hi=inclusive_hi](f=f.map_scalar[dtype]())

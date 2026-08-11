@@ -168,6 +168,16 @@ struct FFTCoords[dim: Int](
                 f[d] -= self.size_fourier[d]()
 
     @always_inline
+    fn sizes_voxel_norm[dtype: DType](self, out sizes: Vec[dim,Scalar[dtype]]):
+        """
+        Returns the sizes of one pixel/voxel in normalized frequency coordinates.
+        WARNING: This operation can be (relatively) slow.
+                 Caching the result can give noticeable speedups.
+                 See FrequencyLimitsChecker.
+        """
+        sizes = 1/self.sizes_real().map_scalar[dtype]()
+
+    @always_inline
     fn f_norm[dtype: DType](
         self,
         *,
@@ -186,11 +196,9 @@ struct FFTCoords[dim: Int](
         out f_norm: Vec[dim,Scalar[dtype]]
     ):
         """Returns the normalized frequencies of the Fourier coordinates."""
-        var sizes_real_dt = self.sizes_real().map_scalar[dtype]()
         # NOTE: multipliying by the reciprical is measurably faster than just doing division
         #       and also matches the roundoff error of csp1
-        var sizes_voxel = 1/sizes_real_dt
-        f_norm = f*sizes_voxel
+        f_norm = f*self.sizes_voxel_norm[dtype]()
 
     fn f_norm[dtype: DType](
         self,

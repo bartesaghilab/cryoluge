@@ -633,6 +633,7 @@ struct VolumeNeighborhoods[
         freq_limits: FrequencyLimits[dtype] = FrequencyLimits[dtype].none()
     ):
         var coords_proj = FFTCoords(sizes_real_proj)
+        var freq_limits_proj = freq_limits.checker(sizes_real_proj)
 
         # compute the extents of the projection grid in volume space
         var f_v_minf = Vec[3,Scalar[dtype]](fill=inf[dtype]())
@@ -706,8 +707,7 @@ struct VolumeNeighborhoods[
                                         continue
 
                                     # apply the frequency limits
-                                    var freq_norm2 = coords_proj.f_norm[dtype](f=sf_pi).len2()
-                                    if not freq_limits.contains(freq_norm2=freq_norm2):
+                                    if not freq_limits_proj.contains(f=sf_pi):
                                         continue
 
                                     # load the voxel neighborhood, if needed

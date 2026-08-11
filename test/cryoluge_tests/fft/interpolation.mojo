@@ -6,6 +6,7 @@ from builtin._location import __call_location
 from cryoluge.math import Vec, Matrix, EulerAnglesZYZ, complex
 from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
+from cryoluge.image.analysis import FrequencyLimits
 from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods, VolumeNeighborhoodsProjection
 from cryoluge.test import assert_equal_float
 
@@ -564,14 +565,29 @@ def test_scan_odd_bigger_proj_override():
     )
 
 
+def test_scan_freq_limits():
+    _test_scan[OORInterp](
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(30, 40, 50),
+        sizes_real_proj = Vec[2](x=5, y=5),
+        freq_limits = FrequencyLimits(
+            freq_norm2_lo=Scalar[dtype](0.1),
+            freq_norm2_hi=Scalar[dtype](0.2)
+        )
+    )
+
+
 def _test_scan[
     out_of_range: OutOfRangeBehavior[dtype]
 ](
     *,
     var img: FFTImage[3,dtype],
     sizes_real_proj: Vec[2,Int],
-    proj_to_volume: Matrix[3,3,dtype]
+    proj_to_volume: Matrix[3,3,dtype],
+    freq_limits: FrequencyLimits[dtype] = FrequencyLimits[dtype].none()
 ):
+
+    var coords_proj = FFTCoords(sizes_real_proj)
 
     # fill the image with arbitrary (but deterministic, and recognizable) numbers
     @parameter
@@ -606,10 +622,25 @@ def _test_scan[
             if obs_f_pi == f_pi:
                 results.append((f_vf^, sv))
 
-        vol.scan[check](sizes_real_proj, projections)
+        vol.scan[check](sizes_real_proj, projections, freq_limits)
 
     @parameter
     def check(f_pi: Vec[2,Int]):
+
+        # find the same value by scanning the volume
+        var results = find(f_pi)
+
+        var context = String("f_pi=", f_pi)
+
+        # check frequency limits
+        var freq_norm2 = coords_proj.f_norm(f=f_pi.map_scalar[dtype]()).len2()
+        if not freq_limits.contains(freq_norm2=freq_norm2):
+            # should get none
+            assert_equal(
+                len(results), 0,
+                String("expected zero samples, but got ", len(results), ". ") + context
+            )
+            return
 
         # rotate into volume space and interpolate the volume
         var exp_f_vf = proj_to_volume*f_pi.map_scalar[dtype]().lift(z=0)
@@ -619,15 +650,12 @@ def _test_scan[
         ref start = start_dists[0]
         var exp_i_vi = interp._f2i(f=start).map_int()
 
-        var context = String(
+        context += String(
             "f_pi=", f_pi,
             "  f_vi=", exp_f_vf.floor().map_int(),
             "  f_vf=", exp_f_vf,
             "  neighborhood=", interp._neighborhood(i=exp_i_vi)
         )
-
-        # find the same value by scanning the volume
-        var results = find(f_pi)
 
         assert_equal(
             len(results), 1,
@@ -641,7 +669,6 @@ def _test_scan[
         assert_equal_float[err_fn](obs_v, exp_v, context)
 
     # iterate the projection grid
-    var coords_proj = FFTCoords(sizes_real_proj)
     for y in range(coords_proj.fmin[1](), coords_proj.fmax[1]() + 1):
         for x in range(0, coords_proj.fmax[0]() + 1):
             check(Vec[2,Int](x=x, y=y))
