@@ -399,16 +399,16 @@ struct VolumeNeighborhoods[
             var i = s.copy()
             i.x() = s.x()*Self.num_neighborhoods_in_segment
 
+            var f = self._i2f_pos(i=i)
+
             # pack all the pixels into this segment
             @parameter
             for w in range(Self.simd_width):
                 # if the pixel is inside the volume, pack it
                 # (otherwise, leave it out-of-range)
-                var iw = i + Vec[3](x=w, y=0, z=0)
-                if iw.x() < sizes_fourier.x():
-                    var pixel = img.complex[i=iw]
-                    segment.re[w] = pixel.re
-                    segment.im[w] = pixel.im
+                var iw = coords.maybe_f2i(f + Vec[3](x=w, y=0, z=0))
+                if iw is not None:
+                    complex.splice(segment, w, img.complex[i=iw.value()])
         
             self._segments[i=s] = segment
                 
@@ -447,38 +447,35 @@ struct VolumeNeighborhoods[
             segment = Self.out_of_range_segment
 
     @always_inline
-    fn _f_in_range[x_halfspace: Int](
+    fn _i_in_range[x_halfspace: Int](
         self,
-        *,
-        f_pos: Vec[3,Int],
+        i: Vec[3,Int],
         out in_range: Bool
     ):
-        var coords = self.coords()
+        var i_min = Vec[3](fill=0)
+        var i_max = self.coords().sizes_fourier()
+
+        var i2 = i.copy()
+
         @parameter
-        if x_halfspace == 1:
-            in_range = f_pos.ge_all(coords.fmin()) and f_pos.le_all(coords.fmax())
-        else:
-            # the -x halfspace has a slightly different topology than the positive one,
-            # so we need to apply different boundary conditions
-            var f_neg = -f_pos - 1
-            in_range = f_neg[0] >= coords.fmin[0]() and f_neg[0] <= coords.fmax[0]()
+        if x_halfspace == -1:
+            # in the negative halfspace, the bounds are slightly (annoyingly) different
             @parameter
             for d in range(1, 3):
-                in_range = in_range and f_neg[d] >= coords.fmin[d]() and f_neg[d] < coords.fmax[d]()
+                i_min[d] += 1
+                i2[d] = i_max[d]//2*2 - i2[d]
+
+        in_range = i2.ge_all(i_min) and i2.lt_all(i_max)
 
     @always_inline
-    fn _f2i(
+    fn _i2f_pos(
         self,
         *,
-        f_pos: Vec[3,Int],
-        out i: Vec[3,Int]
+        i: Vec[3,Int],
+        out f_pos: Vec[3,Int]
     ):
-        var coords = self.coords()
-        i = f_pos.copy()
-        @parameter
-        for d in range(1, 3):
-            if f_pos[d] < 0:
-                i[d] += coords.size_fourier[d]()
+        # use contiguous addressing, instead of the bifurcated thing FFTCoords does
+        f_pos = i + self.coords().fmin_pos()
 
     @always_inline
     fn _maybe_f2i[x_halfspace: Int](
@@ -487,8 +484,10 @@ struct VolumeNeighborhoods[
         f_pos: Vec[3,Int],
         out i: Optional[Vec[3,Int]]
     ):
-        if self._f_in_range[x_halfspace](f_pos=f_pos):
-            i = self._f2i(f_pos=f_pos)
+        # use contiguous addressing, instead of the bifurcated thing FFTCoords does
+        var maybe_i = f_pos - self.coords().fmin_pos()
+        if self._i_in_range[x_halfspace](maybe_i):
+            i = maybe_i^
         else:
             i = None
 
@@ -538,7 +537,6 @@ struct VolumeNeighborhoods[
     fn _neighborhood[x_halfspace: Int](
         self,
         f_vi_pos: Vec[3,Int],
-        f_vi: Vec[3,Int],
         out neighborhood: ComplexSIMD[dtype,8]
     ):
 
@@ -553,7 +551,7 @@ struct VolumeNeighborhoods[
         var in_range_10 = i_vi_10 is not None
         var in_range_01 = i_vi_01 is not None
         var in_range_11 = i_vi_11 is not None
-        var in_range_x = f_vi.x() < self.coords().fmax[0]()
+        var in_range_x = f_vi_pos.x() < self.coords().fmax[0]()
         var all_in_range = in_range_00
             and in_range_10
             and in_range_01
@@ -695,9 +693,10 @@ struct VolumeNeighborhoods[
                             for ys in range(bounds_p[0].y(), bounds_p[1].y() + 1):
                                 for xs in range(bounds_p[0].x(), bounds_p[1].x() + 1):
                                     var sf_pi = Vec[2](x=xs, y=ys)
+                                    var sf_pf = sf_pi.map_scalar[dtype]()
 
                                     # transform back into reference volume space to compute interpolation distances
-                                    var sf_vf = proj.proj_to_vol(sf_pi.map_scalar[dtype]())
+                                    var sf_vf = proj.proj_to_vol(sf_pf)
                                     var dists = sf_vf - f_vf
 
                                     # the voxel bounding box may contain extra sample points,
@@ -707,12 +706,12 @@ struct VolumeNeighborhoods[
                                         continue
 
                                     # apply the frequency limits
-                                    if not freq_limits_proj.contains(f=sf_pi):
+                                    if not freq_limits_proj.contains(f=sf_pf):
                                         continue
 
                                     # load the voxel neighborhood, if needed
                                     if neighborhood is None:
-                                        neighborhood = self._neighborhood[x_halfspace](f_vi_pos, f_vi)
+                                        neighborhood = self._neighborhood[x_halfspace](f_vi_pos)
 
                                     # finally, interpolate the reference volume
                                     var sv = interpolate(dists, neighborhood.value())

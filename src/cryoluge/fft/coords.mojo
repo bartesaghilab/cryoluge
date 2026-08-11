@@ -79,6 +79,22 @@ struct FFTCoords[dim: Int](
             fmin[d] = self.fmin[d]()
 
     @always_inline
+    fn fmin_pos[d: Int](self, out fmin: Int):
+        @parameter
+        if d == 0:
+            fmin = 0
+        else:
+            fmin = self.fmin[d]()
+
+    @always_inline
+    fn fmin_pos(self, out fmin: Self.Vec):
+        """Returns the lower bound (inclusive) on fourier coordinates for the positive x-halfspace."""
+        fmin = Self.Vec(uninitialized=True)
+        @parameter
+        for d in range(dim):
+            fmin[d] = self.fmin_pos[d]()
+
+    @always_inline
     fn fmax[d: Int](self, out fmax: Int):
         @parameter
         if d == 0:
