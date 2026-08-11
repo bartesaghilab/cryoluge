@@ -168,38 +168,38 @@ struct FFTCoords[dim: Int](
                 f[d] -= self.size_fourier[d]()
 
     @always_inline
-    fn freqs[dtype: DType](
+    fn f_norm[dtype: DType](
         self,
         *,
         f: Vec[dim,Int],
-        out freqs: Vec[dim,Scalar[dtype]]
+        out f_norm: Vec[dim,Scalar[dtype]]
     ):
         """Returns the normalized frequencies of the Fourier coordinates."""
         var f_dt = f.map_scalar[dtype]()
-        freqs = self.freqs(f=f_dt)
+        f_norm = self.f_norm(f=f_dt)
 
     @always_inline
-    fn freqs[dtype: DType](
+    fn f_norm[dtype: DType](
         self,
         *,
         f: Vec[dim,Scalar[dtype]],
-        out freqs: Vec[dim,Scalar[dtype]]
+        out f_norm: Vec[dim,Scalar[dtype]]
     ):
         """Returns the normalized frequencies of the Fourier coordinates."""
         var sizes_real_dt = self.sizes_real().map_scalar[dtype]()
         # NOTE: multipliying by the reciprical is measurably faster than just doing division
         #       and also matches the roundoff error of csp1
         var sizes_voxel = 1/sizes_real_dt
-        freqs = f*sizes_voxel
+        f_norm = f*sizes_voxel
 
-    fn freqs[dtype: DType](
+    fn f_norm[dtype: DType](
         self,
         *,
         i: Vec[dim,Int],
-        out freqs: Vec[dim,Scalar[dtype]]
+        out f_norm: Vec[dim,Scalar[dtype]]
     ):
         """Returns the normalized frequencies of the image coordinates."""
-        freqs = self.freqs[dtype](f=self.i2f(i))
+        f_norm = self.f_norm[dtype](f=self.i2f(i))
 
     fn freq_edge[dtype: DType](self, out freq: Scalar[dtype]):
         """
@@ -322,18 +322,18 @@ struct FFTCoordsFull[dim: Int](
             else:
                 f[d] = i[d]
 
-    fn freqs[dtype: DType](
+    fn f_norm[dtype: DType](
         self,
         *,
         f: Vec[dim,Int],
-        out freqs: Vec[dim,Scalar[dtype]]
+        out f_norm: Vec[dim,Scalar[dtype]]
     ):
-        freqs = self._half().freqs[dtype](f=f)
+        f_norm = self._half().f_norm[dtype](f=f)
 
-    fn freqs[dtype: DType](
+    fn f_norm[dtype: DType](
         self,
         *,
         i: Vec[dim,Int],
-        out freqs: Vec[dim,Scalar[dtype]]
+        out f_norm: Vec[dim,Scalar[dtype]]
     ):
-        freqs = self._half().freqs[dtype](i=i)
+        f_norm = self._half().f_norm[dtype](i=i)

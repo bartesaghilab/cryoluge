@@ -90,34 +90,34 @@ struct CTF[dtype: DType](
     fn azimuth(
         self,
         *,
-        freqs: Vec[2,Scalar[dtype]],
+        f_norm: Vec[2,Scalar[dtype]],
         out result: Rad[dtype]
     ):
         result = Rad[dtype](0)
-        if freqs.x() != 0 or freqs.y() != 0:
-            result = Rad(atan2(freqs.y(), freqs.x()))
+        if f_norm.x() != 0 or f_norm.y() != 0:
+            result = Rad(atan2(f_norm.y(), f_norm.x()))
 
     fn eval(
         self,
         *,
-        freqs: Vec[2,Scalar[dtype]],
+        f_norm: Vec[2,Scalar[dtype]],
         out result: Scalar[dtype]
     ):
         result = self.eval(
-            azimuth=self.azimuth(freqs=freqs),
-            freq2=freqs.len2()
+            azimuth=self.azimuth(f_norm=f_norm),
+            freq_norm2=f_norm.len2()
         )
 
     fn eval(
         self,
         *,
         azimuth: Rad[dtype],
-        freq2: Scalar[dtype],
+        freq_norm2: Scalar[dtype],
         out result: Scalar[dtype]
     ):
         var angle = 2*(azimuth - self.astigmatism_azimuth_rad)
         var phase_shift_rad = self._extra_rotation
-            + freq2*(self._defocus_half_sum + self._defocus_half_diff*angle.cos() - self._sawl3*freq2)
+            + freq_norm2*(self._defocus_half_sum + self._defocus_half_diff*angle.cos() - self._sawl3*freq_norm2)
 
         comptime threshold = 2*pi[dtype]
         if phase_shift_rad > threshold:
@@ -128,22 +128,22 @@ struct CTF[dtype: DType](
     fn eval_beam_tilt_phase_shift(
         self,
         *,
-        freqs: Vec[2,Scalar[dtype]],
+        f_norm: Vec[2,Scalar[dtype]],
         out result: ComplexScalar[dtype]
     ):
-        var freq2 = freqs.len2()
+        var freq_norm2 = f_norm.len2()
         result = self.eval_beam_tilt_phase_shift(
-            azimuth=self.azimuth(freqs=freqs),
-            freq2=freq2,
-            freq=sqrt(freq2)
+            azimuth=self.azimuth(f_norm=f_norm),
+            freq_norm2=freq_norm2,
+            freq_norm=sqrt(freq_norm2)
         )
 
     fn eval_beam_tilt_phase_shift(
         self,
         *,
         azimuth: Rad[dtype],
-        freq2: Scalar[dtype],
-        freq: Scalar[dtype],
+        freq_norm2: Scalar[dtype],
+        freq_norm: Scalar[dtype],
         out result: ComplexScalar[dtype]
     ):
         if self._beam_tilt_rad.value == 0 and self._particle_shift_px == 0:
@@ -152,7 +152,7 @@ struct CTF[dtype: DType](
         var beam_tilt_rad = self._beam_tilt_rad*(azimuth - self.beam_tilt_azimuth_rad).cos()
         var particle_shift_px = self._particle_shift_px*(azimuth - self.particle_shift_azimuth_rad).cos()
 
-        var phase_shift_rad = freq*(beam_tilt_rad*self._sawl2*freq2 - particle_shift_px)
+        var phase_shift_rad = freq_norm*(beam_tilt_rad*self._sawl2*freq_norm2 - particle_shift_px)
 
         result = ComplexScalar[dtype](phase_shift_rad.cos(), phase_shift_rad.sin())
 

@@ -706,8 +706,8 @@ struct VolumeNeighborhoods[
                                         continue
 
                                     # apply the frequency limits
-                                    var freq2 = coords_proj.freqs[dtype](f=sf_pi).len2()
-                                    if not freq_limits.contains(freq2=freq2):
+                                    var freq_norm2 = coords_proj.f_norm[dtype](f=sf_pi).len2()
+                                    if not freq_limits.contains(freq_norm2=freq_norm2):
                                         continue
 
                                     # load the voxel neighborhood, if needed

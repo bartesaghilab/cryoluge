@@ -44,7 +44,7 @@ struct WeightBySSNROperator[
     fn eval(
         self,
         *,
-        freq: Scalar[dtype],
+        freq_norm: Scalar[dtype],
         ctf2: Scalar[dtype],
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
@@ -53,8 +53,8 @@ struct WeightBySSNROperator[
 
         # make sure the normalized frequency is in range [-0.5,0.5]
         # ie, only apply to the inscribed circle of the square image
-        if freq**2 <= 0.25:
-            var shelli = self.shells[].shelli(freq=freq)
+        if freq_norm**2 <= 0.25:
+            var shelli = self.shells[].shelli(freq_norm=freq_norm)
             result *= sqrt(1 + ctf2*self._factors[shelli])
 
     fn apply(self, ctf: CTF[dtype], mut image: FFTImage[2,dtype]):
@@ -65,10 +65,9 @@ struct WeightBySSNROperator[
         fn func(i: Vec[2,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
-            var freqs = coords.freqs[dtype](f=f)
-            var freq = sqrt(freqs.len2())
-            var ctfi2 = ctf.eval(freqs=freqs)**2
-            image.complex[i=i] = self.eval(freq=freq, ctf2=ctfi2, v=v)
+            var f_norm = coords.f_norm[dtype](f=f)
+            var ctfi2 = ctf.eval(f_norm=f_norm)**2
+            image.complex[i=i] = self.eval(freq_norm=f_norm.len(), ctf2=ctfi2, v=v)
 
         image.complex.iterate[func]()
 

@@ -40,11 +40,11 @@ struct WhitenOperator[
     fn eval(
         self,
         *,
-        freq: Scalar[dtype],
+        freq_norm: Scalar[dtype],
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
-        var shelli = self.stats.shells[].shelli(freq=freq)
+        var shelli = self.stats.shells[].shelli(freq_norm=freq_norm)
         result = v*self._factor[shelli]
 
     fn apply(self, mut image: FFTImage[dim,dtype]):
@@ -55,8 +55,8 @@ struct WhitenOperator[
         fn func(i: Vec[dim,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
-            var freq = sqrt(coords.freqs[dtype](f=f).len2())
-            image.complex[i=i] = self.eval(freq=freq, v=v)
+            var f_norm = coords.f_norm[dtype](f=f)
+            image.complex[i=i] = self.eval(freq_norm=f_norm.len(), v=v)
 
         image.complex.iterate[func]()
 
@@ -87,10 +87,10 @@ struct WhitenStats[
         self._sum = List[Scalar[sum_dtype]](length=len(shells), fill=0)
         self._count = List[Int](length=len(shells), fill=0)
 
-    fn eval[dtype: DType](mut self, *, freq2: Scalar[dtype], v: ComplexScalar[dtype]):
+    fn eval[dtype: DType](mut self, *, freq_norm2: Scalar[dtype], v: ComplexScalar[dtype]):
         var dist2 = v.squared_norm()
         if dist2 > 0:
-            var shelli = self.shells[].shelli(freq2=freq2)
+            var shelli = self.shells[].shelli(freq_norm2=freq_norm2)
             if shelli <= self.res_limit:
                 self._sum[shelli] += Scalar[sum_dtype](dist2)
                 self._count[shelli] += 1
@@ -103,8 +103,8 @@ struct WhitenStats[
         fn func(i: Vec[dim,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
-            var freq2 = coords.freqs[dtype](f=f).len2()
-            self.eval(freq2=freq2, v=v)
+            var freq_norm2 = coords.f_norm[dtype](f=f).len2()
+            self.eval(freq_norm2=freq_norm2, v=v)
 
         # TEMP: extend lifetimes to work around compiler bug
         _ = coords
