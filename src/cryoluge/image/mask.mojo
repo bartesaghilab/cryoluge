@@ -10,15 +10,10 @@ from cryoluge.fft import FFTCoords, FFTImage, CoordDomain, constrain_coord_domai
 
 
 trait MaskReal:
-    fn includes[
-        dim: Int
-    ](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool: ...
+    fn includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool: ...
 
 trait MaskFourier:
-    fn includes[
-        dim: Int,
-        origin: Origin[mut=False]
-    ](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim,origin]) -> Bool: ...
+    fn includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool: ...
 
 
 struct AllMask(MaskReal, MaskFourier):
@@ -26,15 +21,10 @@ struct AllMask(MaskReal, MaskFourier):
     fn __init__(out self):
         pass
 
-    fn includes[
-        dim: Int
-    ](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
+    fn includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
         return True
 
-    fn includes[
-        dim: Int,
-        origin: Origin[mut=False]
-    ](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim,origin]) -> Bool:
+    fn includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool:
         return True
 
 
@@ -143,9 +133,7 @@ struct RadialMask[
         else:
             return unrecognized_mask_region[region,Bool]()
 
-    fn includes[
-        dim: Int
-    ](
+    fn includes[dim: Int](
         self,
         i: Vec[dim,Int],
         sizes: Vec[dim,Int]
@@ -153,13 +141,10 @@ struct RadialMask[
         constrain_coord_domain["includes()", domain, CoordDomain.Real]()
         return self.includes(center_dist2_real[dim,dtype](i, sizes))
 
-    fn includes[
-        dim: Int,
-        origin: Origin[mut=False]
-    ](
+    fn includes[dim: Int](
         self,
         i: Vec[dim,Int],
-        fft_coords: FFTCoords[dim, origin]
+        fft_coords: FFTCoords[dim]
     ) -> Bool:
         constrain_coord_domain["includes()", domain, CoordDomain.Fourier]()
         return self.includes(center_dist2_fourier[dim,dtype](i, fft_coords))
@@ -250,17 +235,12 @@ struct AnnularMask[
             constrained[False, String("Unsupported MaskRegion: ", region)]()
             return abort[Bool]()
 
-    fn includes[
-        dim: Int
-    ](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
+    fn includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
         # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
         constrain_coord_domain["includes()", domain, CoordDomain.Real]()
         return self.includes(center_dist2_real[dim,dtype](i, sizes))
 
-    fn includes[
-        dim: Int,
-        origin: Origin[mut=False]
-    ](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim, origin]) -> Bool:
+    fn includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool:
         # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
         constrain_coord_domain["includes()", domain, CoordDomain.Fourier]()
         return self.includes(center_dist2_fourier[dim,dtype](i, fft_coords))

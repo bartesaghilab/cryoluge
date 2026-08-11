@@ -35,7 +35,7 @@ struct FFTImage[
         ref real = of
         self = Self(real.sizes(), alignment=alignment)
 
-    fn coords(self) -> FFTCoords[dim, origin=origin_of(self.sizes_real)]:
+    fn coords(self) -> FFTCoords[dim]:
         return FFTCoords(self.sizes_real)
 
     fn crop(self, *, mut to: Self):

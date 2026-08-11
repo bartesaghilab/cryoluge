@@ -2,10 +2,7 @@
 from cryoluge.math import Vec, is_odd
 
 
-struct FFTCoords[
-    dim: Int,
-    origin: Origin[mut=False]
-](
+struct FFTCoords[dim: Int](
     Copyable,
     Movable
 ):
@@ -30,16 +27,16 @@ struct FFTCoords[
             A[d][n/2+1:n) contains the negative-frequency terms, in order of decreasing absolute frequency
     """
 
-    var _sizes_real: Pointer[Self.Vec, origin]
+    var _sizes_real: Self.Vec
 
     comptime Vec = Vec[dim,Int]
 
-    fn __init__(out self, ref [origin] sizes_real: Self.Vec):
-        self._sizes_real = Pointer(to=sizes_real)
+    fn __init__(out self, sizes_real: Self.Vec):
+        self._sizes_real = sizes_real.copy()
 
     @always_inline
-    fn sizes_real(self) -> ref [origin] Self.Vec:
-        return self._sizes_real[]
+    fn sizes_real(self) -> ref [origin_of(self._sizes_real)] Self.Vec:
+        return self._sizes_real
 
     @always_inline
     fn size_fourier[d: Int](self, out size_fourier: Int):
@@ -212,10 +209,7 @@ struct FFTCoords[
         freq = Scalar[dtype](0.5)
 
 
-struct FFTCoordsFull[
-    dim: Int,
-    origin: Origin[mut=False]
-](
+struct FFTCoordsFull[dim: Int](
     Copyable,
     Movable
 ):
@@ -231,19 +225,19 @@ struct FFTCoordsFull[
     In higher dimensions, the coordinates are handled the same as in FFTCoords
     """
 
-    var _sizes_real: Pointer[Self.Vec, origin]
+    var _sizes_real: Self.Vec
 
     comptime Vec = Vec[dim,Int]
 
-    fn __init__(out self, ref [origin] sizes_real: Self.Vec):
-        self._sizes_real = Pointer(to=sizes_real)
+    fn __init__(out self, sizes_real: Self.Vec):
+        self._sizes_real = sizes_real.copy()
 
-    fn _half(self) -> FFTCoords[dim,origin]:
-        return FFTCoords[dim,origin](self._sizes_real[])
+    fn _half(self) -> FFTCoords[dim]:
+        return FFTCoords(self._sizes_real)
 
     @always_inline
-    fn sizes_real(self) -> ref [origin] Self.Vec:
-        return self._sizes_real[]
+    fn sizes_real(self) -> ref [origin_of(self._sizes_real)] Self.Vec:
+        return self._sizes_real
 
     @always_inline
     fn size_fourier[d: Int](self, out size_fourier: Int):

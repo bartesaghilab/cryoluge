@@ -417,7 +417,7 @@ struct VolumeNeighborhoods[
         # TEMP: extend lifetimes to work around compiler bug
         _ = sizes_fourier
 
-    fn coords(self) -> FFTCoords[3,origin_of(self._sizes_real_vol)]:
+    fn coords(self) -> FFTCoords[3]:
         return FFTCoords(self._sizes_real_vol)
     
     fn _segment(
