@@ -54,6 +54,16 @@ fn clamp[dtype: DType, width: Int](
     r = math.min(math.max(n, min), max)
 
 
+fn ladder[width: Int](out v: SIMD[DType.int,width]):
+    """
+    Returns a vector containing all the integers in the range [0,width) in order.
+    """
+    v = SIMD[DType.int,width]()
+    @parameter
+    for i in range(width):
+        v[i] = i
+
+
 fn ease_linear[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[dtype,width]):
     """
     Easing function over [0,1] with a linear shape, essentially a no-op.

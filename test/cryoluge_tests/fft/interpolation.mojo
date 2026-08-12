@@ -139,7 +139,7 @@ def test_lerp_2d():
 
 
 alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](5, 7))
-alias OOROverride = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](9, 3))
+alias OOROverride = OutOfRangeBehavior.override(ComplexScalar[dtype](9, 3))
 
 
 def test_plerp_i2f_1d_full():
@@ -577,8 +577,20 @@ def test_scan_freq_limits():
     )
 
 
+def test_scan_simd_4():
+    _test_scan[OORInterp,4](
+        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
+        proj_to_volume = make_rot(30, 40, 50),
+        sizes_real_proj = Vec[2](x=5, y=5)
+    )
+
+
+# TODO: more SIMD tests
+
+
 def _test_scan[
-    out_of_range: OutOfRangeBehavior[dtype]
+    out_of_range: OutOfRangeBehavior[dtype],
+    simd_width: Int = 2
 ](
     *,
     var img: FFTImage[3,dtype],
@@ -604,8 +616,7 @@ def _test_scan[
 
     img.complex.iterate[fill]()
 
-    # TODO: bigger simd_width
-    var vol = VolumeNeighborhoods[dtype,2,out_of_range](img)
+    var vol = VolumeNeighborhoods[dtype,simd_width,out_of_range](img)
     var projections = [
         VolumeNeighborhoodsProjection(0, proj_to_volume.copy())
     ]

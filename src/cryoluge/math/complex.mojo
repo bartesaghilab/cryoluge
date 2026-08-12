@@ -49,7 +49,7 @@ fn pack[
 ):
     debug_assert(
         len(cs)*simd_width_src == simd_width,
-        "Expected ", simd_width, " scalar elements, but only got ", len(cs)*simd_width_src
+        "Expected ", simd_width, " scalar elements, but got ", len(cs)*simd_width_src, " instead"
     )
     result = zero[dtype,simd_width]()
     for i in range(len(cs)):

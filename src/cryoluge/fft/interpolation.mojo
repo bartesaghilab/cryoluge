@@ -3,7 +3,7 @@ from math import floor, ceildiv
 from complex import ComplexSIMD
 from utils.numerics import inf
 
-from cryoluge.math import Vec, AlignedBox, OrientedBox, complex
+from cryoluge.math import Vec, AlignedBox, OrientedBox, complex, ladder
 from cryoluge.image import DimensionalBuffer
 from cryoluge.image.analysis import FrequencyLimits
 from cryoluge.fft import FFTCoordsFull, Delta
@@ -354,7 +354,6 @@ comptime PrecomputedFFTInterpolation = PrecomputedFFTInterpolationFull
 # NOTE: this is useful for switching downstream apps to use different implementations during benchmarking
 
 
-# TEMP
 struct VolumeNeighborhoods[
     dtype: DType,
     simd_width: Int,
@@ -370,9 +369,7 @@ struct VolumeNeighborhoods[
         re=out_of_range.value.re,
         im=out_of_range.value.im
     )
-    comptime num_neighborhoods_in_segment = simd_width - 1
-    # one less neighborhood, due to needing two x voxels per neighborhood
-    comptime deltas = Delta[3,dtype_coords].build()
+    comptime num_neighborhoods_in_segment = num_neighborhoods_in_segment[simd_width]()
 
     fn __init__(
         out self,
@@ -404,12 +401,14 @@ struct VolumeNeighborhoods[
             # pack all the pixels into this segment
             @parameter
             for w in range(Self.simd_width):
+
                 # if the pixel is inside the volume, pack it
                 # (otherwise, leave it out-of-range)
-                var iw = coords.maybe_f2i(f + Vec[3](x=w, y=0, z=0))
+                var fw = f + Vec[3](x=w, y=0, z=0)
+                var iw = coords.maybe_f2i(fw)
                 if iw is not None:
                     complex.splice(segment, w, img.complex[i=iw.value()])
-        
+
             self._segments[i=s] = segment
                 
         sizes_segments.iterate_over_sizes[func]()
@@ -534,13 +533,12 @@ struct VolumeNeighborhoods[
 
         bounds_p = (range_min^, range_max^)
 
-    fn _neighborhood[x_halfspace: Int](
+    fn _segment_neighborhood[x_halfspace: Int](
         self,
         f_vi_pos: Vec[3,Int],
-        out neighborhood: ComplexSIMD[dtype,8]
+        out segment_neighborhood: _SegmentNeighborhood[dtype,simd_width]
     ):
-
-        # get the 8-voxel neighborhood image coordinates
+        # get the neighborhood image coordinates
         var i_vi_00 = self._maybe_f2i[x_halfspace](f_pos=f_vi_pos + Vec[3](x=0, y=0, z=0))
         var i_vi_10 = self._maybe_f2i[x_halfspace](f_pos=f_vi_pos + Vec[3](x=0, y=1, z=0))
         var i_vi_01 = self._maybe_f2i[x_halfspace](f_pos=f_vi_pos + Vec[3](x=0, y=0, z=1))
@@ -551,49 +549,51 @@ struct VolumeNeighborhoods[
         var in_range_10 = i_vi_10 is not None
         var in_range_01 = i_vi_01 is not None
         var in_range_11 = i_vi_11 is not None
-        var in_range_x = f_vi_pos.x() < self.coords().fmax[0]()
-        var all_in_range = in_range_00
-            and in_range_10
-            and in_range_01
-            and in_range_11
-            and in_range_x
+        var in_range_yz = in_range_10 and in_range_01
         @parameter
         if out_of_range.id == OutOfRangeBehavior.Override:
-            if not all_in_range:
+            if not in_range_yz:
                 i_vi_00 = None
                 i_vi_10 = None
                 i_vi_01 = None
                 i_vi_11 = None
 
-        # read the voxel neighborhood, where possible
-        var v00 = self._segment(i=i_vi_00)
-        var v10 = self._segment(i=i_vi_10)
-        var v01 = self._segment(i=i_vi_01)
-        var v11 = self._segment(i=i_vi_11)
+        var x_vec = materialize[ladder[simd_width]()]() + f_vi_pos.x()
 
-        # pack the neighborhood into a vector
-        neighborhood = complex.pack[8](v00, v10, v01, v11)
+        # read the segments, where possible
+        segment_neighborhood = _SegmentNeighborhood[dtype,simd_width](
+            s00 = self._segment(i=i_vi_00),
+            s10 = self._segment(i=i_vi_10),
+            s01 = self._segment(i=i_vi_01),
+            s11 = self._segment(i=i_vi_11),
+            in_range_x_mask = x_vec.lt(self.coords().fmax[0]())
+        )
 
         @parameter
         if x_halfspace == -1:
 
-            # in the negative halfspace: re-order the voxels and conjugate
-            var in_range_mask = SIMD[DType.bool,8](
-                in_range_00,
-                in_range_00 and in_range_x,
-                in_range_10,
-                in_range_10 and in_range_x,
-                in_range_01,
-                in_range_01 and in_range_x,
-                in_range_11,
-                in_range_11 and in_range_x,
-            )
-            neighborhood.im *= in_range_mask.select[dtype](
-                true_case=-1,
-                false_case=1
-            )
-            neighborhood.im = neighborhood.im.shuffle[7,6,5,4,3,2,1,0]()
-            neighborhood.re = neighborhood.re.shuffle[7,6,5,4,3,2,1,0]()
+            # conjugate the in-range voxels
+            var in_range_x_mask = x_vec.le(self.coords().fmax[0]())
+            @parameter
+            if out_of_range.id == OutOfRangeBehavior.Override:
+                if not in_range_yz:
+                    in_range_x_mask = SIMD[DType.bool,simd_width](fill=False)
+
+            @always_inline
+            fn conj_mask(
+                in_range_x_mask: SIMD[DType.bool,simd_width],
+                in_range: Bool,
+                out conj_mask: SIMD[dtype,simd_width]
+            ):
+                conj_mask = (in_range_x_mask and SIMD[DType.bool,simd_width](fill=in_range)).select(
+                    true_case = Scalar[dtype](-1),
+                    false_case = Scalar[dtype](1)
+                )
+            
+            segment_neighborhood.s00.im *= conj_mask(in_range_x_mask, in_range_00)
+            segment_neighborhood.s10.im *= conj_mask(in_range_x_mask, in_range_10)
+            segment_neighborhood.s01.im *= conj_mask(in_range_x_mask, in_range_01)
+            segment_neighborhood.s11.im *= conj_mask(in_range_x_mask, in_range_11)
 
             # f_v_neg.x = -1 (ie, f_v_pos.x = 0 in -x halfspace) doesn't have x-contiguous voxels,
             # so we need to load the missing voxels
@@ -601,26 +601,38 @@ struct VolumeNeighborhoods[
 
                 # get the extra voxel image coordinates
                 var f_vi_flipped = f_vi_pos*Vec[3](x=1, y=-1, z=-1)
-                i_vi_00 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=0, z=0))
-                i_vi_10 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=1, z=0))
-                i_vi_01 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=0, z=1))
-                i_vi_11 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=1, z=1))
+                var i_vi_00 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=0, z=0))
+                var i_vi_10 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=1, z=0))
+                var i_vi_01 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=0, z=1))
+                var i_vi_11 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=1, z=1))
 
                 # apply out-of-range behavior
                 @parameter
                 if out_of_range.id == OutOfRangeBehavior.Override:
-                    if not all_in_range:
+                    if not in_range_yz:
                         i_vi_00 = None
                         i_vi_10 = None
                         i_vi_01 = None
                         i_vi_11 = None
 
-                # load the voxels into the neighborhood vector
-                complex.splice(neighborhood, 1, self._segment(i=i_vi_11))
-                complex.splice(neighborhood, 3, self._segment(i=i_vi_01))
-                complex.splice(neighborhood, 5, self._segment(i=i_vi_10))
-                complex.splice(neighborhood, 7, self._segment(i=i_vi_00))
+                # replace the affected voxels
+                complex.splice(segment_neighborhood.s00, 0, self._segment(i=i_vi_00), 0)
+                complex.splice(segment_neighborhood.s10, 0, self._segment(i=i_vi_10), 0)
+                complex.splice(segment_neighborhood.s01, 0, self._segment(i=i_vi_01), 0)
+                complex.splice(segment_neighborhood.s11, 0, self._segment(i=i_vi_11), 0)
                 # NOTE: these voxels always load into the positive side and don't need conjugation
+
+            # re-order the voxels
+            segment_neighborhood.s00.re = segment_neighborhood.s00.re.reversed()
+            segment_neighborhood.s00.im = segment_neighborhood.s00.im.reversed()
+            segment_neighborhood.s10.re = segment_neighborhood.s10.re.reversed()
+            segment_neighborhood.s10.im = segment_neighborhood.s10.im.reversed()
+            segment_neighborhood.s01.re = segment_neighborhood.s01.re.reversed()
+            segment_neighborhood.s01.im = segment_neighborhood.s01.im.reversed()
+            segment_neighborhood.s11.re = segment_neighborhood.s11.re.reversed()
+            segment_neighborhood.s11.im = segment_neighborhood.s11.im.reversed()
+            swap(segment_neighborhood.s00, segment_neighborhood.s11)
+            swap(segment_neighborhood.s10, segment_neighborhood.s01)
 
     fn scan[
         func: fn(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing
@@ -631,6 +643,8 @@ struct VolumeNeighborhoods[
         freq_limits: FrequencyLimits[dtype] = FrequencyLimits[dtype].none()
     ):
         var coords_proj = FFTCoords(sizes_real_proj)
+        # TODO
+        #var freq_limits_vol = freq_limits.checker(self._sizes_real_vol)
         var freq_limits_proj = freq_limits.checker(sizes_real_proj)
 
         # compute the extents of the projection grid in volume space
@@ -680,42 +694,65 @@ struct VolumeNeighborhoods[
                         if x_halfspace == -1:
                             f_vi = -f_vi - 1
 
-                        var f_vf = f_vi.map_scalar[dtype]()
-                        var neighborhood: Optional[ComplexSIMD[dtype,8]] = None
+                        # check voxel against the frequency limits
+                        # TODO: getting early outs here seems to make the scan slower overall
+                        #       maybe this check can be optimized more
+                        #       also, it might pay off more in SIMD-land
+                        # var voxel_in_range = False
+                        # @parameter
+                        # for corner in AlignedBox[3,dtype].unit_corners():
+                        #     var f = f_vf + materialize[corner]()
+                        #     voxel_in_range = voxel_in_range or freq_limits_vol.contains(f=f)
+                        # if not voxel_in_range:
+                        #     continue
 
-                        for proj in projections:
+                        # load the neighborhoods
+                        # TODO: try to avoid unecessary segment loads?
+                        #       caching here seems to trigger a miscompilation though! D=
+                        var segment_neighborhood = self._segment_neighborhood[x_halfspace](f_vi_pos)
 
-                            # compute the bounds of the voxel in projection space
-                            var bounds_p = self._proj_bounds(proj, f_vf, sizes_real_proj)
-                            # TODO: this is likely a bottleneck?
+                        # for each voxel neighborhood in the segment neighborhood ...
+                        @parameter
+                        for x_offset in range(self.num_neighborhoods_in_segment):
+                            var f_vi = f_vi + Vec[3](x=x_offset, y=0, z=0)
+                            var f_vf = f_vi.map_scalar[dtype]()
 
-                            # iterate over the projection sample points in the bounding box
-                            for ys in range(bounds_p[0].y(), bounds_p[1].y() + 1):
-                                for xs in range(bounds_p[0].x(), bounds_p[1].x() + 1):
-                                    var sf_pi = Vec[2](x=xs, y=ys)
-                                    var sf_pf = sf_pi.map_scalar[dtype]()
+                            for proj in projections:
 
-                                    # transform back into reference volume space to compute interpolation distances
-                                    var sf_vf = proj.proj_to_vol(sf_pf)
-                                    var dists = sf_vf - f_vf
+                                # compute the bounds of the voxel in projection space
+                                var bounds_p = self._proj_bounds(proj, f_vf, sizes_real_proj)
+                                # TODO: this is likely a bottleneck?
 
-                                    # the voxel bounding box may contain extra sample points,
-                                    # so make sure the sample point actually lies inside the voxel itself
-                                    # (treat the upper boundaries as exclusive)
-                                    if dists.lt_any(Vec[3](fill=Scalar[dtype](0))) or dists.ge_any(Vec[3](fill=Scalar[dtype](1))):
-                                        continue
+                                # iterate over the projection sample points in the bounding box
+                                # TODO: how many points typically end up in the box??
+                                for sy in range(bounds_p[0].y(), bounds_p[1].y() + 1):
+                                    for sx in range(bounds_p[0].x(), bounds_p[1].x() + 1):
+                                        var sf_pi = Vec[2](x=sx, y=sy)
+                                        var sf_pf = sf_pi.map_scalar[dtype]()
 
-                                    # apply the frequency limits
-                                    if not freq_limits_proj.contains(f=sf_pf):
-                                        continue
+                                        # transform back into reference volume space to compute interpolation distances
+                                        var sf_vf = proj.proj_to_vol(sf_pf)
+                                        var dists = sf_vf - f_vf
 
-                                    # load the voxel neighborhood, if needed
-                                    if neighborhood is None:
-                                        neighborhood = self._neighborhood[x_halfspace](f_vi_pos)
+                                        # the voxel bounding box may contain extra sample points,
+                                        # so make sure the sample point actually lies inside the voxel itself
+                                        # (treat the upper boundaries as exclusive)
+                                        if dists.lt_any(Vec[3](fill=Scalar[dtype](0))) or dists.ge_any(Vec[3](fill=Scalar[dtype](1))):
+                                            continue
 
-                                    # finally, interpolate the reference volume
-                                    var sv = interpolate(dists, neighborhood.value())
-                                    func(proj.id, sf_pi^, sf_vf^, sv)
+                                        # apply the frequency limits
+                                        if not freq_limits_proj.contains(f=sf_pf):
+                                            continue
+
+                                        # finally, interpolate the reference volume
+                                        var voxel_neighborhood = segment_neighborhood.voxel_neighborhood[x_offset,Self.out_of_range]()
+                                        var sv = interpolate(dists, voxel_neighborhood)
+                                        func(proj.id, sf_pi^, sf_vf^, sv)
+
+
+fn num_neighborhoods_in_segment[simd_width: Int]() -> Int:
+    return simd_width - 1
+    # one less neighborhood, due to needing two x voxels per neighborhood
 
 
 @fieldwise_init
@@ -734,3 +771,49 @@ struct VolumeNeighborhoodsProjection[dtype: DType](
 
     fn vol_to_proj(self, v: Vec[3,Scalar[dtype]], out result: Vec[3,Scalar[dtype]]):
         result = self.rot_proj_to_vol.mul_transpose(v)
+
+
+comptime _VoxelNeighborhood[dtype: DType] = ComplexSIMD[dtype,8]
+
+
+@fieldwise_init
+struct _SegmentNeighborhood[dtype: DType, simd_width: Int](
+    Copyable,
+    Movable
+):
+    var s00: Self.Segment
+    var s10: Self.Segment
+    var s01: Self.Segment
+    var s11: Self.Segment
+    var in_range_x_mask: SIMD[DType.bool,simd_width]
+
+    comptime Segment = ComplexSIMD[dtype,simd_width]
+    comptime num_neighborhoods_in_segment = num_neighborhoods_in_segment[simd_width]()
+
+    fn voxel_neighborhood[
+        x_offset: Int,
+        out_of_range: OutOfRangeBehavior[dtype]
+    ](self, out voxel_neighborhood: _VoxelNeighborhood[dtype]):
+
+        # apply out-of-range behavior
+        @parameter
+        if out_of_range.id == OutOfRangeBehavior.Override:
+            if not self.in_range_x_mask[x_offset]:
+                voxel_neighborhood = complex.pack[8](
+                    out_of_range.value,
+                    out_of_range.value,
+                    out_of_range.value,
+                    out_of_range.value,
+                    out_of_range.value,
+                    out_of_range.value,
+                    out_of_range.value,
+                    out_of_range.value
+                )
+                return
+
+        voxel_neighborhood = complex.pack[8](
+            complex.slice[x_offset,2](self.s00),
+            complex.slice[x_offset,2](self.s10),
+            complex.slice[x_offset,2](self.s01),
+            complex.slice[x_offset,2](self.s11)
+        )
