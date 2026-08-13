@@ -15,7 +15,9 @@ comptime SIMDInt[simd_width: Int] = SIMD[DType.int,simd_width]
 @fieldwise_init
 struct OutOfRangeBehavior[dtype: DType](
     Movable,
-    ImplicitlyCopyable
+    ImplicitlyCopyable,
+    Writable,
+    Stringable
 ):
     var id: Int
     var value: ComplexScalar[dtype]
@@ -30,6 +32,19 @@ struct OutOfRangeBehavior[dtype: DType](
     @staticmethod
     fn override(v: ComplexScalar[dtype], out s: Self):
         s = Self(Self.Override, v)
+
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write("OutOfRangeBehavior[")
+        if self.id == Self.Interpolate:
+            writer.write("interpolate")
+        elif self.id == Self.Override:
+            writer.write("override")
+        else:
+            writer.write("(unknown)")
+        writer.write(", v=", self.value, "]")
+
+    fn __str__(self) -> String:
+        return String.write(self)
 
 
 struct PrecomputedFFTInterpolationFull[
@@ -414,7 +429,7 @@ struct VolumeNeighborhoods[
         sizes_segments.iterate_over_sizes[func]()
 
         # TEMP: extend lifetimes to work around compiler bug
-        _ = sizes_fourier
+        _ = coords
 
     @always_inline
     fn coords(self) -> FFTCoords[3]:
@@ -550,6 +565,7 @@ struct VolumeNeighborhoods[
         var in_range_01 = i_vi_01 is not None
         var in_range_11 = i_vi_11 is not None
         var in_range_yz = in_range_10 and in_range_01
+    
         @parameter
         if out_of_range.id == OutOfRangeBehavior.Override:
             if not in_range_yz:
@@ -585,7 +601,11 @@ struct VolumeNeighborhoods[
                 in_range: Bool,
                 out conj_mask: SIMD[dtype,simd_width]
             ):
-                conj_mask = (in_range_x_mask and SIMD[DType.bool,simd_width](fill=in_range)).select(
+                var in_range_mask = SIMD[DType.bool,simd_width](fill=in_range)
+                # NOTE: `a and b` doesn't do the vectorized boolean operation here,
+                #       (due to implicit conversions?)
+                #       so we need `a.__and__(b)`
+                conj_mask = (in_range_x_mask.__and__(in_range_mask)).select(
                     true_case = Scalar[dtype](-1),
                     false_case = Scalar[dtype](1)
                 )
@@ -621,6 +641,7 @@ struct VolumeNeighborhoods[
                 complex.splice(segment_neighborhood.s01, 0, self._segment(i=i_vi_01), 0)
                 complex.splice(segment_neighborhood.s11, 0, self._segment(i=i_vi_11), 0)
                 # NOTE: these voxels always load into the positive side and don't need conjugation
+                #       they also don't change the in-range x mask
 
             # re-order the voxels
             segment_neighborhood.s00.re = segment_neighborhood.s00.re.reversed()
@@ -633,6 +654,11 @@ struct VolumeNeighborhoods[
             segment_neighborhood.s11.im = segment_neighborhood.s11.im.reversed()
             swap(segment_neighborhood.s00, segment_neighborhood.s11)
             swap(segment_neighborhood.s10, segment_neighborhood.s01)
+
+            # and the in-order mask too
+            segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.shift_right[1]()
+            segment_neighborhood.in_range_x_mask[0] = True
+            segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.reversed()
 
     fn scan[
         func: fn(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing
@@ -673,8 +699,6 @@ struct VolumeNeighborhoods[
             f_v_mini[d] = min(f_v_mini[d], -f_v_maxi[d])
             f_v_maxi[d] = max(f_v_maxi[d], -f_v_mini[d])
 
-        # TODO: !!! implement support for SIMD segments with length > 2 !!!
-
         # iterate over the voxel coords that cover the projection range
         for z in range(f_v_mini.z(), f_v_maxi.z() + 1):
            for y in range(f_v_mini.y(), f_v_maxi.y() + 1):
@@ -714,7 +738,7 @@ struct VolumeNeighborhoods[
                         # for each voxel neighborhood in the segment neighborhood ...
                         @parameter
                         for x_offset in range(self.num_neighborhoods_in_segment):
-                            var f_vi = f_vi + Vec[3](x=x_offset, y=0, z=0)
+                            var f_vi = f_vi + Vec[3](x=x_offset*x_halfspace, y=0, z=0)
                             var f_vf = f_vi.map_scalar[dtype]()
 
                             for proj in projections:
@@ -745,7 +769,10 @@ struct VolumeNeighborhoods[
                                             continue
 
                                         # finally, interpolate the reference volume
-                                        var voxel_neighborhood = segment_neighborhood.voxel_neighborhood[x_offset,Self.out_of_range]()
+                                        var voxel_neighborhood = segment_neighborhood.voxel_neighborhood[
+                                            _map_offset(x_halfspace,x_offset, Self.num_neighborhoods_in_segment),
+                                            Self.out_of_range
+                                        ]()
                                         var sv = interpolate(dists, voxel_neighborhood)
                                         func(proj.id, sf_pi^, sf_vf^, sv)
 
@@ -817,3 +844,10 @@ struct _SegmentNeighborhood[dtype: DType, simd_width: Int](
             complex.slice[x_offset,2](self.s01),
             complex.slice[x_offset,2](self.s11)
         )
+
+
+fn _map_offset(x_halfspace: Int, x_offset: Int, num_neighborhoods_in_segment: Int) -> Int:
+    if x_halfspace == 1:
+        return x_offset
+    else:
+        return num_neighborhoods_in_segment - x_offset - 1

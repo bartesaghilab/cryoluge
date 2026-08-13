@@ -469,142 +469,150 @@ def test_plerp_3d_big_even():
                 check(Coords3(x=fx, y=fy, z=fz))
 
 
-def test_scan_even_interpolate():
-    _test_scan[OORInterp](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
+def test_scan():
+
+    var errors = List[String]()
+
+    @parameter
+    for conditions_compile in TestConditionsCompileTime.all():
+        for conditions_run in TestConditionsRunTime.all():
+            try:
+                _test_scan[conditions_compile](conditions_run)
+            except e:
+                errors.append(String(e))
+
+    if len(errors) > 0:
+        var msg = String("scanning tests failed:")
+        for e in errors:
+            msg += "\n" + e
+        raise Error(msg)
 
 
-def test_scan_even_override():
-    _test_scan[OOROverride](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-def test_scan_even_more_rot_interpolate():
-    _test_scan[OORInterp](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(30, 40, 50),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-def test_scan_even_more_rot_override():
-    _test_scan[OOROverride](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(30, 40, 50),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-def test_scan_even_bigger_proj_interpolate():
-    _test_scan[OORInterp](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=9, y=9)
-    )
-
-
-def test_scan_even_bigger_proj_override():
-    _test_scan[OOROverride](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=9, y=9)
-    )
-
-
-def test_scan_odd_interpolate():
-    _test_scan[OORInterp](
-        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-def test_scan_odd_override():
-    _test_scan[OOROverride](
-        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-def test_scan_odd_more_rot_interpolate():
-    _test_scan[OORInterp](
-        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
-        proj_to_volume = make_rot(30, 40, 50),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-def test_scan_odd_more_rot_override():
-    _test_scan[OOROverride](
-        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
-        proj_to_volume = make_rot(30, 40, 50),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-def test_scan_odd_bigger_proj_interpolate():
-    _test_scan[OORInterp](
-        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=9, y=9)
-    )
-
-
-def test_scan_odd_bigger_proj_override():
-    _test_scan[OOROverride](
-        img = FFTImage[3,dtype](Vec[3](x=5, y=5, z=5)),
-        proj_to_volume = make_rot(5, 7, 9),
-        sizes_real_proj = Vec[2](x=9, y=9)
-    )
-
-
-def test_scan_freq_limits():
-    _test_scan[OORInterp](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(30, 40, 50),
-        sizes_real_proj = Vec[2](x=5, y=5),
-        freq_limits = FrequencyLimits(
-            freq_norm2_lo=Scalar[dtype](0.1),
-            freq_norm2_hi=Scalar[dtype](0.2)
-        )
-    )
-
-
-def test_scan_simd_4():
-    _test_scan[OORInterp,4](
-        img = FFTImage[3,dtype](Vec[3](x=6, y=6, z=6)),
-        proj_to_volume = make_rot(30, 40, 50),
-        sizes_real_proj = Vec[2](x=5, y=5)
-    )
-
-
-# TODO: more SIMD tests
-
-
-def _test_scan[
-    out_of_range: OutOfRangeBehavior[dtype],
-    simd_width: Int = 2
-](
-    *,
-    var img: FFTImage[3,dtype],
-    sizes_real_proj: Vec[2,Int],
-    proj_to_volume: Matrix[3,3,dtype],
-    freq_limits: FrequencyLimits[dtype] = FrequencyLimits[dtype].none()
+@fieldwise_init
+struct TestConditionsCompileTime(
+    Copyable,
+    Movable
 ):
+    var out_of_range: OutOfRangeBehavior[dtype]
+    var simd_width: Int
 
-    var coords_proj = FFTCoords(sizes_real_proj)
+    @staticmethod
+    fn all(out list: List[Self]):
+        
+        var oors = [
+            OORInterp,
+            OOROverride
+        ]
 
-    # fill the image with arbitrary (but deterministic, and recognizable) numbers
+        var simd_widths = [
+            2,
+            4,
+            8,
+            16
+        ]
+
+        # iterate over the cartesian product of test parameters
+        list = []
+        for oor in oors:
+                for simd_width in simd_widths:
+                    list.append(Self(
+                        oor,
+                        simd_width
+                    ))
+
+
+@fieldwise_init
+struct TestConditionsRunTime(
+    Copyable,
+    Movable
+):
+    var sizes_real_vol: Vec[3,Int]
+    var sizes_real_proj: Vec[2,Int]
+    var rot: Vec[3,Int]
+    var freq_limits: FrequencyLimits[dtype]
+
+    fn make_rot(self, out rot: Matrix[3,3,dtype]):
+        rot = Matrix[3,3,dtype](uninitialized=True)
+        EulerAnglesZYZ[dtype](
+            psi=Deg[dtype](self.rot.x()),
+            theta=Deg[dtype](self.rot.y()),
+            phi=Deg[dtype](self.rot.z())
+        ).to_matrix(mat=rot)
+
+    @staticmethod
+    fn all(out list: List[Self]):
+        
+        var sizes_real_vols = [
+            Vec[3](fill=6),  # even
+            Vec[3](fill=7)  # odd
+        ]
+
+        # the even-sized Fourier values (at z=0, z coord omitted):
+        #     -3 -2 -1    0  1  2  3
+        # +2  33 21 11 | 05 15 25 35  +2
+        # +1  32 22 12 | 04 14 24 34  +1
+        #  0  33 23 13 | 03 13 23 33   0
+        #     ---------o------------
+        # -1  34 24 14 | 02 12 22 32  -1
+        # -2  35 25 15 | 01 11 21 31  -2
+        # -3  30 20 10 | 00 10 20 30  -3
+        #     -3 -2 -1    0  1  2  3
+
+        # the odd-sized Fourier values (at z=0, z coord omitted):
+        #     -3 -2 -1    0  1  2  3
+        # +3  30 20 10 | 06 16 26 36  +3
+        # +2  31 21 11 | 05 15 25 35  +2
+        # +1  32 22 12 | 04 14 24 34  +1
+        #  0  33 23 13 | 03 13 23 33   0
+        #     ---------o------------
+        # -1  34 24 14 | 02 12 22 32  -1
+        # -2  35 25 15 | 01 11 21 31  -2
+        # -3  36 26 16 | 00 10 20 30  -3
+        #     -3 -2 -1    0  1  2  3
+
+        var sizes_real_projs = [
+            Vec[2](fill=5),  # smaller
+            Vec[2](fill=9)  # bigger
+        ]
+
+        var rots = [
+            Vec[3](fill=0),  # no rotation
+            Vec[3](x=5, y=7, z=9),  # small rotation
+            Vec[3](x=30, y=40, z=50)  # large rotation
+            # other rotations?
+        ]
+
+        var freq_limitss = [
+            FrequencyLimits[dtype].none(),
+            FrequencyLimits(
+                freq_norm2_lo=Scalar[dtype](0.1),
+                freq_norm2_hi=Scalar[dtype](0.2)
+            )
+        ]
+
+        # iterate over the cartesian product of test parameters
+        list = []
+        for sizes_real_vol in sizes_real_vols:
+            for sizes_real_proj in sizes_real_projs:
+                for rot in rots:
+                    for freq_limits in freq_limitss:
+                        list.append(Self(
+                            sizes_real_vol.copy(),
+                            sizes_real_proj.copy(),
+                            rot.copy(),
+                            freq_limits.copy()
+                        ))
+
+
+def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: TestConditionsRunTime):
+
+    # make an image with arbitrary (but deterministic, and recognizable) numbers
+    var img = FFTImage[3,dtype](conditions_run.sizes_real_vol)
     @parameter
     fn fill(i: Vec[3,Int]):
-        var s = String(i.x(), i.y(), i.z())
+        var f = img.coords().i2f(i=i)
+        var i2 = f - img.coords().fmin_pos()
+        var s = String(i2.x(), i2.y(), i2.z())
         var ni = 0
         try:
             ni = atol(s)
@@ -616,12 +624,28 @@ def _test_scan[
 
     img.complex.iterate[fill]()
 
-    var vol = VolumeNeighborhoods[dtype,simd_width,out_of_range](img)
+    var coords_proj = FFTCoords(conditions_run.sizes_real_proj)
+
+    # build the volume neighborhoods (the thing we're testing!)
+    # with one projection
+    var vol = VolumeNeighborhoods[dtype,conditions_compile.simd_width,conditions_compile.out_of_range](img)
+    var rot_proj_to_vol = conditions_run.make_rot()
     var projections = [
-        VolumeNeighborhoodsProjection(0, proj_to_volume.copy())
+        VolumeNeighborhoodsProjection(0, rot_proj_to_vol.copy())
     ]
 
-    var interp = PrecomputedFFTInterpolationFull[3,dtype,out_of_range](img)
+    # make the older precomputed interpolation, for comparison
+    var interp = PrecomputedFFTInterpolationFull[3,dtype,conditions_compile.out_of_range](img)
+
+    comptime indent = "            "
+    var test_context = String(
+        "sizes_real_vol=", img.sizes_real,
+        "\n", indent, "sizes_real_proj=", coords_proj.sizes_real(),
+        "\n", indent, "rot=", conditions_run.rot,
+        "\n", indent, "out_of_range=", conditions_compile.out_of_range,
+        "\n", indent, "freq_limits=", conditions_run.freq_limits.freq_norm2_lo, ",", conditions_run.freq_limits.freq_norm2_hi,
+        "\n", indent, "simd_width=", conditions_compile.simd_width
+    )
 
     @parameter
     fn find(f_pi: Vec[2,Int], out results: List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]):
@@ -633,51 +657,52 @@ def _test_scan[
             if obs_f_pi == f_pi:
                 results.append((f_vf^, sv))
 
-        vol.scan[check](sizes_real_proj, projections, freq_limits)
+        vol.scan[check](coords_proj.sizes_real(), projections, conditions_run.freq_limits)
 
     @parameter
     def check(f_pi: Vec[2,Int]):
 
+        var check_context = test_context + String(
+            "\n", indent, "f_pi=", f_pi
+        )
+
         # find the same value by scanning the volume
         var results = find(f_pi)
 
-        var context = String("f_pi=", f_pi)
-
         # check frequency limits
         var freq_norm2 = coords_proj.f_norm(f=f_pi.map_scalar[dtype]()).len2()
-        if not freq_limits.contains(freq_norm2=freq_norm2):
+        if not conditions_run.freq_limits.contains(freq_norm2=freq_norm2):
             # should get none
             assert_equal(
                 len(results), 0,
-                String("expected zero samples, but got ", len(results), ". ") + context
+                String("expected zero samples, but got ", len(results), ". ") + check_context
             )
             return
 
         # rotate into volume space and interpolate the volume
-        var exp_f_vf = proj_to_volume*f_pi.map_scalar[dtype]().lift(z=0)
+        var exp_f_vf = rot_proj_to_vol*f_pi.map_scalar[dtype]().lift(z=0)
         var exp_v = interp.get(f=exp_f_vf)
 
         var start_dists = interp._start_dists(f=exp_f_vf)
         ref start = start_dists[0]
         var exp_i_vi = interp._f2i(f=start).map_int()
 
-        context += String(
-            "f_pi=", f_pi,
-            "  f_vi=", exp_f_vf.floor().map_int(),
-            "  f_vf=", exp_f_vf,
-            "  neighborhood=", interp._neighborhood(i=exp_i_vi)
+        check_context += String(
+            "\n", indent, "f_vi=", exp_f_vf.floor().map_int(),
+            "\n", indent, "f_vf=", exp_f_vf,
+            "\n", indent, "neighborhood=", interp._neighborhood(i=exp_i_vi)
         )
 
         assert_equal(
             len(results), 1,
-            String("expected one sample, but got ", len(results), ". ") + context
+            String("expected one sample, but got ", len(results), ". ") + check_context
         )
 
         var obs_f_vf = results[0][0].copy()
         var obs_v = results[0][1]
 
-        assert_equal_float[err_fn](obs_f_vf, exp_f_vf, context)
-        assert_equal_float[err_fn](obs_v, exp_v, context)
+        assert_equal_float[err_fn](obs_f_vf, exp_f_vf, check_context)
+        assert_equal_float[err_fn](obs_v, exp_v, check_context)
 
     # iterate the projection grid
     for y in range(coords_proj.fmin[1](), coords_proj.fmax[1]() + 1):
@@ -731,17 +756,3 @@ fn sample_range[
 
     var width = max - min
     return Float32(width*i)/Float32(num_samples - 1) + Float32(min)
-
-
-fn make_rot(
-    psi: Scalar[dtype],
-    theta: Scalar[dtype],
-    phi: Scalar[dtype],
-    out rot: Matrix[3,3,dtype]
-):
-    rot = Matrix[3,3,dtype](uninitialized=True)
-    EulerAnglesZYZ[dtype](
-        psi=Deg[dtype](psi),
-        theta=Deg[dtype](theta),
-        phi=Deg[dtype](phi)
-    ).to_matrix(mat=rot)
