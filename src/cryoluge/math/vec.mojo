@@ -98,6 +98,16 @@ struct Vec[
         for d in range(dim):
             v[d] = self[d][slice]
 
+    fn __setitem__[dtype: DType, simd_width: Int](
+        mut self: Vec[dim,SIMD[dtype,simd_width]],
+        *,
+        slice: Int,
+        v: Vec[dim,Scalar[dtype]]
+    ):
+        @parameter
+        for d in range(dim):
+            self[d][slice] = v[d]
+
     fn __eq__(self, other: Self) -> Bool:
         @parameter
         for d in range(dim):
@@ -176,8 +186,8 @@ struct Vec[
         for d in range(dim):
             result[d] = min(self[d], other[d])
 
-    fn min[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn min[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = min(self[d], other[d])
@@ -188,11 +198,17 @@ struct Vec[
         for d in range(dim):
             result[d] = max(self[d], other[d])
 
-    fn max[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn max[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = max(self[d], other[d])
+
+    fn splat[simd_width: Int, dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,SIMD[dtype,simd_width]]):
+        result = Vec[dim,SIMD[dtype,simd_width]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = SIMD[dtype,simd_width](self[d])
 
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
@@ -227,8 +243,8 @@ struct Vec[
     fn __add__(self: Vec[dim,Int], other: Int, out result: Vec[dim,Int]):
         result = self + Vec[dim,Int](fill=other)
 
-    fn __add__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn __add__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = self[d] + other[d]
@@ -650,8 +666,8 @@ struct Vec[
         for d in range(dim):
             result += self[d]*other[d]
 
-    fn inner_product[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Scalar[dtype]):
-        result = Scalar[dtype](0)
+    fn inner_product[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[dtype,w]):
+        result = SIMD[dtype,w](0)
         @parameter
         for d in range(dim):
             result += self[d]*other[d]
@@ -706,9 +722,9 @@ struct Vec[
             return i.abs()
         result = self.map[mapper=func]()
 
-    fn floor[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
+    fn floor[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
         @parameter
-        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
+        fn func(i: SIMD[dtype,w]) -> SIMD[dtype,w]:
             return floor(i)
         result = self.map[mapper=func]()
 
@@ -718,9 +734,9 @@ struct Vec[
             return i.floor()
         result = self.map[mapper=func]()
 
-    fn ceil[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
+    fn ceil[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
         @parameter
-        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
+        fn func(i: SIMD[dtype,w]) -> SIMD[dtype,w]:
             return ceil(i)
         result = self.map[mapper=func]()
 
@@ -828,10 +844,10 @@ struct Vec[
             return Scalar[dtype](i)
         result = self.map[mapper=scalar]()
 
-    fn map_scalar[dst: DType, src: DType](self: Vec[dim,Scalar[src]], out result: Vec[dim,Scalar[dst]]):
+    fn map_scalar[dst: DType, src: DType, w: Int](self: Vec[dim,SIMD[src,w]], out result: Vec[dim,SIMD[dst,w]]):
         @parameter
-        fn scalar(v: Scalar[src]) -> Scalar[dst]:
-            return Scalar[dst](v)
+        fn scalar(v: SIMD[src,w]) -> SIMD[dst,w]:
+            return SIMD[dst,w](v)
         result = self.map[mapper=scalar]()
 
     fn map_scalar[
@@ -846,6 +862,12 @@ struct Vec[
         fn scalar(v: Unit[utype,dtype_src]) -> Unit[utype,dtype_dst]:
             return Unit[utype,dtype_dst](v.value)
         result = self.map[mapper=scalar]()
+
+    fn map_dint(self: Vec[dim,Int], out result: Vec[dim,Scalar[DType.int]]):
+        result = self.map_scalar[DType.int]()
+
+    fn map_dint[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[DType.int,w]]):
+        result = self.map_scalar[DType.int]()
 
     fn map_float32(self: Vec[dim,Int], out result: Vec[dim,Float32]):
         result = self.map_scalar[DType.float32]()

@@ -10,6 +10,7 @@ from cryoluge.fft import FFTCoordsFull, Delta
 
 
 comptime SIMDInt[simd_width: Int] = SIMD[DType.int,simd_width]
+comptime SIMDBool[simd_width: Int] = SIMD[DType.bool,simd_width]
 
 
 @fieldwise_init
@@ -72,7 +73,7 @@ struct PrecomputedFFTInterpolationFull[
         re=Self.out_of_range.value.re,
         im=Self.out_of_range.value.im
     )
-    comptime Selector = SIMD[DType.bool,Self.num_samples]
+    comptime Selector = _Selector[Self.num_samples]
 
     fn __init__(
         out self,
@@ -327,7 +328,7 @@ struct PrecomputedFFTInterpolationNop[
             v.im[w] = vw.im
 
 
-comptime _Selector[num_samples: Int] = SIMD[DType.bool,num_samples]
+comptime _Selector[num_samples: Int] = SIMDBool[num_samples]
 
 fn _make_selector[
     dim: Int,
@@ -337,7 +338,7 @@ fn _make_selector[
     comptime S = _Selector[num_samples]
     comptime t = False
     comptime omt = True
-    var s0 = SIMD[DType.bool,2](omt, t)
+    var s0 = SIMDBool[2](omt, t)
 
     @parameter
     if dim == 1:
@@ -505,49 +506,6 @@ struct VolumeNeighborhoods[
         else:
             i = None
 
-    fn _proj_bounds(
-        self,
-        proj: VolumeNeighborhoodsProjection[dtype],
-        f_vf: Vec[3,Scalar[dtype]],
-        sizes_real_proj: Vec[2,Int],
-        out bounds_p: Tuple[Vec[2,Int],Vec[2,Int]]
-    ):
-        # define the voxel in projection space
-        var f_pf = proj.vol_to_proj(f_vf)
-        var voxel_p = OrientedBox(
-            origin = f_pf,
-            sizes = Vec[3](fill=Scalar[dtype](1)),
-            orientation = proj.rot_vol_to_proj()
-        )
-
-        # find all the projection sample points within the voxel
-        # by checking its axis-aligned bounding box
-        # NOTE: we can get 0, 1, or 2 points, since the two grids are unit size
-        var voxel_bound_p = voxel_p.bounding_box()
-        var range_min_3d = voxel_bound_p.origin
-            .ceil()
-            .map_int()
-        var range_max_3d = (voxel_bound_p.max() - voxel_p.sizes())
-            .ceil()
-            .map_int()
-
-        # sample points live only on f_p = 0
-        if range_min_3d.z() > 0 or range_max_3d.z() < 0:
-            # out of range: return empty x,y bounds
-            bounds_p = (Vec[2](fill=1), Vec[2](fill=0))
-            return
-        
-        var range_min = range_min_3d.project[2]()
-        var range_max = range_max_3d.project[2]()
-
-        # intersect the voxel bounding box with the projection bounds
-        var coords_proj = FFTCoords(sizes_real_proj)
-        range_min.x() = 0
-        range_min.y() = max(range_min.y(), coords_proj.fmin[1]())
-        range_max = range_max.min(coords_proj.fmax())
-
-        bounds_p = (range_min^, range_max^)
-
     fn _segment_neighborhood[x_halfspace: Int](
         self,
         f_vi_pos: Vec[3,Int],
@@ -593,15 +551,15 @@ struct VolumeNeighborhoods[
             @parameter
             if out_of_range.id == OutOfRangeBehavior.Override:
                 if not in_range_yz:
-                    in_range_x_mask = SIMD[DType.bool,simd_width](fill=False)
+                    in_range_x_mask = SIMDBool[simd_width](fill=False)
 
             @always_inline
             fn conj_mask(
-                in_range_x_mask: SIMD[DType.bool,simd_width],
+                in_range_x_mask: SIMDBool[simd_width],
                 in_range: Bool,
                 out conj_mask: SIMD[dtype,simd_width]
             ):
-                var in_range_mask = SIMD[DType.bool,simd_width](fill=in_range)
+                var in_range_mask = SIMDBool[simd_width](fill=in_range)
                 # NOTE: `a and b` doesn't do the vectorized boolean operation here,
                 #       (due to implicit conversions?)
                 #       so we need `a.__and__(b)`
@@ -668,9 +626,10 @@ struct VolumeNeighborhoods[
         projections: List[VolumeNeighborhoodsProjection[dtype]],
         freq_limits: FrequencyLimits[dtype] = FrequencyLimits[dtype].none()
     ):
+        # build the SIMD projection info
+        var simd_projections = _Projections[simd_width](projections)
+
         var coords_proj = FFTCoords(sizes_real_proj)
-        # TODO
-        #var freq_limits_vol = freq_limits.checker(self._sizes_real_vol)
         var freq_limits_proj = freq_limits.checker(sizes_real_proj)
 
         # compute the extents of the projection grid in volume space
@@ -706,55 +665,71 @@ struct VolumeNeighborhoods[
 
                     var f_vi_pos = Vec[3](x=x, y=y, z=z)
 
-                    for proj in projections:
-
-                        # map to both positive and negative x halfspaces
+                    # map to both positive and negative x halfspaces
+                    @parameter
+                    for x_halfspace in [1, -1]:
+                        var f_vi = f_vi_pos.copy()
                         @parameter
-                        for x_halfspace in [1, -1]:
-                            var f_vi = f_vi_pos.copy()
-                            @parameter
-                            if x_halfspace == -1:
-                                f_vi = -f_vi - 1
-                            var f_vf = f_vi.map_scalar[dtype]()
+                        if x_halfspace == -1:
+                            f_vi = -f_vi - 1
+                        var f_vf = f_vi.map_scalar[dtype]()
 
-                            # do a quick z-bounds check on these neighborhoods to find some early outs
-                            var in_range_z = not proj._neighborhoods_in_range_z[x_halfspace,simd_width](f_vf)
-                            if in_range_z:
+                        var segment_neighborhood: Optional[_SegmentNeighborhood[dtype,simd_width]] = None
+
+                        # for each group of projections ...
+                        for proj_group in simd_projections.groups:
+
+                            # check the segment z-bounds in all the projection spaces in the group
+                            var in_range_z = proj_group.segment_in_range_z[x_halfspace](f_vf)
+                            var any_in_range_z = in_range_z.reduce_or()
+                            if not any_in_range_z:
                                 continue
 
-                            # check voxel against the frequency limits
-                            # TODO: getting early outs here seems to make the scan slower overall
-                            #       maybe this check can be optimized more
-                            #       also, it might pay off more in SIMD-land
-                            # var voxel_in_range = False
-                            # @parameter
-                            # for corner in AlignedBox[3,dtype].unit_corners():
-                            #     var f = f_vf + materialize[corner]()
-                            #     voxel_in_range = voxel_in_range or freq_limits_vol.contains(f=f)
-                            # if not voxel_in_range:
-                            #     continue
+                            # for each projection in the group ...
+                            for w in range(proj_group.num_projections):
+                                ref proj = projections[proj_group.proj_indices[w]]
 
-                            # TODO: NEXTTIME: can we bounds-check all the voxels in this neighborhood at once?
+                                if not in_range_z[w]:
+                                    continue
 
-                            var segment_neighborhood: Optional[_SegmentNeighborhood[dtype,simd_width]] = None
+                                # compute projection-space bounds on each voxel in the whole segment
+                                comptime x_offsets = ladder[simd_width]()*x_halfspace
+                                comptime dx_vf = Vec[3](x=x_offsets, y=0, z=0).map_scalar[dtype]()
+                                var f_vf_segment = f_vf.splat[simd_width]() + materialize[dx_vf]()
+                                var bounds_p = proj.voxel_bounds(f_vf_segment, coords_proj)
+                                ref in_range_z_segment = bounds_p[0]
+                                ref bounds_p_min = bounds_p[1]
+                                ref bounds_p_max = bounds_p[2]
 
-                            # for each voxel neighborhood in the segment neighborhood ...
-                            @parameter
-                            for x_offset in range(self.num_neighborhoods_in_segment):
-                                var f_vf = f_vf + Vec[3](x=Scalar[dtype](x_offset*x_halfspace), y=0, z=0)
+                                # TODO: NEXTIME: try to collect sample points from all the segment voxels into a vector?
+                                #                or a sequence of vectors
+                                #                then calc distances and out-of-bounds together
+                                #                then collapse surviving points into smaller vectors
+                                #                then filter by frequency and collapse again
+                                #                then send to caller
 
-                                # compute the bounds of the voxel in projection space
-                                var bounds_p = proj.voxel_bounds(f_vf, coords_proj)
-                                # TODO: NEXTTIME: this check is still a bottleneck
-                                #                 can we push it higher up in the loops hierarchy?
+                                # for each voxel neighborhood in the segment neighborhood ...
+                                # TODO: NEXTTIME: try to do vector ops here instead of iterating??
+                                @parameter
+                                for x_offset in range(self.num_neighborhoods_in_segment):
 
-                                # iterate over the projection sample points in the bounding box
-                                # NOTE: in 3D, with both grids being unit size, we should get 0, 1, 2 or 4 points
-                                for _ in range(bounds_p[0].z(), bounds_p[1].z() + 1):
-                                    for sy in range(bounds_p[0].y(), bounds_p[1].y() + 1):
-                                        for sx in range(bounds_p[0].x(), bounds_p[1].x() + 1):
-                                            var sf_pi = Vec[2](x=sx, y=sy)
+                                    # check z bounds first, for the easy out
+                                    if not in_range_z_segment[x_offset]:
+                                        continue
+
+                                    var f_vf = f_vf + Vec[3](x=Scalar[dtype](x_offset*x_halfspace), y=0, z=0)
+
+                                    var bounds_p_min = bounds_p_min[slice=x_offset]
+                                    var bounds_p_max = bounds_p_max[slice=x_offset]
+
+                                    # iterate over the projection sample points in the bounding box
+                                    # NOTE: in 3D, with both grids being unit size, we should get 0, 1, 2 or 4 points
+                                    for sy in range(bounds_p_min.y(), bounds_p_max.y() + 1):
+                                        for sx in range(bounds_p_min.x(), bounds_p_max.x() + 1):
+                                            var sf_pi = Vec[2](x=sx, y=sy).map_int()
                                             var sf_pf = sf_pi.map_scalar[dtype]()
+
+                                            # TODO: dists and out-of-bounds are the new bottlneck!
 
                                             # transform back into reference volume space to compute interpolation distances
                                             var sf_vf = proj.proj_to_vol(sf_pf)
@@ -775,7 +750,7 @@ struct VolumeNeighborhoods[
                                             # load the segments, if needed
                                             if segment_neighborhood is None:
                                                 segment_neighborhood = self._segment_neighborhood[x_halfspace](f_vi_pos)
-                                                
+
                                             # finally, interpolate the reference volume
                                             var voxel_neighborhood = segment_neighborhood.value().voxel_neighborhood[
                                                 _map_offset(x_halfspace,x_offset, Self.num_neighborhoods_in_segment),
@@ -822,51 +797,109 @@ struct VolumeNeighborhoodsProjection[dtype: DType](
         result = self.rot_proj_to_vol*v.lift(z=0)
 
     @always_inline
-    fn vol_to_proj(self, v: Vec[3,Scalar[dtype]], out result: Vec[3,Scalar[dtype]]):
+    fn vol_to_proj[simd_width: Int](self, v: Vec[3,SIMD[dtype,simd_width]], out result: Vec[3,SIMD[dtype,simd_width]]):
         result = self.rot_proj_to_vol.mul_transpose(v)
     
     @always_inline
-    fn voxel_bounds(
+    fn voxel_bounds[simd_width: Int](
         self,
-        f_vf: Vec[3,Scalar[dtype]],
+        f_vf: Vec[3,SIMD[dtype,simd_width]],
         coords_proj: FFTCoords[2],
-        out bounds: Tuple[Vec[3,Int],Vec[3,Int]]
+        out bounds: Tuple[SIMDBool[simd_width],Vec[2,SIMDInt[simd_width]],Vec[2,SIMDInt[simd_width]]]
     ):
         # rotate the voxel origin into projection space
         var f_pf = self.vol_to_proj(f_vf)
 
         # build the bounding box extents and discretize
-        var range_min = (f_pf + self._voxel_extents_neg).ceil().map_int()
-        var range_max = (f_pf + self._voxel_extents_pos).map_int()
+        var range_min_3d = (f_pf + self._voxel_extents_neg.splat[simd_width]()).ceil().map_dint()
+        var range_max_3d = (f_pf + self._voxel_extents_pos.splat[simd_width]()).map_dint()
 
-        # intersect with the projection bounds (and z=0)
-        range_min = range_min.max(coords_proj.fmin_pos().lift(z=0))
-        range_max = range_max.min(coords_proj.fmax().lift(z=0))
+        # build the z-in-range mask
+        z_mask = range_min_3d.z().le(0).__and__(range_max_3d.z().ge(0))
 
-        bounds = (range_min^, range_max^)
+        # intersect with the projection bounds
+        var range_min_2d = range_min_3d.project[2]().max(coords_proj.fmin_pos().map_dint().splat[simd_width]())
+        var range_max_2d = range_max_3d.project[2]().min(coords_proj.fmax().map_dint().splat[simd_width]())
 
-    @always_inline
-    fn _neighborhoods_in_range_z[x_halfspace: Int, simd_width: Int](
-        self,
-        f_vf: Vec[3,Scalar[dtype]],
-        out in_range: Bool
-    ):
-        # rotate the voxel origin into projection space, but only the z-coord
-        # by using the z-row of the vol->proj rotation matrix
-        var fz_pf = self.rot_proj_to_vol.vec(col=2).inner_product(f_vf)
-
-        # get the change in z-coord along the segment
-        # by using the z-coord of the unit x vector in the vol->proj rotation matrix
-        var dz = self.rot_proj_to_vol[0,2]*x_halfspace*num_neighborhoods_in_segment[simd_width]()
-
-        # the z-bounds of the whole segment must contain 0 to be in-range
-        var z_neg = -self._voxel_extents_neg.z()
-        var z_pos = -self._voxel_extents_pos.z()
-        in_range = (fz_pf <= z_neg or fz_pf + dz <= z_neg)
-            and (fz_pf >= z_pos or fz_pf + dz >= z_pos)
+        bounds = (z_mask, range_min_2d^, range_max_2d^)
 
 
 comptime _VoxelNeighborhood[dtype: DType] = ComplexSIMD[dtype,8]
+
+
+struct _ProjectionGroup[dtype: DType, simd_width: Int](
+    Copyable,
+    Movable
+):
+    var num_projections: Int
+    var proj_indices: SIMDInt[simd_width]
+    var voxel_extents_neg: Vec[3,SIMD[dtype,simd_width]]
+    var voxel_extents_pos: Vec[3,SIMD[dtype,simd_width]]
+    var vol_to_proj_zvec: Vec[3,SIMD[dtype,simd_width]]
+    var vol_to_proj_xz: SIMD[dtype,simd_width]
+
+    fn __init__(out self):
+        self.num_projections = 0
+        self.proj_indices = SIMDInt[simd_width](0)
+        self.voxel_extents_neg = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.voxel_extents_pos = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.vol_to_proj_zvec = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.vol_to_proj_xz = 0
+
+    @always_inline
+    fn segment_in_range_z[x_halfspace: Int](
+        self,
+        f_vf: Vec[3,Scalar[dtype]],
+        out in_range: SIMDBool[simd_width]
+    ):
+        # rotate the voxel origin into projection space, but only the z-coord
+        # by using the z-row of the vol->proj rotation matrix
+        var fz_pf = self.vol_to_proj_zvec.inner_product(f_vf.splat[simd_width]())
+
+        # get the change in z-coord along the segment
+        # by using the z-coord of the unit x vector in the vol->proj rotation matrix
+        var dz = self.vol_to_proj_xz*x_halfspace*num_neighborhoods_in_segment[simd_width]()
+
+        # the z-bounds of the whole segment must contain 0 to be in-range
+        var z_neg = -self.voxel_extents_neg.z()
+        var z_pos = -self.voxel_extents_pos.z()
+        in_range = (fz_pf.le(z_neg).__or__((fz_pf + dz).le(z_neg)))
+            .__and__(fz_pf.ge(z_pos).__or__((fz_pf + dz).ge(z_pos)))
+        # NOTE: and/or operators don't do what you'd expect on SIMD bools,
+        #       so use the __and__/__or__ functions explicitly
+
+
+struct _Projections[simd_width: Int, dtype: DType](
+    Copyable,
+    Movable
+):
+    var groups: List[_ProjectionGroup[dtype,simd_width]]
+
+    fn __init__(out self, projections: List[VolumeNeighborhoodsProjection[dtype]]):
+
+        # allocate all the groups
+        var num_groups = ceildiv(len(projections), simd_width)
+        self.groups = List(length=num_groups, fill=_ProjectionGroup[dtype,simd_width]())
+
+        # populate the groups with each projection
+        for p in range(len(projections)):
+            ref proj = projections[p]
+            var g = p // simd_width
+            ref group = self.groups[g]
+            var i = p % simd_width
+
+            group.num_projections += 1
+            group.proj_indices[i] = p
+            
+            # pack the voxel extents
+            group.voxel_extents_neg[slice=i] = proj._voxel_extents_neg.copy()
+            group.voxel_extents_pos[slice=i] = proj._voxel_extents_pos.copy()
+
+            # pack the z vectors of the vol->proj rotation matrices
+            group.vol_to_proj_zvec[slice=i] = proj.rot_proj_to_vol.vec(col=2)
+
+            # pack the z-coordinates of the x vectors of the vol->proj rotation matrices
+            group.vol_to_proj_xz[i] = proj.rot_proj_to_vol[0,2]
 
 
 @fieldwise_init
@@ -878,7 +911,7 @@ struct _SegmentNeighborhood[dtype: DType, simd_width: Int](
     var s10: Self.Segment
     var s01: Self.Segment
     var s11: Self.Segment
-    var in_range_x_mask: SIMD[DType.bool,simd_width]
+    var in_range_x_mask: SIMDBool[simd_width]
 
     comptime Segment = ComplexSIMD[dtype,simd_width]
     comptime num_neighborhoods_in_segment = num_neighborhoods_in_segment[simd_width]()
