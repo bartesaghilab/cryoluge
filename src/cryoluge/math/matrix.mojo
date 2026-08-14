@@ -223,6 +223,7 @@ struct Matrix[
                     v += self[r,i]*rhs[i,c]
                 product[r,c] = v
 
+    @always_inline
     fn __mul__[dim: Int, simd_width: Int](
         self,
         vec: Vec[dim,SIMD[dtype,simd_width]],

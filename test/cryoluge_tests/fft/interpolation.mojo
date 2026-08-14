@@ -631,7 +631,7 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
     var vol = VolumeNeighborhoods[dtype,conditions_compile.simd_width,conditions_compile.out_of_range](img)
     var rot_proj_to_vol = conditions_run.make_rot()
     var projections = [
-        VolumeNeighborhoodsProjection(0, rot_proj_to_vol.copy())
+        VolumeNeighborhoodsProjection(0, rot_proj_to_vol)
     ]
 
     # make the older precomputed interpolation, for comparison
