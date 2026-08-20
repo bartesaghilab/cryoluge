@@ -222,8 +222,8 @@ struct Vec[
         for d in range(dim):
             result[d] = -self[d]
 
-    fn __neg__[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn __neg__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = -self[d]
@@ -249,8 +249,8 @@ struct Vec[
         for d in range(dim):
             result[d] = self[d] + other[d]
 
-    fn __add__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
-        result = self + Vec[dim,Scalar[dtype]](fill=other)
+    fn __add__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w], out result: Vec[dim,SIMD[dtype,w]]):
+        result = self + Vec[dim,SIMD[dtype,w]](fill=other)
 
     fn __add__[utype: UnitType, dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Unit[utype,dtype]], out result: Vec[dim,Unit[utype,dtype]]):
         result = Vec[dim,Unit[utype,dtype]](uninitialized=True)
@@ -284,13 +284,13 @@ struct Vec[
     fn __iadd__(mut self: Vec[dim,Int], other: Int):
         self += Vec[dim,Int](fill=other)
 
-    fn __iadd__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]]):
+    fn __iadd__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]]):
         @parameter
         for d in range(dim):
             self[d] += other[d]
 
-    fn __iadd__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Scalar[dtype]):
-        self += Vec[dim,Scalar[dtype]](fill=other)
+    fn __iadd__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w]):
+        self += Vec[dim,SIMD[dtype,w]](fill=other)
 
     fn __iadd__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: Vec[dim,Unit[utype,dtype]]):
         @parameter
@@ -317,14 +317,14 @@ struct Vec[
     fn __sub__(self: Vec[dim,Int], other: Int, out result: Vec[dim,Int]):
         result = self - Vec[dim,Int](fill=other)
 
-    fn __sub__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn __sub__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = self[d] - other[d]
 
-    fn __sub__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
-        result = self - Vec[dim,Scalar[dtype]](fill=other)
+    fn __sub__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w], out result: Vec[dim,SIMD[dtype,w]]):
+        result = self - Vec[dim,SIMD[dtype,w]](fill=other)
 
     fn __sub__[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], other: Vec[dim,Unit[utype,dtype]], out result: Vec[dim,Unit[utype,dtype]]):
         result = Vec[dim,Unit[utype,dtype]](uninitialized=True)
@@ -352,13 +352,13 @@ struct Vec[
     fn __isub__(mut self: Vec[dim,Int], other: Int):
         self -= Vec[dim,Int](fill=other)
 
-    fn __isub__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]]):
+    fn __isub__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]]):
         @parameter
         for d in range(dim):
             self[d] -= other[d]
 
-    fn __isub__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Scalar[dtype]):
-        self -= Vec[dim,Scalar[dtype]](fill=other)
+    fn __isub__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w]):
+        self -= Vec[dim,SIMD[dtype,w]](fill=other)
 
     fn __isub__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: Vec[dim,Unit[utype,dtype]]):
         @parameter
@@ -382,8 +382,8 @@ struct Vec[
     fn __rsub__(self: Vec[dim,Int], other: Int, out result: Vec[dim,Int]):
         result = Vec[dim,Int](fill=other) - self
 
-    fn __rsub__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](fill=other) - self
+    fn __rsub__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](fill=other) - self
 
     fn __rsub__[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], other: Unit[utype,dtype], out result: Vec[dim,Unit[utype,dtype]]):
         result = Vec[dim,Unit[utype,dtype]](fill=other) - self
@@ -400,26 +400,26 @@ struct Vec[
     fn __mul__(self: Vec[dim,Int], other: Int, out result: Vec[dim,Int]):
         result = self * Vec[dim,Int](fill=other)
 
-    fn __mul__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn __mul__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = self[d] * other[d]
 
-    fn __mul__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Int], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn __mul__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,Int], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = self[d] * other[d]
 
-    fn __mul__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
-        result = self * Vec[dim,Scalar[dtype]](fill=other)
+    fn __mul__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w], out result: Vec[dim,SIMD[dtype,w]]):
+        result = self * Vec[dim,SIMD[dtype,w]](fill=other)
 
-    fn __mul__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: IntLiteral, out result: Vec[dim,Scalar[dtype]]):
-        result = self * Scalar[dtype](other)
+    fn __mul__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: IntLiteral, out result: Vec[dim,SIMD[dtype,w]]):
+        result = self * SIMD[dtype,w](other)
 
-    fn __mul__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: FloatLiteral, out result: Vec[dim,Scalar[dtype]]):
-        result = self * Scalar[dtype](other)
+    fn __mul__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: FloatLiteral, out result: Vec[dim,SIMD[dtype,w]]):
+        result = self * SIMD[dtype,w](other)
 
     fn __mul__[utype: UnitType, dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Unit[utype,dtype]], out result: Vec[dim,Unit[utype,dtype]]):
         result = Vec[dim,Unit[utype,dtype]](uninitialized=True)
@@ -457,21 +457,21 @@ struct Vec[
             self[d] *= other[d]
 
     fn __imul__(mut self: Vec[dim,Int], other: Int):
-        self += Vec[dim,Int](fill=other)
+        self *= Vec[dim,Int](fill=other)
 
-    fn __imul__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]]):
+    fn __imul__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]]):
         @parameter
         for d in range(dim):
             self[d] *= other[d]
 
-    fn __imul__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Scalar[dtype]):
-        self += Vec[dim,Scalar[dtype]](fill=other)
+    fn __imul__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w]):
+        self *= Vec[dim,SIMD[dtype,w]](fill=other)
 
-    fn __imul__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: IntLiteral):
-        self += Scalar[dtype](other)
+    fn __imul__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: IntLiteral):
+        self *= SIMD[dtype,w](other)
 
-    fn __imul__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: FloatLiteral):
-        self += Scalar[dtype](other)
+    fn __imul__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: FloatLiteral):
+        self *= SIMD[dtype,w](other)
 
     fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: Vec[dim,Unit[utype,dtype]]):
         @parameter
@@ -484,16 +484,16 @@ struct Vec[
             self[d] *= other[d]
 
     fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: Unit[utype,dtype]):
-        self += Vec[dim,Unit[utype,dtype]](fill=other)
+        self *= Vec[dim,Unit[utype,dtype]](fill=other)
 
     fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: Scalar[dtype]):
-        self += Unit[utype,dtype](other)
+        self *= Unit[utype,dtype](other)
 
     fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: IntLiteral):
-        self += Scalar[dtype](other)
+        self *= Scalar[dtype](other)
 
     fn __imul__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: FloatLiteral):
-        self += Scalar[dtype](other)
+        self *= Scalar[dtype](other)
 
     fn __floordiv__(self: Vec[dim,Int], other: Vec[dim,Int], out result: Vec[dim,Int]):
         result = Vec[dim,Int](uninitialized=True)
@@ -512,20 +512,20 @@ struct Vec[
     fn __ifloordiv__(mut self: Vec[dim,Int], other: Int):
         self //= Vec[dim,Int](fill=other)
 
-    fn __truediv__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn __truediv__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = self[d]/other[d]
 
-    fn __truediv__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
-        result = self/Vec[dim,Scalar[dtype]](fill=other)
+    fn __truediv__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w], out result: Vec[dim,SIMD[dtype,w]]):
+        result = self/Vec[dim,SIMD[dtype,w]](fill=other)
 
-    fn __truediv__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: IntLiteral, out result: Vec[dim,Scalar[dtype]]):
-        result = self/Scalar[dtype](other)
+    fn __truediv__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: IntLiteral, out result: Vec[dim,SIMD[dtype,w]]):
+        result = self/SIMD[dtype,w](other)
 
-    fn __truediv__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: FloatLiteral, out result: Vec[dim,Scalar[dtype]]):
-        result = self/Scalar[dtype](other)
+    fn __truediv__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: FloatLiteral, out result: Vec[dim,SIMD[dtype,w]]):
+        result = self/SIMD[dtype,w](other)
 
     fn __truediv__[utype: UnitType, dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Unit[utype,dtype]], out result: Vec[dim,Unit[utype,dtype]]):
         result = Vec[dim,Unit[utype,dtype]](uninitialized=True)
@@ -557,8 +557,8 @@ struct Vec[
     fn __truediv__[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], other: FloatLiteral, out result: Vec[dim,Unit[utype,dtype]]):
         result = self/Scalar[dtype](other)
 
-    fn __rtruediv__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](fill=other)/self
+    fn __rtruediv__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](fill=other)/self
 
     fn __rtruediv__[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], other: Unit[utype,dtype], out result: Vec[dim,Unit[utype,dtype]]):
         result = Vec[dim,Unit[utype,dtype]](fill=other)/self
@@ -566,13 +566,13 @@ struct Vec[
     fn __rtruediv__[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], other: Scalar[dtype], out result: Vec[dim,Unit[utype,dtype]]):
         result = Unit[utype,dtype](other)/self
 
-    fn __itruediv__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]]):
+    fn __itruediv__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]]):
         @parameter
         for d in range(dim):
             self[d] /= other[d]
 
-    fn __itruediv__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Scalar[dtype]):
-        self /= Vec[dim,Scalar[dtype]](fill=other)
+    fn __itruediv__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w]):
+        self /= Vec[dim,SIMD[dtype,w]](fill=other)
 
     fn __itruediv__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: Vec[dim,Unit[utype,dtype]]):
         @parameter
@@ -602,8 +602,8 @@ struct Vec[
         for d in range(dim):
             result[d] = self[d]**other
 
-    fn __pow__[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Scalar[dtype], out result: Vec[dim,Scalar[dtype]]):
-        result = Vec[dim,Scalar[dtype]](uninitialized=True)
+    fn __pow__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
         for d in range(dim):
             result[d] = self[d]**other
@@ -619,16 +619,33 @@ struct Vec[
         for d in range(dim):
             self[d] **= other
 
-    fn __ipow__[dtype: DType](mut self: Vec[dim,Scalar[dtype]], other: Scalar[dtype]):
+    fn __ipow__[dtype: DType, w: Int](mut self: Vec[dim,SIMD[dtype,w]], other: SIMD[dtype,w]):
         @parameter
         for d in range(dim):
             self[d] = self[d] ** other
-            # NOTE: **= not implemented for Scalar[dtype] for some reason
+            # NOTE: **= not implemented for SIMD[dtype,w] for some reason
 
     fn __ipow__[utype: UnitType, dtype: DType](mut self: Vec[dim,Unit[utype,dtype]], other: Int):
         @parameter
         for d in range(dim):
             self[d] **= other
+
+    fn __mod__(self: Vec[dim,Int], other: Vec[dim,Int], out result: Vec[dim,Int]):
+        result = Vec[dim,Int](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d] % other[d]
+
+    fn __mod__(self: Vec[dim,Int], other: Int, out result: Vec[dim,Int]):
+        result = self % Vec[dim,Int](fill=other)
+
+    fn __imod__(mut self: Vec[dim,Int], other: Vec[dim,Int]):
+        @parameter
+        for d in range(dim):
+            self[d] %= other[d]
+
+    fn __mod__(mut self: Vec[dim,Int], other: Int):
+        self %= Vec[dim,Int](fill=other)
 
     fn sum(self: Vec[dim,Int], out result: Int):
         result = 0
@@ -636,8 +653,8 @@ struct Vec[
         for d in range(dim):
             result += self[d]
 
-    fn sum[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Scalar[dtype]):
-        result = Scalar[dtype](0)
+    fn sum[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: SIMD[dtype,w]):
+        result = SIMD[dtype,w](0)
         @parameter
         for d in range(dim):
             result += self[d]
@@ -654,8 +671,8 @@ struct Vec[
         for d in range(dim):
             result *= self[d]
 
-    fn product[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Scalar[dtype]):
-        result = Scalar[dtype](1)
+    fn product[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: SIMD[dtype,w]):
+        result = SIMD[dtype,w](1)
         @parameter
         for d in range(dim):
             result *= self[d]
@@ -686,13 +703,13 @@ struct Vec[
         #       `x**2` is probably higher-precision than `x*x`
         result = (self**2).sum()
 
-    fn len2[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Scalar[dtype]):
+    fn len2[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: SIMD[dtype,w]):
         result = (self**2).sum()
 
     fn len2[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], out result: Unit[utype,dtype]):
         result = (self**2).sum()
     
-    fn len[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Scalar[dtype]):
+    fn len[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: SIMD[dtype,w]):
         result = sqrt(self.len2())
 
     fn len[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], out result: Unit[utype,dtype]):
@@ -710,9 +727,9 @@ struct Vec[
             return abs(i)
         result = self.map[mapper=func]()
 
-    fn abs[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
+    fn abs[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
         @parameter
-        fn func(i: Scalar[dtype]) -> Scalar[dtype]:
+        fn func(i: SIMD[dtype,w]) -> SIMD[dtype,w]:
             return abs(i)
         result = self.map[mapper=func]()
 
@@ -872,13 +889,13 @@ struct Vec[
     fn map_float32(self: Vec[dim,Int], out result: Vec[dim,Float32]):
         result = self.map_scalar[DType.float32]()
 
-    fn map_float32[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Float32]):
+    fn map_float32[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[DType.float32,w]]):
         result = self.map_scalar[DType.float32]()
 
     fn map_float64(self: Vec[dim,Int], out result: Vec[dim,Float64]):
         result = self.map_scalar[DType.float64]()
 
-    fn map_float64[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Float64]):
+    fn map_float64[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[DType.float64,w]]):
         result = self.map_scalar[DType.float64]()
 
     fn map_unit[

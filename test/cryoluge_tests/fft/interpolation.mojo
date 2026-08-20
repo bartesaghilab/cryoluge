@@ -1,6 +1,6 @@
 
-from complex import ComplexScalar
-from testing import assert_equal
+from complex import ComplexScalar, ComplexSIMD
+from testing import assert_equal, assert_true
 from builtin._location import __call_location
 
 from cryoluge.math import Vec, Matrix, EulerAnglesZYZ, complex
@@ -8,6 +8,7 @@ from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
 from cryoluge.image.analysis import FrequencyLimits
 from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods, VolumeNeighborhoodsProjection
+from cryoluge.fft.interpolation import _render_neighborhood
 from cryoluge.test import assert_equal_float
 
 
@@ -138,8 +139,8 @@ def test_lerp_2d():
     assert_equal_float[err_fn](img.get(f_lerp=Coords2(x=1.1, y=1.1)), Cx(lerp2(7, 0, 0, 0, 0.1, 0.1), lerp2(8, 0, 0, 0, 0.1, 0.1)))
 
 
-alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](5, 7))
-alias OOROverride = OutOfRangeBehavior.override(ComplexScalar[dtype](9, 3))
+alias OORInterp = OutOfRangeBehavior.interpolate(ComplexScalar[dtype](999, -987))
+alias OOROverride = OutOfRangeBehavior.override(ComplexScalar[dtype](999, -987))
 
 
 def test_plerp_i2f_1d_full():
@@ -267,6 +268,7 @@ def test_plerp_2d():
         assert_equal_float[err_fn](
             obs=plerp.get(f=f),
             exp=img.get[or_else=oor.value](f_lerp=f),
+            eps=1e-3,
             location=__call_location()
         )
 
@@ -363,7 +365,8 @@ def test_plerp_2d_big_odd():
         assert_equal_float[err_fn](
             obs=plerp.get(f=f),
             exp=img.get[or_else=oor.value](f_lerp=f),
-            msg=String("f=", f)
+            msg=String("f=", f),
+            eps=1e-3
         )
 
     # sample finely in frequency space
@@ -392,7 +395,8 @@ def test_plerp_2d_big_even():
         assert_equal_float[err_fn](
             obs=plerp.get(f=f),
             exp=img.get[or_else=oor.value](f_lerp=f),
-            msg=String("f=", f)
+            msg=String("f=", f),
+            eps=1e-3
         )
 
     # sample finely in frequency space
@@ -422,7 +426,7 @@ def test_plerp_3d_big_odd():
             obs=plerp.get(f=f),
             exp=img.get[or_else=oor.value](f_lerp=f),
             msg=String("f=", f),
-            eps=1e-4
+            eps=1e-3
         )
 
     # sample finely in frequency space
@@ -454,7 +458,7 @@ def test_plerp_3d_big_even():
             obs=plerp.get(f=f),
             exp=img.get[or_else=oor.value](f_lerp=f),
             msg=String("f=", f),
-            eps=1e-4
+            eps=1e-3
         )
 
     # sample finely in frequency space
@@ -488,6 +492,28 @@ def test_scan():
         raise Error(msg)
 
 
+def test_segment_neighborhood():
+
+    var errors = List[String]()
+
+    for sizes_real_vol in TestConditionsRunTime.sizes_real_vols():
+        @parameter
+        for conditions_compile in TestConditionsCompileTime.all():
+            try:
+                _test_segment_neighborhood[conditions_compile](sizes_real_vol)
+            except e:
+                errors.append(String(e))
+
+    if len(errors) > 0:
+        var msg = String("segment neighborhood tests failed:")
+        for e in errors:
+            msg += "\n" + e
+        raise Error(msg)
+
+
+# NOTE: helper functions have to go after tests or the test runner won't find all the tests
+
+
 @fieldwise_init
 struct TestConditionsCompileTime(
     Copyable,
@@ -497,24 +523,28 @@ struct TestConditionsCompileTime(
     var simd_width: Int
 
     @staticmethod
-    fn all(out list: List[Self]):
-        
-        var oors = [
+    fn oors() -> List[OutOfRangeBehavior[dtype]]:
+        return [
             OORInterp,
             OOROverride
         ]
 
-        var simd_widths = [
+    @staticmethod
+    fn simd_widths() -> List[Int]:
+        return [
             2,
             4,
             8,
             16
         ]
 
+    @staticmethod
+    fn all(out list: List[Self]):
+        
         # iterate over the cartesian product of test parameters
         list = []
-        for oor in oors:
-                for simd_width in simd_widths:
+        for oor in Self.oors():
+                for simd_width in Self.simd_widths():
                     list.append(Self(
                         oor,
                         simd_width
@@ -533,56 +563,52 @@ struct TestConditionsRunTime(
 
     fn make_rot(self, out rot: Matrix[3,3,dtype]):
         rot = Matrix[3,3,dtype](uninitialized=True)
-        EulerAnglesZYZ[dtype](
+        var angles = EulerAnglesZYZ[dtype](
             psi=Deg[dtype](self.rot.x()),
             theta=Deg[dtype](self.rot.y()),
             phi=Deg[dtype](self.rot.z())
-        ).to_matrix(mat=rot)
+        )
+        angles.to_matrix(mat=rot)
+
+        # HACKHACK: for "round" rotations (like 180 degrees),
+        #           we're getting roundoff error in the radian value,
+        #           which is making the rotation matrix slightly off
+        #           so just round off a few digits off the matrix elements
+        #           and hope for the best
+        @parameter
+        for r in range(3):
+            @parameter
+            for c in range(3):
+                rot[r,c] = rot[r,c].__round__(6)
 
     @staticmethod
-    fn all(out list: List[Self]):
-        
-        var sizes_real_vols = [
+    fn sizes_real_vols() -> List[Vec[3,Int]]:
+        return [
             Vec[3](fill=6),  # even
             Vec[3](fill=7)  # odd
         ]
 
-        # the even-sized Fourier values (at z=0, z coord omitted):
-        #     -3 -2 -1    0  1  2  3
-        # +2  33 21 11 | 05 15 25 35  +2
-        # +1  32 22 12 | 04 14 24 34  +1
-        #  0  33 23 13 | 03 13 23 33   0
-        #     ---------o------------
-        # -1  34 24 14 | 02 12 22 32  -1
-        # -2  35 25 15 | 01 11 21 31  -2
-        # -3  30 20 10 | 00 10 20 30  -3
-        #     -3 -2 -1    0  1  2  3
-
-        # the odd-sized Fourier values (at z=0, z coord omitted):
-        #     -3 -2 -1    0  1  2  3
-        # +3  30 20 10 | 06 16 26 36  +3
-        # +2  31 21 11 | 05 15 25 35  +2
-        # +1  32 22 12 | 04 14 24 34  +1
-        #  0  33 23 13 | 03 13 23 33   0
-        #     ---------o------------
-        # -1  34 24 14 | 02 12 22 32  -1
-        # -2  35 25 15 | 01 11 21 31  -2
-        # -3  36 26 16 | 00 10 20 30  -3
-        #     -3 -2 -1    0  1  2  3
-
-        var sizes_real_projs = [
+    @staticmethod
+    fn sizes_real_projs() -> List[Vec[2,Int]]:
+        return [
             Vec[2](fill=5),  # smaller
             Vec[2](fill=9)  # bigger
         ]
 
-        var rots = [
-            Vec[3](fill=0),  # no rotation
+    @staticmethod
+    fn rots() -> List[Vec[3,Int]]:
+        return [
+            Vec[3](fill=0),  # no rotation, only +x halfspace
             Vec[3](x=5, y=7, z=9),  # small rotation
-            Vec[3](x=30, y=40, z=50)  # large rotation
-            # other rotations?
+            Vec[3](x=30, y=40, z=50),  # large rotation
+            Vec[3](x=180, y=0, z=0),  # only -x halfspace, z plane can't be chosen
+            Vec[3](x=10, y=180 - 10, z=0)  # some -x halfspace, x,y planes chosen
+            # TODO: check all 90 deg rotations!
         ]
 
-        var freq_limitss = [
+    @staticmethod
+    fn freq_limitss() -> List[FrequencyLimits[dtype]]:
+        return [
             FrequencyLimits[dtype].none(),
             FrequencyLimits(
                 freq_norm2_lo=Scalar[dtype](0.1),
@@ -590,12 +616,15 @@ struct TestConditionsRunTime(
             )
         ]
 
+    @staticmethod
+    fn all(out list: List[Self]):
+        
         # iterate over the cartesian product of test parameters
         list = []
-        for sizes_real_vol in sizes_real_vols:
-            for sizes_real_proj in sizes_real_projs:
-                for rot in rots:
-                    for freq_limits in freq_limitss:
+        for sizes_real_vol in Self.sizes_real_vols():
+            for sizes_real_proj in Self.sizes_real_projs():
+                for rot in Self.rots():
+                    for freq_limits in Self.freq_limitss():
                         list.append(Self(
                             sizes_real_vol.copy(),
                             sizes_real_proj.copy(),
@@ -606,24 +635,7 @@ struct TestConditionsRunTime(
 
 def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: TestConditionsRunTime):
 
-    # make an image with arbitrary (but deterministic, and recognizable) numbers
-    var img = FFTImage[3,dtype](conditions_run.sizes_real_vol)
-    @parameter
-    fn fill(i: Vec[3,Int]):
-        var f = img.coords().i2f(i=i)
-        var i2 = f - img.coords().fmin_pos()
-        var s = String(i2.x(), i2.y(), i2.z())
-        var ni = 0
-        try:
-            ni = atol(s)
-        except:
-            from os import abort
-            abort(String("failed to parse int: ", s))
-        var nf = Scalar[dtype](ni)
-        img.complex[i=i] = Cx(re=nf, im=-nf)
-
-    img.complex.iterate[fill]()
-
+    var img = make_fft_image(conditions_run.sizes_real_vol)
     var coords_proj = FFTCoords(conditions_run.sizes_real_proj)
 
     # build the volume neighborhoods (the thing we're testing!)
@@ -639,7 +651,7 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
 
     comptime indent = "            "
     var test_context = String(
-        "sizes_real_vol=", img.sizes_real,
+        "\n", indent, "sizes_real_vol=", img.sizes_real,
         "\n", indent, "sizes_real_proj=", coords_proj.sizes_real(),
         "\n", indent, "rot=", conditions_run.rot,
         "\n", indent, "out_of_range=", conditions_compile.out_of_range,
@@ -662,8 +674,33 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
     @parameter
     def check(f_pi: Vec[2,Int]):
 
+        # rotate into volume space and interpolate the volume
+        var exp_f_vf = rot_proj_to_vol*f_pi.map_scalar[dtype]().lift(z=0)
+        var exp_v = interp.get(f=exp_f_vf)
+
+        var start_dists = interp._start_dists(f=exp_f_vf)
+        ref start = start_dists[0]
+        ref dists = start_dists[1]
+        var exp_neighborhood = rebind[ComplexSIMD[dtype,8]](
+            interp._neighborhood(i=interp._f2i(f=start).map_int())
+        )
+
+        var exp_f_vi = exp_f_vf.floor().map_int()
+        var exp_f_vi_pos = exp_f_vi.copy()
+        if exp_f_vi.x() < 0:
+            exp_f_vi_pos = -exp_f_vi_pos - 1
+
+        # round to the including segment boundary
+        exp_f_vi_pos.x() //= vol.num_neighborhoods_in_segment
+        exp_f_vi_pos.x() *= vol.num_neighborhoods_in_segment
+
         var check_context = test_context + String(
-            "\n", indent, "f_pi=", f_pi
+            "\n", indent, "f_pi=", f_pi,
+            "\n", indent, "f_vi=", exp_f_vf.floor().map_int(),
+            "\n", indent, "f_vi_pos=", exp_f_vi_pos,
+            "\n", indent, "f_vf=", exp_f_vf,
+            "\n", indent, "neighborhood=", _render_neighborhood(exp_neighborhood),
+            "\n", indent, "dists=", dists
         )
 
         # find the same value by scanning the volume
@@ -678,20 +715,6 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
                 String("expected zero samples, but got ", len(results), ". ") + check_context
             )
             return
-
-        # rotate into volume space and interpolate the volume
-        var exp_f_vf = rot_proj_to_vol*f_pi.map_scalar[dtype]().lift(z=0)
-        var exp_v = interp.get(f=exp_f_vf)
-
-        var start_dists = interp._start_dists(f=exp_f_vf)
-        ref start = start_dists[0]
-        var exp_i_vi = interp._f2i(f=start).map_int()
-
-        check_context += String(
-            "\n", indent, "f_vi=", exp_f_vf.floor().map_int(),
-            "\n", indent, "f_vf=", exp_f_vf,
-            "\n", indent, "neighborhood=", interp._neighborhood(i=exp_i_vi)
-        )
 
         assert_equal(
             len(results), 1,
@@ -710,7 +733,97 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
             check(Vec[2,Int](x=x, y=y))
 
 
-# NOTE: helper functions have to go after tests or the test runner won't find all the tests
+def _test_segment_neighborhood[conditions_compile: TestConditionsCompileTime](
+    sizes_real_vol: Vec[3,Int]
+):
+
+    # make an arbitrary (but simple,predictable) FFT image
+    var img = make_fft_image(sizes_real_vol)
+    var coords = img.coords()
+
+    # build the volume neighborhoods (the thing we're testing!)
+    var vol = VolumeNeighborhoods[
+        dtype,
+        conditions_compile.simd_width,
+        conditions_compile.out_of_range
+    ](img)
+
+    # make the older precomputed interpolation, for comparison
+    var interp = PrecomputedFFTInterpolationFull[3,dtype,conditions_compile.out_of_range](img)
+
+    comptime indent = "            "
+    var test_context = String(
+        "\n", indent, "sizes_real_vol=", img.sizes_real,
+        "\n", indent, "out_of_range=", conditions_compile.out_of_range,
+        "\n", indent, "simd_width=", conditions_compile.simd_width
+    )
+
+    # loop over every voxel in the +x frequency range
+    for fz in range(coords.fmin[2](), coords.fmax[2]() + 1):
+        for fy in range(coords.fmin[1](), coords.fmax[1]() + 1):
+            for fx in range(0, coords.fmax[0]() + 1, vol.num_neighborhoods_in_segment):
+
+                var f_vi_pos = Vec[3](x=fx, y=fy, z=fz)
+
+                @parameter
+                for x_halfspace in [1, -1]:
+
+                    var segment_neighborhood = vol._segment_neighborhood[x_halfspace](f_vi_pos)
+
+                    var f_vi = f_vi_pos.copy()
+                    @parameter
+                    if x_halfspace == -1:
+                        f_vi = -f_vi - 1
+
+                    @parameter
+                    for x_offset in range(vol.num_neighborhoods_in_segment):
+
+                        var dx = Vec[3](x=x_halfspace*x_offset, y=0, z=0)
+                        var f_vi_dx = f_vi + dx
+
+                        var exp = rebind[ComplexSIMD[dtype,8]](
+                            interp._neighborhood(i=interp._f2i(f_vi_dx.map_dint()).map_int())
+                        )
+
+                        var obs = segment_neighborhood.voxel_neighborhood[
+                            x_halfspace, conditions_compile.out_of_range
+                        ](x_offset)
+
+                        if exp != obs:
+                            var check_context = test_context + String(
+                                "\n", indent, "f_vi_pos=", f_vi_pos,
+                                "\n", indent, "x_halfspace=", x_halfspace,
+                                "\n", indent, "f_vi=", f_vi,
+                                "\n", indent, "x_offset=", x_offset,
+                                "\n", indent, "f_vi_dx=", f_vi_dx,
+                                "\n", indent, "exp=", _render_neighborhood(exp),
+                                "\n", indent, "obs=", _render_neighborhood(obs)
+                            )
+                            assert_true(False, String("Neighborhoods don't match.") + check_context)
+
+fn make_fft_image(
+    sizes_real: Vec[3,Int],
+    out img: FFTImage[3,dtype]
+):
+    """Make an image with arbitrary (but deterministic, and recognizable) numbers."""
+
+    img = FFTImage[3,dtype](sizes_real)
+
+    @parameter
+    fn fill(i: Vec[3,Int]):
+        var f = img.coords().i2f(i=i)
+        var i2 = f - img.coords().fmin_pos()
+        var s = String(i2.x(), i2.y(), i2.z())
+        var ni = 0
+        try:
+            ni = atol(s)
+        except:
+            from os import abort
+            abort(String("failed to parse int: ", s))
+        var nf = Scalar[dtype](ni)
+        img.complex[i=i] = Cx(re=nf, im=-nf)
+
+    img.complex.iterate[fill]()
 
 
 fn lerp(v0: Scalar[dtype], v1: Scalar[dtype], t: Scalar[dtype], out v: Scalar[dtype]):

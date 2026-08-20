@@ -21,6 +21,38 @@ fn slice[
 
 
 @always_inline
+fn _simd_slice[
+    dtype: DType,
+    //,
+    width: Int = 1
+](
+    v_in: SIMD[dtype,_],
+    i: Int,
+    out v_out: SIMD[dtype,width]
+):
+    v_out = 0
+    @parameter
+    for w in range(width):
+        v_out[w] = v_in[i+w]
+
+
+@always_inline
+fn slice[
+    dtype: DType,
+    //,
+    simd_width_out: Int = 1
+](
+    c: ComplexSIMD[dtype,_],
+    i: Int,
+    out result: ComplexSIMD[dtype,simd_width_out]
+):
+    result = ComplexSIMD[dtype,simd_width_out](
+        re=_simd_slice[simd_width_out](c.re, i),
+        im=_simd_slice[simd_width_out](c.im, i)
+    )
+
+
+@always_inline
 fn splice[
     dtype: DType,
     //,

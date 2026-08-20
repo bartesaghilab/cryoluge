@@ -152,7 +152,8 @@ struct FFTCoords[dim: Int](
             else:
                 i[d] = _f[d]
 
-    fn maybe_f2i(self, f: Self.Vec, *, out i: Optional[Self.Vec]):
+    @always_inline
+    fn maybe_f2i(self, f: Self.Vec, out i: Optional[Self.Vec]):
         """
         If the Fourier coordinates are in-range, this function converts them to image coordinates.
         Otherwise, returns None.
@@ -166,6 +167,24 @@ struct FFTCoords[dim: Int](
         else:
             i = None
 
+    @always_inline
+    fn f2i_contiguous(self, f: Vec[dim,Int], out i: Vec[dim,Int]):
+        
+        i = f.copy()
+
+        # use contiguous addressing, instead of the bifurcated thing in f2i
+        if self.needs_conjugation(f=f):
+            i = -i
+        i -= self.fmin_pos()
+        i %= self.sizes_fourier()
+
+    @always_inline
+    fn maybe_f2i_contiguous(self, f: Vec[dim,Int], out i: Optional[Vec[dim,Int]]):
+        if self.f_in_range(f):
+            i = self.f2i_contiguous(f)
+        else:
+            return None
+    
     @always_inline
     fn i2f(self, i: Self.Vec, out f: Self.Vec):
         """
@@ -182,6 +201,11 @@ struct FFTCoords[dim: Int](
         for d in range(1, dim):
             if i[d] >= self._pivot[d]():
                 f[d] -= self.size_fourier[d]()
+
+    @always_inline
+    fn i2f_contiguous(self, i: Self.Vec, out f: Self.Vec):
+        # use contiguous addressing, instead of the bifurcated thing in i2f
+        f = i + self.fmin_pos()
 
     @always_inline
     fn sizes_voxel_norm[dtype: DType](self, out sizes: Vec[dim,Scalar[dtype]]):

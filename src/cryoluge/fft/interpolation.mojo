@@ -5,7 +5,7 @@ from utils.numerics import inf
 
 from cryoluge.math import Vec, AlignedBox, OrientedBox, complex, ladder
 from cryoluge.image import DimensionalBuffer
-from cryoluge.image.analysis import FrequencyLimits
+from cryoluge.image.analysis import FrequencyLimits, FrequencyLimitsChecker
 from cryoluge.fft import FFTCoordsFull, Delta
 
 
@@ -385,7 +385,7 @@ struct VolumeNeighborhoods[
         re=out_of_range.value.re,
         im=out_of_range.value.im
     )
-    comptime num_neighborhoods_in_segment = num_neighborhoods_in_segment[simd_width]()
+    comptime num_neighborhoods_in_segment = _num_neighborhoods_in_segment[simd_width]()
 
     fn __init__(
         out self,
@@ -412,7 +412,7 @@ struct VolumeNeighborhoods[
             var i = s.copy()
             i.x() = s.x()*Self.num_neighborhoods_in_segment
 
-            var f = self._i2f_pos(i=i)
+            var f = coords.i2f_contiguous(i=i)
 
             # pack all the pixels into this segment
             @parameter
@@ -461,69 +461,68 @@ struct VolumeNeighborhoods[
         else:
             segment = Self.out_of_range_segment
 
-    @always_inline
-    fn _i_in_range[x_halfspace: Int](
-        self,
-        i: Vec[3,Int],
-        out in_range: Bool
-    ):
-        var i_min = Vec[3](fill=0)
-        var i_max = self.coords().sizes_fourier()
-
-        var i2 = i.copy()
-
-        @parameter
-        if x_halfspace == -1:
-            # in the negative halfspace, the bounds are slightly (annoyingly) different
-            @parameter
-            for d in range(1, 3):
-                i_min[d] += 1
-                i2[d] = i_max[d]//2*2 - i2[d]
-
-        in_range = i2.ge_all(i_min) and i2.lt_all(i_max)
-
-    @always_inline
-    fn _i2f_pos(
-        self,
-        *,
-        i: Vec[3,Int],
-        out f_pos: Vec[3,Int]
-    ):
-        # use contiguous addressing, instead of the bifurcated thing FFTCoords does
-        f_pos = i + self.coords().fmin_pos()
-
-    @always_inline
-    fn _maybe_f2i[x_halfspace: Int](
-        self,
-        *,
-        f_pos: Vec[3,Int],
-        out i: Optional[Vec[3,Int]]
-    ):
-        # use contiguous addressing, instead of the bifurcated thing FFTCoords does
-        var maybe_i = f_pos - self.coords().fmin_pos()
-        if self._i_in_range[x_halfspace](maybe_i):
-            i = maybe_i^
-        else:
-            i = None
-
+    # TODO: @always_inline ?
     fn _segment_neighborhood[x_halfspace: Int](
         self,
         f_vi_pos: Vec[3,Int],
         out segment_neighborhood: _SegmentNeighborhood[dtype,simd_width]
     ):
+        # a convoluted example on a 6x6 image (same thing for 7x7 image):
+        # neighborhood at f_vi_pos=0,1  x_halfspace=1 :
+        #     -3 -2 -1    0  1  2  3
+        # +2           | 05 15 25 35  +2
+        # +1           | 04 14 24 34  +1
+        #              | n0 n1 n2 --
+        # neighborhood at f_vi_pos=0,1  x_halfspace=-1 :
+        #     -3 -2 -1    0  1  2  3
+        # -1  34 24 14 | 02           -1
+        # -2  35 25 15 | 01           -2
+        #     n2 n1 n0   --
+        # need to replace the x=0 column with values from another neighborhood:
+        #     -3 -2 -1    0  1  2  3
+        # -1           | 02 12 22 32  -1
+        # -2           | 01 11 21 31  -2
+
+        # another example on a 6x6 image:
+        # neighborhood at f_vi_pos=0,-3  x_halfspace=1 :
+        # -2           | 01 11 21 31  -2
+        # -3           | 00 10 20 30  -3
+        #                n0 n1 n2 --
+        # neighborhood at f_vi_pos=0,1  x_halfspace=-1 :
+        #     -3 -2 -1    0  1  2  3
+        # +3  OR OR OR | OR
+        # +2  31 21 11 | 05           +2
+        #     n2 n1 n0   --
+
+        var f_vi = f_vi_pos.copy()
+
+        # handle the -x halfspace here by inverting the coordinates and directions both,
+        # so we don't need to subtract 1 from the coordinates
+        @parameter
+        if x_halfspace == -1:
+            f_vi *= -1
+
+        comptime f_dy = Vec[3](x=0, y=1, z=0)*x_halfspace
+        comptime f_dz = Vec[3](x=0, y=0, z=1)*x_halfspace
+        comptime f_d00 = Vec[3](x=0, y=0, z=0)
+        comptime f_d10 = f_dy
+        comptime f_d01 = f_dz
+        comptime f_d11 = f_dy + f_dz
+
+        var coords = self.coords()
+
         # get the neighborhood image coordinates
-        var i_vi_00 = self._maybe_f2i[x_halfspace](f_pos=f_vi_pos + Vec[3](x=0, y=0, z=0))
-        var i_vi_10 = self._maybe_f2i[x_halfspace](f_pos=f_vi_pos + Vec[3](x=0, y=1, z=0))
-        var i_vi_01 = self._maybe_f2i[x_halfspace](f_pos=f_vi_pos + Vec[3](x=0, y=0, z=1))
-        var i_vi_11 = self._maybe_f2i[x_halfspace](f_pos=f_vi_pos + Vec[3](x=0, y=1, z=1))
+        var i_vi_00 = coords.maybe_f2i_contiguous(f_vi + materialize[f_d00]())
+        var i_vi_10 = coords.maybe_f2i_contiguous(f_vi + materialize[f_d10]())
+        var i_vi_01 = coords.maybe_f2i_contiguous(f_vi + materialize[f_d01]())
+        var i_vi_11 = coords.maybe_f2i_contiguous(f_vi + materialize[f_d11]())
 
         # apply out-of-range behvavior
-        var in_range_00 = i_vi_00 is not None
+        var in_range_00 = i_vi_00 is not None  # TODO: always true?
         var in_range_10 = i_vi_10 is not None
         var in_range_01 = i_vi_01 is not None
-        var in_range_11 = i_vi_11 is not None
-        var in_range_yz = in_range_10 and in_range_01
-    
+        var in_range_11 = i_vi_11 is not None  # TODO: always 10 or 01 ?
+        var in_range_yz = in_range_10 and in_range_01  # TODO: redundant?
         @parameter
         if out_of_range.id == OutOfRangeBehavior.Override:
             if not in_range_yz:
@@ -532,7 +531,15 @@ struct VolumeNeighborhoods[
                 i_vi_01 = None
                 i_vi_11 = None
 
-        var x_vec = materialize[ladder[simd_width]()]() + f_vi_pos.x()
+        # set the x-in-range mask
+        var fx_vi_segment = materialize[ladder[simd_width]()]() + f_vi_pos.x()
+        var in_range_x_mask = fx_vi_segment.le(coords.fmax[0]())
+
+        # apply out-of-range behavior
+        @parameter
+        if out_of_range.id == OutOfRangeBehavior.Override:
+            if not in_range_yz:
+                in_range_x_mask = SIMDBool[simd_width](fill=False)
 
         # read the segments, where possible
         segment_neighborhood = _SegmentNeighborhood[dtype,simd_width](
@@ -540,19 +547,77 @@ struct VolumeNeighborhoods[
             s10 = self._segment(i=i_vi_10),
             s01 = self._segment(i=i_vi_01),
             s11 = self._segment(i=i_vi_11),
-            in_range_x_mask = x_vec.lt(self.coords().fmax[0]())
+            in_range_x_mask = in_range_x_mask
         )
 
         @parameter
         if x_halfspace == -1:
 
-            # conjugate the in-range voxels
-            var in_range_x_mask = x_vec.le(self.coords().fmax[0]())
-            @parameter
-            if out_of_range.id == OutOfRangeBehavior.Override:
-                if not in_range_yz:
-                    in_range_x_mask = SIMDBool[simd_width](fill=False)
+            # x = 0 doesn't have x-contiguous voxels,
+            # so we need to load the missing voxels from different segments
+            if f_vi.x() == 0:
 
+                # we're going to conjugate all the value in the neighborhood later on,
+                # but the un-patched values shouldn't be conjugated because they're from the +x halfspace.
+                # so conjugate them now, so the later conjugation puts them back to normal,
+                # but only if they're in-range
+                if in_range_x_mask[0]:
+                    if in_range_00:
+                        segment_neighborhood.s00.im[0] *= -1
+                    if in_range_10:
+                        segment_neighborhood.s10.im[0] *= -1
+                    if in_range_01:
+                        segment_neighborhood.s01.im[0] *= -1
+                    if in_range_11:
+                        segment_neighborhood.s11.im[0] *= -1
+                # TODO: can we simplify this?
+
+                @always_inline
+                fn flipped_i[f_d: Vec[3,Int]](
+                    coords: FFTCoords[3],
+                    f_vi: Vec[3,Int],
+                    in_range: Bool,
+                    out i: Optional[Vec[3,Int]]
+                ):
+                    # keep the same coordinate boundaries as before
+                    if not in_range:
+                        i = None
+                        return
+
+                    var f = f_vi + materialize[f_d]()
+
+                    @parameter
+                    for d in range(1, 3):
+                        f[d] *= -1
+                        if f[d] > coords.fmax[d]():
+                            f[d] -= coords.size_fourier[d]()
+
+                    i = coords.f2i_contiguous(f)
+                    # TODO: can this be simplified/optimized at all?
+
+                # get the extra voxel image coordinates
+                i_vi_00 = flipped_i[f_d00](coords, f_vi, in_range_00)
+                i_vi_10 = flipped_i[f_d10](coords, f_vi, in_range_10)
+                i_vi_01 = flipped_i[f_d01](coords, f_vi, in_range_01)
+                i_vi_11 = flipped_i[f_d11](coords, f_vi, in_range_11)
+
+                # apply out-of-range behavior
+                @parameter
+                if out_of_range.id == OutOfRangeBehavior.Override:
+                    if not in_range_yz:
+                        i_vi_00 = None
+                        i_vi_10 = None
+                        i_vi_01 = None
+                        i_vi_11 = None
+
+                # replace the affected voxels
+                complex.splice[Self.num_neighborhoods_in_segment](segment_neighborhood.s00, 1, self._segment(i=i_vi_00), 1)
+                complex.splice[Self.num_neighborhoods_in_segment](segment_neighborhood.s10, 1, self._segment(i=i_vi_10), 1)
+                complex.splice[Self.num_neighborhoods_in_segment](segment_neighborhood.s01, 1, self._segment(i=i_vi_01), 1)
+                complex.splice[Self.num_neighborhoods_in_segment](segment_neighborhood.s11, 1, self._segment(i=i_vi_11), 1)
+                # TODO: try splicing one value into the newly-loaded segment, then overwrite the neighborhood
+
+            # conjugate all the in-range voxels
             @always_inline
             fn conj_mask(
                 in_range_x_mask: SIMDBool[simd_width],
@@ -573,35 +638,16 @@ struct VolumeNeighborhoods[
             segment_neighborhood.s01.im *= conj_mask(in_range_x_mask, in_range_01)
             segment_neighborhood.s11.im *= conj_mask(in_range_x_mask, in_range_11)
 
-            # f_v_neg.x = -1 (ie, f_v_pos.x = 0 in -x halfspace) doesn't have x-contiguous voxels,
-            # so we need to load the missing voxels
-            if f_vi_pos.x() == 0:
+        # apply post-conjugation out-of-range behavior
+        @parameter
+        if out_of_range.id == OutOfRangeBehavior.Override:
+            segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.shift_left[1]()
+            segment_neighborhood.in_range_x_mask[simd_width - 1] = False
+        
+        @parameter
+        if x_halfspace == -1:
 
-                # get the extra voxel image coordinates
-                var f_vi_flipped = f_vi_pos*Vec[3](x=1, y=-1, z=-1)
-                var i_vi_00 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=0, z=0))
-                var i_vi_10 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=1, z=0))
-                var i_vi_01 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=0, z=1))
-                var i_vi_11 = self._maybe_f2i[1](f_pos=f_vi_flipped - Vec[3](x=0, y=1, z=1))
-
-                # apply out-of-range behavior
-                @parameter
-                if out_of_range.id == OutOfRangeBehavior.Override:
-                    if not in_range_yz:
-                        i_vi_00 = None
-                        i_vi_10 = None
-                        i_vi_01 = None
-                        i_vi_11 = None
-
-                # replace the affected voxels
-                complex.splice(segment_neighborhood.s00, 0, self._segment(i=i_vi_00), 0)
-                complex.splice(segment_neighborhood.s10, 0, self._segment(i=i_vi_10), 0)
-                complex.splice(segment_neighborhood.s01, 0, self._segment(i=i_vi_01), 0)
-                complex.splice(segment_neighborhood.s11, 0, self._segment(i=i_vi_11), 0)
-                # NOTE: these voxels always load into the positive side and don't need conjugation
-                #       they also don't change the in-range x mask
-
-            # re-order the voxels
+            # reverse the voxel order
             segment_neighborhood.s00.re = segment_neighborhood.s00.re.reversed()
             segment_neighborhood.s00.im = segment_neighborhood.s00.im.reversed()
             segment_neighborhood.s10.re = segment_neighborhood.s10.re.reversed()
@@ -613,24 +659,18 @@ struct VolumeNeighborhoods[
             swap(segment_neighborhood.s00, segment_neighborhood.s11)
             swap(segment_neighborhood.s10, segment_neighborhood.s01)
 
-            # and the in-order mask too
+            # and the x-in-range mask too
             segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.shift_right[1]()
             segment_neighborhood.in_range_x_mask[0] = True
             segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.reversed()
 
-    fn scan[
-        func: fn(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing
-    ](
+    fn _voxels_bounds(
         self,
-        sizes_real_proj: Vec[2,Int],
+        coords_proj: FFTCoords[2],
         projections: List[VolumeNeighborhoodsProjection[dtype]],
-        freq_limits: FrequencyLimits[dtype] = FrequencyLimits[dtype].none()
+        out bounds: Tuple[Vec[3,Int],Vec[3,Int]]
     ):
-        # build the SIMD projection info
-        var simd_projections = _Projections[simd_width](projections)
-
-        var coords_proj = FFTCoords(sizes_real_proj)
-        var freq_limits_proj = freq_limits.checker(sizes_real_proj)
+        # TODO: write tests for this specifically!
 
         # compute the extents of the projection grid in volume space
         var f_v_minf = Vec[3,Scalar[dtype]](fill=inf[dtype]())
@@ -649,118 +689,186 @@ struct VolumeNeighborhoods[
         var f_v_mini = f_v_minf.floor().map_int()
         var f_v_maxi = f_v_maxf.ceil().map_int()
 
-        # fold the -x halfspace over the yz plane to push out the bounds
-        f_v_maxi.x() = max(f_v_maxi.x(), -f_v_mini.x())
+        # fold the -x halfspace over the yz plane to push out the bounds on the +x side
+        f_v_maxi.x() = max(f_v_maxi.x(), -f_v_mini.x() - 1)
         f_v_mini.x() = max(f_v_mini.x(), 0)
         # need to push out x,y too, in both directions, to account for the inversion symmetry
         @parameter
         for d in range(1, 3):
-            f_v_mini[d] = min(f_v_mini[d], -f_v_maxi[d])
-            f_v_maxi[d] = max(f_v_maxi[d], -f_v_mini[d])
+            f_v_mini[d] = min(f_v_mini[d], -f_v_maxi[d] - 1)
+            f_v_maxi[d] = max(f_v_maxi[d], -f_v_mini[d] - 1)
+
+        bounds = (f_v_mini^, f_v_maxi^)
+
+    fn scan[
+        func: fn(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing
+    ](
+        self,
+        sizes_real_proj: Vec[2,Int],
+        projections: List[VolumeNeighborhoodsProjection[dtype]],
+        freq_limits: FrequencyLimits[dtype] = FrequencyLimits[dtype].none()
+    ):
+        var coords_proj = FFTCoords(sizes_real_proj)
+        var freq_limits_proj = freq_limits.checker(sizes_real_proj)
+        var simd_projections = _Projections[simd_width](projections)
 
         # iterate over the voxel coords that cover the projection range
+        var bounds = self._voxels_bounds(coords_proj, projections)
+        ref f_v_mini = bounds[0]
+        ref f_v_maxi = bounds[1]
         for z in range(f_v_mini.z(), f_v_maxi.z() + 1):
-           for y in range(f_v_mini.y(), f_v_maxi.y() + 1):
-               for x in range(f_v_mini.x(), f_v_maxi.x() + 1, self.num_neighborhoods_in_segment):
-
+            for y in range(f_v_mini.y(), f_v_maxi.y() + 1):
+                for x in range(f_v_mini.x(), f_v_maxi.x() + 1, Self.num_neighborhoods_in_segment):
                     var f_vi_pos = Vec[3](x=x, y=y, z=z)
+                    self._check_segment[func](f_vi_pos, coords_proj, projections, simd_projections, freq_limits_proj)
 
-                    # map to both positive and negative x halfspaces
-                    @parameter
-                    for x_halfspace in [1, -1]:
-                        var f_vi = f_vi_pos.copy()
-                        @parameter
-                        if x_halfspace == -1:
-                            f_vi = -f_vi - 1
-                        var f_vf = f_vi.map_scalar[dtype]()
+    # TODO: @always_inline ?
+    fn _check_segment[
+        func: fn(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing
+    ](
+        self,
+        f_vi_pos: Vec[3,Int],
+        coords_proj: FFTCoords[2],
+        projections: List[VolumeNeighborhoodsProjection[dtype]],
+        simd_projections: _Projections[simd_width,dtype],
+        freq_limits_proj: FrequencyLimitsChecker[2,dtype]
+    ):
+        # map to both positive and negative x halfspaces
+        @parameter
+        for x_halfspace in [1, -1]:
 
-                        var segment_neighborhood: Optional[_SegmentNeighborhood[dtype,simd_width]] = None
+            var f_vi = f_vi_pos.copy()
+            @parameter
+            if x_halfspace == -1:
+                f_vi = -f_vi - 1
 
-                        # for each group of projections ...
-                        for proj_group in simd_projections.groups:
+            var f_vf = f_vi.map_scalar[dtype]()
 
-                            # check the segment z-bounds in all the projection spaces in the group
-                            var in_range_z = proj_group.segment_in_range_z[x_halfspace](f_vf)
-                            var any_in_range_z = in_range_z.reduce_or()
-                            if not any_in_range_z:
+            # TEMP
+            # var f_vi_focus = Vec[3](x=-1, y=-2, z=-1)
+            # var debug_v = False
+            # @parameter
+            # for w in range(Self.num_neighborhoods_in_segment):
+            #     var f_vi_w = f_vi + Vec[3](x=x_halfspace*w, y=0, z=0)
+            #     if f_vi_w == f_vi_focus:
+            #         debug_v = True
+            # if debug_v:
+            #     print("f_vi=", f_vi)
+
+            var segment_neighborhood: Optional[_SegmentNeighborhood[dtype,simd_width]] = None
+
+            # for each group of projections ...
+            for proj_group in simd_projections.groups:
+
+                # get the segment extents
+                var f_pf = proj_group.vol_to_proj(f_vf)
+                var segment_extents = proj_group.segment_extents[x_halfspace]()
+                var seg_min_pf = f_pf + segment_extents[0]
+                var seg_max_pf = f_pf + segment_extents[1]
+
+                # TODO: optimize bounds checks when in -x halfspace
+                #       by doing f_vf.x -= n-1 before rotating into p-space?
+
+                # check the segment z-bounds in all the projection spaces in the group
+                # should hopefully get some quick segment rejections this way
+                var in_range_z = seg_min_pf.z().le(0).__and__(seg_max_pf.z().ge(0))
+                var any_in_range_z = in_range_z.reduce_or()
+                if not any_in_range_z:
+                    continue
+
+                # compute the bounding box of the intersection of the segemnt with z_p=0
+                var bounds_p = proj_group.bound_p[x_halfspace](f_pf, coords_proj)
+                ref bounds_p_min = bounds_p[0]
+                ref bounds_p_max = bounds_p[1]
+
+                # TODO: can we combine the z check and the bounds somehow?
+                #       is there any overlap?
+
+                # for each projection in the group ...
+                for w in range(proj_group.num_projections):
+
+                    # TODO: can we get rid of this?
+                    ref proj = projections[proj_group.proj_indices[w]]
+
+                    if not in_range_z[w]:
+                        continue
+
+                    # TEMP
+                    # if debug_v:
+                    #     proj_group.print_intersection_geometry[x_halfspace](w, f_pf, proj, coords_proj)
+
+                    # iterate over the projection sample points in the bounding box
+                    for sy in range(bounds_p_min.y()[w], bounds_p_max.y()[w] + 1):
+                        for sx in range(bounds_p_min.x()[w], bounds_p_max.x()[w] + 1):
+                            var sf_pi = Vec[2](x=sx, y=sy).map_int()
+                            var sf_pf = sf_pi.map_scalar[dtype]()
+
+                            # TEMP
+                            # if debug_v:
+                            #     print("\tsampling:", sf_pi)
+
+                            # transform back into reference volume space
+                            var sf_vf = proj.proj_to_vol(sf_pf)
+
+                            # find out what voxel, if any, the point lies in
+                            # (treat the upper boundaries as exclusive)
+                            # and get its distances to the origin of that voxel
+                            var dists_v: Vec[3,Scalar[dtype]]
+                            var x_offset: Int
+                            var in_bounds: Bool
+                            @parameter
+                            if x_halfspace == -1:
+                                var f_v_min = Vec[3](x=1 - Self.num_neighborhoods_in_segment, y=0, z=0).map_scalar[dtype]()
+                                var f_v_max = Vec[3](fill=1).map_scalar[dtype]()
+                                dists_v = sf_vf - f_vf
+                                in_bounds = dists_v.ge_all(f_v_min) and dists_v.lt_all(f_v_max)
+                                x_offset = Int(floor(dists_v.x()))
+                                dists_v.x() -= x_offset
+                                x_offset *= -1
+                            else:
+                                var f_v_min = Vec[3](fill=Scalar[dtype](0))
+                                var f_v_max = Vec[3](x=Self.num_neighborhoods_in_segment, y=1, z=1).map_scalar[dtype]()
+                                dists_v = sf_vf - f_vf
+                                in_bounds = dists_v.ge_all(f_v_min) and dists_v.lt_all(f_v_max)
+                                x_offset = Int(floor(dists_v.x()))
+                                dists_v.x() -= x_offset
+
+                            if not in_bounds:
                                 continue
 
-                            # for each projection in the group ...
-                            for w in range(proj_group.num_projections):
-                                ref proj = projections[proj_group.proj_indices[w]]
+                            # apply the frequency limits
+                            var out_of_freq = not freq_limits_proj.contains(f=sf_pf)
+                            if out_of_freq:
+                                continue
 
-                                if not in_range_z[w]:
-                                    continue
+                            # load the segments, if needed
+                            if segment_neighborhood is None:
+                                segment_neighborhood = self._segment_neighborhood[x_halfspace](f_vi_pos)
 
-                                # compute projection-space bounds on each voxel in the whole segment
-                                comptime x_offsets = ladder[simd_width]()*x_halfspace
-                                comptime dx_vf = Vec[3](x=x_offsets, y=0, z=0).map_scalar[dtype]()
-                                var f_vf_segment = f_vf.splat[simd_width]() + materialize[dx_vf]()
-                                var bounds_p = proj.voxel_bounds(f_vf_segment, coords_proj)
-                                ref in_range_z_segment = bounds_p[0]
-                                ref bounds_p_min = bounds_p[1]
-                                ref bounds_p_max = bounds_p[2]
+                            # finally, interpolate the reference volume
+                            var voxel_neighborhood = segment_neighborhood.value().voxel_neighborhood[x_halfspace, Self.out_of_range](x_offset)
+                            var sv = interpolate(dists_v, voxel_neighborhood)
 
-                                # TODO: NEXTIME: try to collect sample points from all the segment voxels into a vector?
-                                #                or a sequence of vectors
-                                #                then calc distances and out-of-bounds together
-                                #                then collapse surviving points into smaller vectors
-                                #                then filter by frequency and collapse again
-                                #                then send to caller
+                            # TEMP
+                            # if debug_v:
+                            #     print("\t",
+                            #         "sample=", sf_pi,
+                            #         "x_offset=", x_offset,
+                            #         "dist_v_x=", dists_v.x()
+                            #     )
+                            #     print("\tsegment_neighborhood=", _render_neighborhood(segment_neighborhood.value()))
+                            #     print("\tvoxel_neighborhood=", _render_neighborhood(voxel_neighborhood))
 
-                                # for each voxel neighborhood in the segment neighborhood ...
-                                # TODO: NEXTTIME: try to do vector ops here instead of iterating??
-                                @parameter
-                                for x_offset in range(self.num_neighborhoods_in_segment):
+                            # TEMP
+                            # var debug_p = sf_pi == Vec[2](x=0, y=-2)
+                            # #var debug_p = False
+                            # if debug_p:
+                            #     print("\t\tsf_pi found in f_vi=", f_vi)
 
-                                    # check z bounds first, for the easy out
-                                    if not in_range_z_segment[x_offset]:
-                                        continue
-
-                                    var f_vf = f_vf + Vec[3](x=Scalar[dtype](x_offset*x_halfspace), y=0, z=0)
-
-                                    var bounds_p_min = bounds_p_min[slice=x_offset]
-                                    var bounds_p_max = bounds_p_max[slice=x_offset]
-
-                                    # iterate over the projection sample points in the bounding box
-                                    # NOTE: in 3D, with both grids being unit size, we should get 0, 1, 2 or 4 points
-                                    for sy in range(bounds_p_min.y(), bounds_p_max.y() + 1):
-                                        for sx in range(bounds_p_min.x(), bounds_p_max.x() + 1):
-                                            var sf_pi = Vec[2](x=sx, y=sy).map_int()
-                                            var sf_pf = sf_pi.map_scalar[dtype]()
-
-                                            # TODO: dists and out-of-bounds are the new bottlneck!
-
-                                            # transform back into reference volume space to compute interpolation distances
-                                            var sf_vf = proj.proj_to_vol(sf_pf)
-                                            var dists = sf_vf - f_vf
-
-                                            # the voxel bounding box may contain extra sample points,
-                                            # so make sure the sample point actually lies inside the voxel itself
-                                            # (treat the upper boundaries as exclusive)
-                                            var out_of_bounds = dists.lt_any(Vec[3](fill=Scalar[dtype](0))) or dists.ge_any(Vec[3](fill=Scalar[dtype](1)))
-                                            if out_of_bounds:
-                                                continue
-
-                                            # apply the frequency limits
-                                            var out_of_freq = not freq_limits_proj.contains(f=sf_pf)
-                                            if out_of_freq:
-                                                continue
-
-                                            # load the segments, if needed
-                                            if segment_neighborhood is None:
-                                                segment_neighborhood = self._segment_neighborhood[x_halfspace](f_vi_pos)
-
-                                            # finally, interpolate the reference volume
-                                            var voxel_neighborhood = segment_neighborhood.value().voxel_neighborhood[
-                                                _map_offset(x_halfspace,x_offset, Self.num_neighborhoods_in_segment),
-                                                Self.out_of_range
-                                            ]()
-                                            var sv = interpolate(dists, voxel_neighborhood)
-                                            func(proj.id, sf_pi^, sf_vf^, sv)
+                            func(proj.id, sf_pi^, sf_vf^, sv)
 
 
-fn num_neighborhoods_in_segment[simd_width: Int]() -> Int:
+fn _num_neighborhoods_in_segment[simd_width: Int]() -> Int:
     return simd_width - 1
     # one less neighborhood, due to needing two x voxels per neighborhood
 
@@ -793,36 +901,17 @@ struct VolumeNeighborhoodsProjection[dtype: DType](
         self._voxel_extents_pos = voxel_bound.max()
 
     @always_inline
+    fn proj_to_vol(self, v: Vec[3,Scalar[dtype]], out result: Vec[3,Scalar[dtype]]):
+        result = self.rot_proj_to_vol*v
+
+    @always_inline
     fn proj_to_vol(self, v: Vec[2,Scalar[dtype]], out result: Vec[3,Scalar[dtype]]):
-        result = self.rot_proj_to_vol*v.lift(z=0)
+        result = self.proj_to_vol(v.lift(z=0))
 
     @always_inline
     fn vol_to_proj[simd_width: Int](self, v: Vec[3,SIMD[dtype,simd_width]], out result: Vec[3,SIMD[dtype,simd_width]]):
         result = self.rot_proj_to_vol.mul_transpose(v)
     
-    @always_inline
-    fn voxel_bounds[simd_width: Int](
-        self,
-        f_vf: Vec[3,SIMD[dtype,simd_width]],
-        coords_proj: FFTCoords[2],
-        out bounds: Tuple[SIMDBool[simd_width],Vec[2,SIMDInt[simd_width]],Vec[2,SIMDInt[simd_width]]]
-    ):
-        # rotate the voxel origin into projection space
-        var f_pf = self.vol_to_proj(f_vf)
-
-        # build the bounding box extents and discretize
-        var range_min_3d = (f_pf + self._voxel_extents_neg.splat[simd_width]()).ceil().map_dint()
-        var range_max_3d = (f_pf + self._voxel_extents_pos.splat[simd_width]()).map_dint()
-
-        # build the z-in-range mask
-        z_mask = range_min_3d.z().le(0).__and__(range_max_3d.z().ge(0))
-
-        # intersect with the projection bounds
-        var range_min_2d = range_min_3d.project[2]().max(coords_proj.fmin_pos().map_dint().splat[simd_width]())
-        var range_max_2d = range_max_3d.project[2]().min(coords_proj.fmax().map_dint().splat[simd_width]())
-
-        bounds = (z_mask, range_min_2d^, range_max_2d^)
-
 
 comptime _VoxelNeighborhood[dtype: DType] = ComplexSIMD[dtype,8]
 
@@ -835,38 +924,164 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int](
     var proj_indices: SIMDInt[simd_width]
     var voxel_extents_neg: Vec[3,SIMD[dtype,simd_width]]
     var voxel_extents_pos: Vec[3,SIMD[dtype,simd_width]]
-    var vol_to_proj_zvec: Vec[3,SIMD[dtype,simd_width]]
-    var vol_to_proj_xz: SIMD[dtype,simd_width]
+    var segment_extents_neg: Vec[3,SIMD[dtype,simd_width]]
+    var segment_extents_pos: Vec[3,SIMD[dtype,simd_width]]
+    var vol_to_proj_xfactors: Vec[3,SIMD[dtype,simd_width]]
+    var vol_to_proj_yfactors: Vec[3,SIMD[dtype,simd_width]]
+    var vol_to_proj_zfactors: Vec[3,SIMD[dtype,simd_width]]
+    var voxel_max: Vec[3,SIMD[dtype,simd_width]]
+    var plane_1: _PlaneInfo[dtype,simd_width]
+    var plane_2: _PlaneInfo[dtype,simd_width]
+    var bound_extents_neg: Vec[2,SIMD[dtype,simd_width]]
+    var bound_extents_pos: Vec[2,SIMD[dtype,simd_width]]
+    # TODO: clean up unused things here
 
     fn __init__(out self):
         self.num_projections = 0
         self.proj_indices = SIMDInt[simd_width](0)
         self.voxel_extents_neg = Vec[3](fill=SIMD[dtype,simd_width](0))
         self.voxel_extents_pos = Vec[3](fill=SIMD[dtype,simd_width](0))
-        self.vol_to_proj_zvec = Vec[3](fill=SIMD[dtype,simd_width](0))
-        self.vol_to_proj_xz = 0
+        self.segment_extents_neg = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.segment_extents_pos = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.vol_to_proj_xfactors = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.vol_to_proj_yfactors = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.vol_to_proj_zfactors = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.voxel_max = Vec[3](fill=SIMD[dtype,simd_width](0))
+        self.plane_1 = _PlaneInfo[dtype,simd_width]()
+        self.plane_2 = _PlaneInfo[dtype,simd_width]()
+        self.bound_extents_neg = Vec[2](fill=SIMD[dtype,simd_width](0))
+        self.bound_extents_pos = Vec[2](fill=SIMD[dtype,simd_width](0))
 
     @always_inline
-    fn segment_in_range_z[x_halfspace: Int](
+    fn segment_extents[x_halfspace: Int](
+        self,
+        out extents: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]]
+    ):
+        var neg = self.segment_extents_neg.copy()
+        var pos = self.segment_extents_pos.copy()
+
+        @parameter
+        if x_halfspace == -1:
+            # in the negative half space, invert through (1,1,1)
+            swap(neg, pos)
+            neg = self.voxel_max - neg
+            pos = self.voxel_max - pos
+
+        extents = (neg^, pos^)
+
+    @always_inline
+    fn vol_to_proj(
         self,
         f_vf: Vec[3,Scalar[dtype]],
-        out in_range: SIMDBool[simd_width]
+        out f_pf: Vec[3,SIMD[dtype,simd_width]]
     ):
-        # rotate the voxel origin into projection space, but only the z-coord
-        # by using the z-row of the vol->proj rotation matrix
-        var fz_pf = self.vol_to_proj_zvec.inner_product(f_vf.splat[simd_width]())
+        # rotate the point(s) from volume space into projection space
+        var f_vf_s = f_vf.splat[simd_width]()
+        f_pf = Vec[3](
+            x=self.vol_to_proj_xfactors.inner_product(f_vf_s),
+            y=self.vol_to_proj_yfactors.inner_product(f_vf_s),
+            z=self.vol_to_proj_zfactors.inner_product(f_vf_s)
+        )
 
-        # get the change in z-coord along the segment
-        # by using the z-coord of the unit x vector in the vol->proj rotation matrix
-        var dz = self.vol_to_proj_xz*x_halfspace*num_neighborhoods_in_segment[simd_width]()
+    @always_inline
+    fn intersection_point[x_halfspace: Int](
+        self,
+        f_pf: Vec[3,SIMD[dtype,simd_width]],  # point on both planes
+        out p: Vec[2,SIMD[dtype,simd_width]]
+    ):
+        """The intersection of the two chosen planes and z_p=0."""
 
-        # the z-bounds of the whole segment must contain 0 to be in-range
-        var z_neg = -self.voxel_extents_neg.z()
-        var z_pos = -self.voxel_extents_pos.z()
-        in_range = (fz_pf.le(z_neg).__or__((fz_pf + dz).le(z_neg)))
-            .__and__(fz_pf.ge(z_pos).__or__((fz_pf + dz).ge(z_pos)))
-        # NOTE: and/or operators don't do what you'd expect on SIMD bools,
-        #       so use the __and__/__or__ functions explicitly
+        var f_pf_2 = f_pf.copy()
+        @parameter
+        if x_halfspace == -1:
+            # TODO: optimize this
+            comptime dx_v = Vec[3](x=1, y=0, z=0).map_scalar[dtype]()
+            var dx_p = self.vol_to_proj(materialize[dx_v]())
+            f_pf_2 -= dx_p*(_num_neighborhoods_in_segment[simd_width]() - 1)
+
+        p = Vec[2](
+            x = f_pf_2.inner_product(self.plane_1.factor),
+            y = f_pf_2.inner_product(self.plane_2.factor)
+        )
+
+    @always_inline
+    fn bound_p[x_halfspace: Int](
+        self,
+        f_pf: Vec[3,SIMD[dtype,simd_width]],  # point on both planes
+        coords_proj: FFTCoords[2],
+        out bounds: Tuple[Vec[2,SIMD[DType.int,simd_width]],Vec[2,SIMD[DType.int,simd_width]]]
+    ):
+        """The bounding box around the intersections of the both planes and their far parners at z_p=0."""
+
+        # compute the intesection area bounds by adding the extents to the intersection point
+        var p = self.intersection_point[x_halfspace](f_pf)
+        var bound_min_f = p + self.bound_extents_neg
+        var bound_max_f = p + self.bound_extents_pos
+        # NOTE: don't need to adjust these extents for -x halfspace,
+        #       since we already moved the intersection point to compensate
+
+        # use the direction of the plane offsets to set the boundary conditions for the intersection area
+        var far_point = self.plane_1.offset + self.plane_2.offset
+        var is_pos = Vec[2](
+            x = far_point.x().ge(0),
+            y = far_point.y().ge(0)
+        )
+        # TODO: can cache this?
+
+        # discretize the bounds and apply boundary conditions
+        # when the offsets are positive, treat upper bounds as exclusive
+        # when the offsets are negative, treat the lower bounds as exclusive
+        var bound_min_i = Vec[2,SIMDInt[simd_width]](uninitialized=True)
+        var bound_max_i = Vec[2,SIMDInt[simd_width]](uninitialized=True)
+        from math import floor, ceil  # TODO: move to top
+        @parameter
+        for d in range(2):
+            bound_min_i[d] = is_pos[d].select(
+                true_case = SIMDInt[simd_width](ceil(bound_min_f[d])),
+                false_case = SIMDInt[simd_width](floor(bound_min_f[d] + 1))
+            )
+            bound_max_i[d] = is_pos[d].select(
+                true_case = SIMDInt[simd_width](ceil(bound_max_f[d] - 1)),
+                false_case = SIMDInt[simd_width](floor(bound_max_f[d]))
+            )
+
+        # intersect with the projection bounds
+        bound_min_i = bound_min_i.max(coords_proj.fmin_pos().map_dint().splat[simd_width]())
+        bound_max_i = bound_max_i.min(coords_proj.fmax().map_dint().splat[simd_width]())
+
+        bounds = (bound_min_i^, bound_max_i^)
+
+    # for debugging
+    fn print_intersection_geometry[x_halfspace: Int](
+        self,
+        i: Int,
+        f_pf: Vec[3,SIMD[dtype,simd_width]],
+        proj: VolumeNeighborhoodsProjection[dtype],
+        coords_proj: FFTCoords[2]
+    ):
+        var p = self.intersection_point[x_halfspace](f_pf)[slice=i]
+        var o1 = self.plane_1.offset[slice=i]
+        var o2 = self.plane_2.offset[slice=i]
+        var bounds_p = self.bound_p[x_halfspace](f_pf, coords_proj)
+        print("Plane intersection geometry:",
+            "\n\tp1=", self.plane_1.name[i], " p2=", self.plane_2.name[i],
+            "\n\tf_pf=pt", f_pf[slice=i],
+            "\n\taxes=[",
+                "pt", proj.vol_to_proj(Vec[3](x=1, y=0, z=0).map_scalar[dtype]()),
+                ", pt", proj.vol_to_proj(Vec[3](x=0, y=1, z=0).map_scalar[dtype]()),
+                ", pt", proj.vol_to_proj(Vec[3](x=0, y=0, z=1).map_scalar[dtype]()),
+            "]",
+            "\n\tx_halfspace=", x_halfspace,
+            "\n\tx_len=", _num_neighborhoods_in_segment[simd_width](),
+            "\n\tintersection=pt", p,
+            "\n\toffsets=[pt", o1, ", pt", o2, "]",
+            "\n\textents_f=[",
+                "pt", p[slice=i] + self.bound_extents_neg[slice=i],
+                ", pt", p[slice=i] + self.bound_extents_pos[slice=i],
+            "]",
+            "\n\textents_i=[pt", bounds_p[0][slice=i], ", pt", bounds_p[1][slice=i], "]",
+            sep=""
+        )
 
 
 struct _Projections[simd_width: Int, dtype: DType](
@@ -890,16 +1105,148 @@ struct _Projections[simd_width: Int, dtype: DType](
 
             group.num_projections += 1
             group.proj_indices[i] = p
-            
+
+            comptime n_i = _num_neighborhoods_in_segment[simd_width]()
+            comptime n_f = Scalar[dtype](n_i)
+
             # pack the voxel extents
             group.voxel_extents_neg[slice=i] = proj._voxel_extents_neg.copy()
             group.voxel_extents_pos[slice=i] = proj._voxel_extents_pos.copy()
 
-            # pack the z vectors of the vol->proj rotation matrices
-            group.vol_to_proj_zvec[slice=i] = proj.rot_proj_to_vol.vec(col=2)
+            # pack the segment extents too
+            var seg_vec = proj.rot_proj_to_vol.vec(row=0)*(n_f - 1)
+            group.segment_extents_neg[slice=i] = proj._voxel_extents_neg.min(proj._voxel_extents_neg + seg_vec)
+            group.segment_extents_pos[slice=i] = proj._voxel_extents_pos.max(proj._voxel_extents_pos + seg_vec)
 
-            # pack the z-coordinates of the x vectors of the vol->proj rotation matrices
-            group.vol_to_proj_xz[i] = proj.rot_proj_to_vol[0,2]
+            # pack the factors of the vol->proj rotation matrices
+            group.vol_to_proj_xfactors[slice=i] = proj.rot_proj_to_vol.vec(col=0)
+            group.vol_to_proj_yfactors[slice=i] = proj.rot_proj_to_vol.vec(col=1)
+            group.vol_to_proj_zfactors[slice=i] = proj.rot_proj_to_vol.vec(col=2)
+
+            # compute the voxel max point
+            group.voxel_max[slice=i] = proj.vol_to_proj(Vec[3](fill=Scalar[dtype](1)))
+
+            # compute the width of the strips in each dimension
+            # ie, the minimum distance from the origin to the line formed by intersecting
+            # each segment far bounding plane (not incident at origin) in volume space
+            # with the z=0 plane from projection space
+            var z_vec_v = proj.proj_to_vol(Vec[3](x=0, y=0, z=1).map_scalar[dtype]())
+            from math import sqrt  # TODO: move to top
+            var strip_widths = Vec[3](
+                x = n_f*sqrt(1 + z_vec_v.x()**2/(z_vec_v.y()**2 + z_vec_v.z()**2)),
+                y = sqrt(1 + z_vec_v.y()**2/(z_vec_v.x()**2 + z_vec_v.z()**2)),
+                z = sqrt(1 + z_vec_v.z()**2/(z_vec_v.x()**2 + z_vec_v.y()**2))
+            )
+
+            comptime unit_x_v = Vec[3](x=1, y=0, z=0).map_scalar[dtype]()
+            comptime unit_y_v = Vec[3](x=0, y=1, z=0).map_scalar[dtype]()
+            comptime unit_z_v = Vec[3](x=0, y=0, z=1).map_scalar[dtype]()
+
+            # choose the two planes we'll use for intersection tests
+            from utils.numerics import isinf  # TODO: move to top
+            if isinf(strip_widths.x()):
+                # x doesn't intersect z_p=0, so we must use y,z
+                group.plane_1.set[unit_y_v](i, "y", 1, proj)
+                group.plane_2.set[unit_z_v](i, "z", 1, proj)
+            elif isinf(strip_widths.y()):
+                # y doesn't intersect z_p=0, so we must use x,z
+                group.plane_1.set[unit_x_v](i, "x", n_i, proj)
+                group.plane_2.set[unit_z_v](i, "z", 1, proj)
+            elif isinf(strip_widths.z()):
+                # z doesn't intersect z_p=0, so we must use x,y
+                group.plane_1.set[unit_x_v](i, "x", n_i, proj)
+                group.plane_2.set[unit_y_v](i, "y", 1, proj)
+            else:
+                # all three are possible: could choose any two
+                # to optimize, pick the smaller two of the three strips
+                # TODO: but don't pick two parallel strips
+                ref wx = strip_widths.x()
+                ref wy = strip_widths.y()
+                ref wz = strip_widths.z()
+                if wx < wz and wy < wz or True:  # TEMP
+                    group.plane_1.set[unit_x_v](i, "x", n_i, proj)
+                    group.plane_2.set[unit_y_v](i, "y", 1, proj)
+                elif wx < wy and wz < wy:
+                    group.plane_1.set[unit_x_v](i, "x", n_i, proj)
+                    group.plane_2.set[unit_z_v](i, "z", 1, proj)
+                else:
+                    group.plane_1.set[unit_y_v](i, "y", 1, proj)
+                    group.plane_2.set[unit_z_v](i, "z", 1, proj)
+
+            # TEMP
+            # print("strip widths=", strip_widths)
+            # print("planes:", i, group.plane_1.name[i], group.plane_2.name[i])
+
+            _PlaneInfo.mix(i, group.plane_1, group.plane_2)
+
+            # compute the z_p=0 bound extents
+            var zero_2 = Vec[2](fill=0).map_scalar[dtype]()
+            var o1 = group.plane_1.offset[slice=i]
+            var o2 = group.plane_2.offset[slice=i]
+            group.bound_extents_neg[slice=i] = zero_2.min(o1).min(o2).min(o1 + o2)
+            group.bound_extents_pos[slice=i] = zero_2.max(o1).max(o2).max(o1 + o2)
+            
+            # TEMP
+            # print("extents=", group.bound_extents_neg[slice=i], group.bound_extents_pos[slice=i])
+
+
+struct _PlaneInfo[dtype: DType, simd_width: Int](
+    Copyable,
+    Movable
+):
+    var name: List[String]
+    var normal_p: Vec[3,SIMD[dtype,simd_width]]
+    var len: SIMDInt[simd_width]
+    var factor: Vec[3,SIMD[dtype,simd_width]]
+    var offset: Vec[2,SIMD[dtype,simd_width]]
+
+    fn __init__(out self):
+        self.name = List[String](length=simd_width, fill="")
+        self.normal_p = Vec[3,SIMD[dtype,simd_width]](fill=Scalar[dtype](0))
+        self.len = SIMDInt[simd_width](0)
+        self.factor = Vec[3,SIMD[dtype,simd_width]](fill=Scalar[dtype](0))
+        self.offset = Vec[2,SIMD[dtype,simd_width]](fill=Scalar[dtype](0))
+
+    fn set[axis: Vec[3,Scalar[dtype]]](
+        mut self,
+        i: Int,
+        name: String,
+        len: Int,
+        proj: VolumeNeighborhoodsProjection[dtype]
+    ):
+        self.name[i] = name
+        self.normal_p[slice=i] = proj.vol_to_proj(materialize[axis]())
+        self.len[i] = len
+
+    @staticmethod
+    fn mix(
+        var i: Int,
+        mut plane_1: Self,
+        mut plane_2: Self
+    ):
+
+        # compute the plane intersection factors
+        var n1_p = plane_1.normal_p[slice=i]
+        var n2_p = plane_2.normal_p[slice=i]
+        var d = n1_p.y()*n2_p.x() - n1_p.x()*n2_p.y()
+        var f1 = (n2_p*n1_p.y() - n1_p*n2_p.y())/d
+        var f2 = (n1_p*n2_p.x() - n2_p*n1_p.x())/d
+        plane_1.factor[slice=i] = f1.copy()
+        plane_2.factor[slice=i] = f2.copy()
+
+        # compute the intersection corner offsets
+        fn intersection_offset(
+            n: Vec[3,Scalar[dtype]],
+            f1: Vec[3,Scalar[dtype]],
+            f2: Vec[3,Scalar[dtype]],
+            out offset: Vec[2,Scalar[dtype]]
+        ):
+            offset = Vec[2](
+                x = n.inner_product(f1),
+                y = n.inner_product(f2)
+            )
+        plane_1.offset[slice=i] = intersection_offset(n1_p, f1, f2)*Scalar[dtype](plane_1.len[i])
+        plane_2.offset[slice=i] = intersection_offset(n2_p, f1, f2)*Scalar[dtype](plane_2.len[i])
 
 
 @fieldwise_init
@@ -914,39 +1261,101 @@ struct _SegmentNeighborhood[dtype: DType, simd_width: Int](
     var in_range_x_mask: SIMDBool[simd_width]
 
     comptime Segment = ComplexSIMD[dtype,simd_width]
-    comptime num_neighborhoods_in_segment = num_neighborhoods_in_segment[simd_width]()
+    comptime num_neighborhoods_in_segment = _num_neighborhoods_in_segment[simd_width]()
 
-    fn voxel_neighborhood[
+    fn voxel_neighborhood[x_halfspace: Int, out_of_range: OutOfRangeBehavior[dtype]](
+        self,
         x_offset: Int,
-        out_of_range: OutOfRangeBehavior[dtype]
-    ](self, out voxel_neighborhood: _VoxelNeighborhood[dtype]):
+        out voxel_neighborhood: _VoxelNeighborhood[dtype]
+    ):
+
+        # reverse the offset, if needed
+        var i = x_offset
+        @parameter
+        if x_halfspace == -1:
+            i = self.num_neighborhoods_in_segment - i - 1
 
         # apply out-of-range behavior
         @parameter
         if out_of_range.id == OutOfRangeBehavior.Override:
-            if not self.in_range_x_mask[x_offset]:
-                voxel_neighborhood = complex.pack[8](
-                    out_of_range.value,
-                    out_of_range.value,
-                    out_of_range.value,
-                    out_of_range.value,
-                    out_of_range.value,
-                    out_of_range.value,
-                    out_of_range.value,
-                    out_of_range.value
-                )
+            if not self.in_range_x_mask[i]:
+                voxel_neighborhood = _neighborhood_out_of_range[out_of_range]()
                 return
 
         voxel_neighborhood = complex.pack[8](
-            complex.slice[x_offset,2](self.s00),
-            complex.slice[x_offset,2](self.s10),
-            complex.slice[x_offset,2](self.s01),
-            complex.slice[x_offset,2](self.s11)
+            complex.slice[2](self.s00, i),
+            complex.slice[2](self.s10, i),
+            complex.slice[2](self.s01, i),
+            complex.slice[2](self.s11, i)
         )
 
 
-fn _map_offset(x_halfspace: Int, x_offset: Int, num_neighborhoods_in_segment: Int) -> Int:
-    if x_halfspace == 1:
-        return x_offset
+fn _neighborhood_out_of_range[
+    dtype: DType,
+    //,
+    out_of_range: OutOfRangeBehavior[dtype]
+](out neighborhood: _VoxelNeighborhood[dtype]):
+    neighborhood = complex.pack[8](
+        out_of_range.value,
+        out_of_range.value,
+        out_of_range.value,
+        out_of_range.value,
+        out_of_range.value,
+        out_of_range.value,
+        out_of_range.value,
+        out_of_range.value
+    )
+
+
+# complex value rendering code, mostly only useful for debugging
+
+fn _render_i[dtype: DType](i: Scalar[dtype], out s: String):
+    # values are triples of single digits
+    s = String(Int(i))
+    # but get rid of the sign, if any
+    if i < 0:
+        s = s[1:]
+    # but drop the z coordinate (it's usually redundant for testing)
+    s = s[:len(s) - 1]
+    # pad to 2 characters
+    while len(s) < 2:
+        s = "0" + s
+
+
+fn _render_v[dtype: DType](v: ComplexScalar[dtype]) -> String:
+    var re = _render_i(v.re)
+    var im = _render_i(v.im)
+    if v.im >= 0:
+        return String(re, "+", im, "i")
     else:
-        return num_neighborhoods_in_segment - x_offset - 1
+        return String(re, "-", im, "i")
+
+
+fn _render_segment[dtype: DType, simd_width: Int](segment: ComplexSIMD[dtype,simd_width], out s: String):
+    s = "["
+    @parameter
+    for i in range(simd_width):
+        s += "  "
+        s += _render_v(complex.slice[i](segment))
+    s += "  ]"
+
+
+fn _render_neighborhood[dtype: DType](neighborhood: ComplexSIMD[dtype,8]) -> String:
+    return String("[",
+        "  ", _render_v(complex.slice[0](neighborhood)),
+        "  ", _render_v(complex.slice[1](neighborhood)),
+        "  ", _render_v(complex.slice[2](neighborhood)),
+        "  ", _render_v(complex.slice[3](neighborhood)),
+        # NOTE: just show the first four parts (z_0),
+        #       since the last four (z_1) are usually redundant for testing
+    "  ]")
+
+
+fn _render_neighborhood[dtype: DType, simd_width: Int](neighborhood: _SegmentNeighborhood[dtype,simd_width]) -> String:
+    return String("SegmentNeighborhood[",
+        "\n  00=", _render_segment(neighborhood.s00),
+        "\n  10=", _render_segment(neighborhood.s10),
+        "\n  01=", _render_segment(neighborhood.s01),
+        "\n  11=", _render_segment(neighborhood.s11),
+        "\n   x=", neighborhood.in_range_x_mask,
+    "\n]")
