@@ -1,6 +1,6 @@
 
 from complex import ComplexScalar, ComplexSIMD
-from testing import assert_equal, assert_true
+from testing import assert_equal, assert_true, assert_false
 from builtin._location import __call_location
 
 from cryoluge.math import Vec, Matrix, EulerAnglesZYZ, complex
@@ -8,7 +8,7 @@ from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
 from cryoluge.image.analysis import FrequencyLimits
 from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods, VolumeNeighborhoodsProjection
-from cryoluge.fft.interpolation import _render_neighborhood
+from cryoluge.fft.interpolation import _render_neighborhood, _Projections, _num_neighborhoods_in_segment, _PBound
 from cryoluge.test import assert_equal_float
 
 
@@ -511,6 +511,26 @@ def test_segment_neighborhood():
         raise Error(msg)
 
 
+def test_p_bounds():
+
+    var errors = List[String]()
+
+    for sizes_real_proj in TestConditionsRunTime.sizes_real_projs():
+        for rot in TestConditionsRunTime.rots():
+            @parameter
+            for simd_width in TestConditionsCompileTime.simd_widths():
+                try:
+                    _test_p_bounds[simd_width](sizes_real_proj, rot)
+                except e:
+                    errors.append(String(e))
+
+    if len(errors) > 0:
+        var msg = String("p bounds tests failed:")
+        for e in errors:
+            msg += "\n" + e
+        raise Error(msg)
+
+
 # NOTE: helper functions have to go after tests or the test runner won't find all the tests
 
 
@@ -562,24 +582,7 @@ struct TestConditionsRunTime(
     var freq_limits: FrequencyLimits[dtype]
 
     fn make_rot(self, out rot: Matrix[3,3,dtype]):
-        rot = Matrix[3,3,dtype](uninitialized=True)
-        var angles = EulerAnglesZYZ[dtype](
-            psi=Deg[dtype](self.rot.x()),
-            theta=Deg[dtype](self.rot.y()),
-            phi=Deg[dtype](self.rot.z())
-        )
-        angles.to_matrix(mat=rot)
-
-        # HACKHACK: for "round" rotations (like 180 degrees),
-        #           we're getting roundoff error in the radian value,
-        #           which is making the rotation matrix slightly off
-        #           so just round off a few digits off the matrix elements
-        #           and hope for the best
-        @parameter
-        for r in range(3):
-            @parameter
-            for c in range(3):
-                rot[r,c] = rot[r,c].__round__(6)
+        rot = _make_rot(self.rot)
 
     @staticmethod
     fn sizes_real_vols() -> List[Vec[3,Int]]:
@@ -631,6 +634,27 @@ struct TestConditionsRunTime(
                             rot.copy(),
                             freq_limits.copy()
                         ))
+
+fn _make_rot(params: Vec[3,Int], out rot: Matrix[3,3,dtype]):
+
+    rot = Matrix[3,3,dtype](uninitialized=True)
+    var angles = EulerAnglesZYZ[dtype](
+        psi=Deg[dtype](params.x()),
+        theta=Deg[dtype](params.y()),
+        phi=Deg[dtype](params.z())
+    )
+    angles.to_matrix(mat=rot)
+
+    # HACKHACK: for "round" rotations (like 180 degrees),
+    #           we're getting roundoff error in the radian value,
+    #           which is making the rotation matrix slightly off
+    #           so just round off a few digits off the matrix elements
+    #           and hope for the best
+    @parameter
+    for r in range(3):
+        @parameter
+        for c in range(3):
+            rot[r,c] = rot[r,c].__round__(6)
 
 
 def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: TestConditionsRunTime):
@@ -800,6 +824,98 @@ def _test_segment_neighborhood[conditions_compile: TestConditionsCompileTime](
                                 "\n", indent, "obs=", _render_neighborhood(obs)
                             )
                             assert_true(False, String("Neighborhoods don't match.") + check_context)
+
+
+def _test_p_bounds[simd_width: Int](
+    sizes_real_proj: Vec[2,Int],
+    rot: Vec[3,Int]
+):
+    # TODO: NEXTTIME: still some failing test cases!!
+    #                 need to debug!
+
+    # build a group with one projection
+    var projections = [
+        VolumeNeighborhoodsProjection(0, _make_rot(rot))
+    ]
+    ref proj = projections[0]
+    var simd_projections = _Projections[simd_width](projections)
+    ref proj_group = simd_projections.groups[0]
+
+    # imagine a reference volume large enough to cover all the projection samples
+    var coords_vol = FFTCoords(Vec[3](fill=sizes_real_proj.max()))
+
+    comptime indent = "            "
+    var test_context = String(
+        "\n", indent, "sizes_real_proj=", sizes_real_proj,
+        "\n", indent, "rot=", rot,
+        "\n", indent, "simd_width=", simd_width
+    )
+
+    # iterate over the projection grid points
+    var coords_proj = FFTCoords(sizes_real_proj)
+    for y in range(coords_proj.fmin_pos[1](), coords_proj.fmax[1]() + 1):
+        for x in range(coords_proj.fmin_pos[0](), coords_proj.fmax[0]() + 1):
+
+            var f_pi = Vec[2](x=x, y=y)
+            var f_pf = f_pi.map_scalar[dtype]()
+
+            # rotate into volume space and discretize to the voxel
+            var f_vf = proj.proj_to_vol(f_pf)
+            var f_vi_vox = f_vf.floor().map_int()
+
+            # get the segment start coordinates
+            var i_vi_vox = coords_vol.f2i_contiguous(f_vi_vox)
+            comptime n = _num_neighborhoods_in_segment[simd_width]()
+            var i_vi_seg = i_vi_vox // Vec[3](x=n, y=1, z=1) 
+            var x_offset = i_vi_vox.x() % n
+
+            # get the projection-space coordinates of the segment
+            var f_vi_seg = f_vi_vox - Vec[3](x=-x_offset, y=0, z=0)
+            var f_pf_seg = proj.vol_to_proj(f_vi_seg.map_scalar[dtype]().splat[simd_width]())[slice=0]
+
+            # compute the projection-space bound
+            # HACKHACK: x_halfspace is usually a compile-time parameter,
+            #           but we only know it at run-time here,
+            #           so make a small if statement to translate run-time to compile-time
+            var rendered_geometry: String
+            var bounds_p: _PBound[simd_width]
+            if f_vi_vox.x() >= 0:
+                comptime x_halfspace = 1
+                bounds_p = proj_group.bound_p_better[x_halfspace](f_pf_seg.splat[simd_width]())
+                rendered_geometry = proj_group.render_bound_geometry[x_halfspace,0](f_pf_seg, proj)
+            else:
+                comptime x_halfspace = -1
+                bounds_p = proj_group.bound_p_better[x_halfspace](f_pf_seg.splat[simd_width]())
+                rendered_geometry = proj_group.render_bound_geometry[x_halfspace,0](f_pf_seg, proj)
+
+            var check_context = test_context + String(
+                "\n", indent, "f_pi=", f_pi,
+                "\n", indent, "f_vf=", f_vf,
+                "\n", indent, "f_vi_vox=", f_vi_vox,
+                "\n", indent, "f_vi_seg=", f_vi_seg,
+                "\n", indent, "i_vi_seg=", i_vi_seg,
+                "\n", indent, "x_offset=", x_offset,
+                "\n", indent, "f_pf_seg=", f_pf_seg,
+                "\n", indent, "mask=", bounds_p.mask[0],
+                "\n", indent, "min=", bounds_p.min[slice=0],
+                "\n", indent, "max=", bounds_p.max[slice=0],
+                "\n", rendered_geometry
+            )
+
+            # the given bound should contain the point
+            assert_true(
+                bounds_p.mask[0],
+                "No intersection with z=0" + check_context
+            )
+            assert_true(
+                f_pi.ge_all(bounds_p.min[slice=0].map_int()),
+                "Min doesn't capture sample" + check_context
+            )
+            assert_true(
+                f_pi.le_all(bounds_p.max[slice=0].map_int()),
+                "Max doesn't capture sample" + check_context
+            )
+
 
 fn make_fft_image(
     sizes_real: Vec[3,Int],
