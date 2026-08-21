@@ -174,11 +174,20 @@ struct Vec[
     fn lift(self: Vec[2,T], *, z: T, out result: Vec[3,T]):
         result = self.lift[3,1](Vec[1,T](x=z))
 
+    fn lift(self: Vec[3,T], *, w: T, out result: Vec[4,T]):
+        result = self.lift[4,1](Vec[1,T](x=w))
+
     fn has_nan[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Bool):
         result = False
         @parameter
         for d in range(dim):
             result = result or isnan(self[d])
+
+    fn min(self: Vec[dim,Int], out result: Int):
+        result = self[0]
+        @parameter
+        for d in range(1, dim):
+            result = min(result, self[d])
 
     fn min(self: Vec[dim,Int], other: Vec[dim,Int], out result: Vec[dim,Int]):
         result = Vec[dim,Int](uninitialized=True)
@@ -191,6 +200,12 @@ struct Vec[
         @parameter
         for d in range(dim):
             result[d] = min(self[d], other[d])
+
+    fn max(self: Vec[dim,Int], out result: Int):
+        result = self[0]
+        @parameter
+        for d in range(1, dim):
+            result = max(result, self[d])
 
     fn max(self: Vec[dim,Int], other: Vec[dim,Int], out result: Vec[dim,Int]):
         result = Vec[dim,Int](uninitialized=True)
