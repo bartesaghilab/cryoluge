@@ -66,6 +66,9 @@ struct Vec[
     fn __init__(out self, *, fill: T):
         self._values = InlineArray[T,dim](fill=fill)
 
+    fn __init__[w: Int](out self: Vec[dim,SIMD[DType.bool,w]], *, fill: Bool):
+        self._values = InlineArray[SIMD[DType.bool,w],dim](fill=SIMD[DType.bool,w](fill=fill))
+
     fn __init__(out self, *, uninitialized: Bool):
         self._values = InlineArray[T,dim](uninitialized=uninitialized)
 
@@ -224,6 +227,9 @@ struct Vec[
         @parameter
         for d in range(dim):
             result[d] = SIMD[dtype,simd_width](self[d])
+
+    fn splat[w: Int](self: Vec[dim,Int], out result: Vec[dim,SIMD[DType.int,w]]):
+        result = self.map_dint().splat[w]()
 
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
@@ -519,6 +525,15 @@ struct Vec[
     fn __floordiv__(self: Vec[dim,Int], other: Int, out result: Vec[dim,Int]):
         result = self//Vec[dim,Int](fill=other)
 
+    fn __floordiv__[w: Int](self: Vec[dim,SIMD[DType.int,w]], other: Vec[dim,SIMD[DType.int,w]], out result: Vec[dim,SIMD[DType.int,w]]):
+        result = Vec[dim,SIMD[DType.int,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d]//other[d]
+
+    fn __floordiv__[w: Int](self: Vec[dim,SIMD[DType.int,w]], other: Int, out result: Vec[dim,SIMD[DType.int,w]]):
+        result = self//Vec[dim,SIMD[DType.int,w]](fill=other)
+
     fn __ifloordiv__(mut self: Vec[dim,Int], other: Vec[dim,Int]):
         @parameter
         for d in range(dim):
@@ -793,11 +808,20 @@ struct Vec[
         for d in range(dim):
             result = result or self[d] < other[d]
 
+    fn lt_any[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = SIMD[DType.bool,w](fill=False)
+        @parameter
+        for d in range(dim):
+            result = result.__or__(self[d].lt(other[d]))
+
     fn lt_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = not self.ge_any(other)
 
     fn lt_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
         result = not self.ge_any(other)
+
+    fn lt_all[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = ~self.ge_any(other)
 
     fn le_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
@@ -811,11 +835,20 @@ struct Vec[
         for d in range(dim):
             result = result or self[d] <= other[d]
 
+    fn le_any[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = SIMD[DType.bool,w](fill=False)
+        @parameter
+        for d in range(dim):
+            result = result.__or__(self[d].le(other[d]))
+
     fn le_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = not self.gt_any(other)
 
     fn le_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
         result = not self.gt_any(other)
+
+    fn le_all[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = ~self.gt_any(other)
 
     fn gt_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
@@ -829,11 +862,20 @@ struct Vec[
         for d in range(dim):
             result = result or self[d] > other[d]
 
+    fn gt_any[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = SIMD[DType.bool,w](fill=False)
+        @parameter
+        for d in range(dim):
+            result = result.__or__(self[d].gt(other[d]))
+
     fn gt_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = not self.le_any(other)
 
     fn gt_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
         result = not self.le_any(other)
+
+    fn gt_all[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = ~self.le_any(other)
 
     fn ge_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
@@ -847,11 +889,20 @@ struct Vec[
         for d in range(dim):
             result = result or self[d] >= other[d]
 
+    fn ge_any[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = SIMD[DType.bool,w](fill=False)
+        @parameter
+        for d in range(dim):
+            result = result.__or__(self[d].ge(other[d]))
+
     fn ge_all(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = not self.lt_any(other)
 
     fn ge_all[dtype: DType](self: Vec[dim,Scalar[dtype]], other: Vec[dim,Scalar[dtype]], out result: Bool):
         result = not self.lt_any(other)
+
+    fn ge_all[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = ~self.lt_any(other)
 
     # mappings
 
@@ -873,6 +924,12 @@ struct Vec[
     fn map_scalar[dtype: DType](self: Vec[dim,Int], out result: Vec[dim,Scalar[dtype]]):
         @parameter
         fn scalar(i: Int) -> Scalar[dtype]:
+            return Scalar[dtype](i)
+        result = self.map[mapper=scalar]()
+
+    fn map_scalar[dtype: DType](self: Vec[dim,Bool], out result: Vec[dim,Scalar[dtype]]):
+        @parameter
+        fn scalar(i: Bool) -> Scalar[dtype]:
             return Scalar[dtype](i)
         result = self.map[mapper=scalar]()
 
