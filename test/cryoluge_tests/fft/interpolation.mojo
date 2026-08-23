@@ -604,8 +604,8 @@ struct TestConditionsRunTime(
             Vec[3](fill=0),  # no rotation, only +x halfspace
             Vec[3](x=5, y=7, z=9),  # small rotation
             Vec[3](x=30, y=40, z=50),  # large rotation
-            Vec[3](x=180, y=0, z=0),  # only -x halfspace, z plane can't be chosen
-            Vec[3](x=10, y=180 - 10, z=0)  # some -x halfspace, x,y planes chosen
+            Vec[3](x=180, y=0, z=0),  # only -x halfspace, z planes parallel
+            Vec[3](x=10, y=180 - 10, z=0)  # some -x halfspace, small rotation
             # TODO: check all 90 deg rotations!
         ]
 
@@ -830,9 +830,6 @@ def _test_p_bounds[simd_width: Int](
     sizes_real_proj: Vec[2,Int],
     rot: Vec[3,Int]
 ):
-    # TODO: NEXTTIME: still some failing test cases!!
-    #                 need to debug!
-
     # build a group with one projection
     var projections = [
         VolumeNeighborhoodsProjection(0, _make_rot(rot))
@@ -869,8 +866,15 @@ def _test_p_bounds[simd_width: Int](
             var i_vi_seg = i_vi_vox // Vec[3](x=n, y=1, z=1) 
             var x_offset = i_vi_vox.x() % n
 
+            # get the x halfspace
+            var x_halfspace: Int
+            if f_vi_vox.x() >= 0:
+                x_halfspace = 1
+            else:
+                x_halfspace = -1
+
             # get the projection-space coordinates of the segment
-            var f_vi_seg = f_vi_vox - Vec[3](x=-x_offset, y=0, z=0)
+            var f_vi_seg = f_vi_vox - Vec[3](x=x_halfspace*x_offset, y=0, z=0)
             var f_pf_seg = proj.vol_to_proj(f_vi_seg.map_scalar[dtype]().splat[simd_width]())[slice=0]
 
             # compute the projection-space bound
@@ -879,26 +883,28 @@ def _test_p_bounds[simd_width: Int](
             #           so make a small if statement to translate run-time to compile-time
             var rendered_geometry: String
             var bounds_p: _PBound[simd_width]
-            if f_vi_vox.x() >= 0:
-                comptime x_halfspace = 1
-                bounds_p = proj_group.bound_p_better[x_halfspace](f_pf_seg.splat[simd_width]())
-                rendered_geometry = proj_group.render_bound_geometry[x_halfspace,0](f_pf_seg, proj)
+            if x_halfspace == 1:
+                comptime _x_halfspace = 1
+                bounds_p = proj_group.bound_p[_x_halfspace](f_vi_seg)
+                rendered_geometry = proj_group.render_bound_geometry[_x_halfspace,0](f_vi_seg, proj)
             else:
-                comptime x_halfspace = -1
-                bounds_p = proj_group.bound_p_better[x_halfspace](f_pf_seg.splat[simd_width]())
-                rendered_geometry = proj_group.render_bound_geometry[x_halfspace,0](f_pf_seg, proj)
+                comptime _x_halfspace = -1
+                bounds_p = proj_group.bound_p[_x_halfspace](f_vi_seg)
+                rendered_geometry = proj_group.render_bound_geometry[_x_halfspace,0](f_vi_seg, proj)
 
             var check_context = test_context + String(
                 "\n", indent, "f_pi=", f_pi,
                 "\n", indent, "f_vf=", f_vf,
                 "\n", indent, "f_vi_vox=", f_vi_vox,
-                "\n", indent, "f_vi_seg=", f_vi_seg,
+                "\n", indent, "i_vi_vox=", i_vi_vox,
                 "\n", indent, "i_vi_seg=", i_vi_seg,
                 "\n", indent, "x_offset=", x_offset,
+                "\n", indent, "x_halfspace=", x_halfspace,
+                "\n", indent, "f_vi_seg=", f_vi_seg,
                 "\n", indent, "f_pf_seg=", f_pf_seg,
                 "\n", indent, "mask=", bounds_p.mask[0],
-                "\n", indent, "min=", bounds_p.min[slice=0],
-                "\n", indent, "max=", bounds_p.max[slice=0],
+                "\n", indent, "min=", bounds_p.f_i.min[slice=0],
+                "\n", indent, "max=", bounds_p.f_i.max[slice=0],
                 "\n", rendered_geometry
             )
 
@@ -908,11 +914,11 @@ def _test_p_bounds[simd_width: Int](
                 "No intersection with z=0" + check_context
             )
             assert_true(
-                f_pi.ge_all(bounds_p.min[slice=0].map_int()),
+                f_pi.ge_all(bounds_p.f_i.min[slice=0].map_int()),
                 "Min doesn't capture sample" + check_context
             )
             assert_true(
-                f_pi.le_all(bounds_p.max[slice=0].map_int()),
+                f_pi.le_all(bounds_p.f_i.max[slice=0].map_int()),
                 "Max doesn't capture sample" + check_context
             )
 
