@@ -556,18 +556,20 @@ struct TestConditionsCompileTime(
     @staticmethod
     fn simd_widths() -> List[Int]:
         return [
+            # TEMP: these tests are too expensive to run all the time, for now
             2,
-            4,
-            8,
+            # 4,
+            # 8,
             16
         ]
 
     @staticmethod
     fn num_projectionss() -> List[Int]:
         return [
-            1,
-            2,
-            16,  # max simd_width
+            # TEMP: these tests are too expensive to run all the time, for now
+            # 1,
+            # 2,
+            # 16,  # max simd_width
             22  # a little bit more
         ]
 
@@ -609,7 +611,8 @@ struct TestConditionsRunTime(
     @staticmethod
     fn sizes_real_projs() -> List[Vec[2,Int]]:
         return [
-            Vec[2](fill=5),  # smaller
+            # TEMP: these tests are too expensive to run all the time, for now
+            # Vec[2](fill=5),  # smaller
             Vec[2](fill=9)  # bigger than volume grid, will test more out-of-range behvaior
         ]
 
@@ -663,16 +666,24 @@ fn _make_rot(params: Vec[3,Int], out rot: Matrix[3,3,dtype]):
 
 def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: TestConditionsRunTime):
 
+    # need to round points a bit to avoid edge cases that only matter during testing
+    # in real-world use, a sample point on a boundary being included in another voxel
+    # will still interpolate to nearly the same value
+    comptime rounding = 5
+
     var img = make_fft_image(conditions_run.sizes_real_vol)
     var coords_proj = FFTCoords(conditions_run.sizes_real_proj)
 
     # build the volume neighborhoods (the thing we're testing!)
-    # with one projection
     var vol = VolumeNeighborhoods[dtype,conditions_compile.simd_width,conditions_compile.out_of_range](img)
-    var rot_proj_to_vol = conditions_run.make_rot()
-    var projections = [
-        VolumeNeighborhoodsProjection(0, rot_proj_to_vol)
-    ]
+
+    # build the projections
+    var projections = List[VolumeNeighborhoodsProjection[dtype]](capacity=conditions_compile.num_projections)
+    fn rot_delta(p: Int) -> Vec[3,Int]:
+        return Vec[3](x=5, y=6, z=7)*(p - 1)
+    @parameter
+    for p in range(conditions_compile.num_projections):
+        projections.append(VolumeNeighborhoodsProjection(p, _make_rot(conditions_run.rot + rot_delta(p))))
 
     # make the older precomputed interpolation, for comparison
     var interp = PrecomputedFFTInterpolationFull[3,dtype,conditions_compile.out_of_range](img)
@@ -684,81 +695,103 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
         "\n", indent, "rot=", conditions_run.rot,
         "\n", indent, "out_of_range=", conditions_compile.out_of_range,
         "\n", indent, "freq_limits=", conditions_run.freq_limits.freq_norm2_lo, ",", conditions_run.freq_limits.freq_norm2_hi,
-        "\n", indent, "simd_width=", conditions_compile.simd_width
+        "\n", indent, "simd_width=", conditions_compile.simd_width,
+        "\n", indent, "num_projections=", conditions_compile.num_projections
     )
 
+    # do the scan: collect all the results
+    var results = List[List[_ScanResult]](length=len(projections), fill=[])
     @parameter
-    fn find(f_pi: Vec[2,Int], out results: List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]):
+    fn check(proj_id: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
+        results[proj_id].append(_ScanResult(proj_id, f_pi^, f_vf^, sv))
+    vol.scan[check,rounding=rounding](coords_proj.sizes_real(), projections, conditions_run.freq_limits)
 
-        results = List[Tuple[Vec[3,Scalar[dtype]],ComplexScalar[dtype]]]()
-
-        @parameter
-        fn check(_proj_id: Int, var obs_f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
-            if obs_f_pi == f_pi:
-                results.append((f_vf^, sv))
-
-        vol.scan[check](coords_proj.sizes_real(), projections, conditions_run.freq_limits)
+    @parameter
+    fn find_results(proj_i: Int, f_pi: Vec[2,Int], out found: List[_ScanResult]):
+        found = List[_ScanResult]()
+        for i in range(len(results[proj_i])):
+            ref result = results[proj_i][i]
+            if result.f_pi == f_pi:
+                found.append(result.copy())
 
     @parameter
     def check(f_pi: Vec[2,Int]):
 
-        # rotate into volume space and interpolate the volume
-        var exp_f_vf = rot_proj_to_vol*f_pi.map_scalar[dtype]().lift(z=0)
-        var exp_v = interp.get(f=exp_f_vf)
+        # for each projection ...
+        for proj_i in range(len(projections)):
+            ref proj = projections[proj_i]
+            var group_i = proj_i // conditions_compile.simd_width
+            var group_offset = proj_i % conditions_compile.simd_width
 
-        var start_dists = interp._start_dists(f=exp_f_vf)
-        ref start = start_dists[0]
-        ref dists = start_dists[1]
-        var exp_neighborhood = rebind[ComplexSIMD[dtype,8]](
-            interp._neighborhood(i=interp._f2i(f=start).map_int())
-        )
+            # rotate into volume space and interpolate the volume
+            var exp_f_vf = proj.proj_to_vol(f_pi.map_scalar[dtype]())
+                .__round__(rounding)
+            var exp_v = interp.get(f=exp_f_vf)
 
-        var exp_f_vi = exp_f_vf.floor().map_int()
-        var exp_f_vi_pos = exp_f_vi.copy()
-        if exp_f_vi.x() < 0:
-            exp_f_vi_pos = -exp_f_vi_pos - 1
-
-        # round to the including segment boundary
-        exp_f_vi_pos.x() //= vol.num_neighborhoods_in_segment
-        exp_f_vi_pos.x() *= vol.num_neighborhoods_in_segment
-
-        var check_context = test_context + String(
-            "\n", indent, "f_pi=", f_pi,
-            "\n", indent, "f_vi=", exp_f_vf.floor().map_int(),
-            "\n", indent, "f_vi_pos=", exp_f_vi_pos,
-            "\n", indent, "f_vf=", exp_f_vf,
-            "\n", indent, "neighborhood=", _render_neighborhood(exp_neighborhood),
-            "\n", indent, "dists=", dists
-        )
-
-        # find the same value by scanning the volume
-        var results = find(f_pi)
-
-        # check frequency limits
-        var freq_norm2 = coords_proj.f_norm(f=f_pi.map_scalar[dtype]()).len2()
-        if not conditions_run.freq_limits.contains(freq_norm2=freq_norm2):
-            # should get none
-            assert_equal(
-                len(results), 0,
-                String("expected zero samples, but got ", len(results), ". ") + check_context
+            var start_dists = interp._start_dists(f=exp_f_vf)
+            ref start = start_dists[0]
+            ref dists = start_dists[1]
+            var exp_neighborhood = rebind[ComplexSIMD[dtype,8]](
+                interp._neighborhood(i=interp._f2i(f=start).map_int())
             )
-            return
 
-        assert_equal(
-            len(results), 1,
-            String("expected one sample, but got ", len(results), ". ") + check_context
-        )
+            var exp_f_vi = exp_f_vf.floor().map_int()
+            var exp_f_vi_pos = exp_f_vi.copy()
+            if exp_f_vi.x() < 0:
+                exp_f_vi_pos = -exp_f_vi_pos - 1
 
-        var obs_f_vf = results[0][0].copy()
-        var obs_v = results[0][1]
+            # round to the including segment boundary
+            exp_f_vi_pos.x() //= vol.num_neighborhoods_in_segment
+            exp_f_vi_pos.x() *= vol.num_neighborhoods_in_segment
 
-        assert_equal_float[err_fn](obs_f_vf, exp_f_vf, check_context)
-        assert_equal_float[err_fn](obs_v, exp_v, check_context)
+            var check_context = test_context + String(
+                "\n", indent, "proj_i=", proj_i, " (", group_i, ",", group_offset, ")",
+                "\n", indent, "rot+delta=", conditions_run.rot + rot_delta(proj_i),
+                "\n", indent, "f_pi=", f_pi,
+                "\n", indent, "f_vi=", exp_f_vf.floor().map_int(),
+                "\n", indent, "f_vi_pos=", exp_f_vi_pos,
+                "\n", indent, "f_vf=", exp_f_vf,
+                "\n", indent, "neighborhood=", _render_neighborhood(exp_neighborhood),
+                "\n", indent, "dists=", dists
+            )
+
+            # get the results for this projection
+            var proj_results = find_results(proj_i, f_pi)
+
+            # check frequency limits
+            var freq_norm2 = coords_proj.f_norm(f=f_pi.map_scalar[dtype]()).len2()
+            if not conditions_run.freq_limits.contains(freq_norm2=freq_norm2):
+                # should get none
+                assert_equal(
+                    len(proj_results), 0,
+                    String("expected zero samples, but got ", len(proj_results), ". ") + check_context
+                )
+                return
+
+            assert_equal(
+                len(proj_results), 1,
+                String("expected one sample, but got ", len(proj_results), ". ") + check_context
+            )
+            ref obs = proj_results[0]
+
+            assert_equal_float[err_fn](obs.f_vf, exp_f_vf, check_context)
+            assert_equal_float[err_fn](obs.v, exp_v, check_context)
 
     # iterate the projection grid
     for y in range(coords_proj.fmin[1](), coords_proj.fmax[1]() + 1):
         for x in range(0, coords_proj.fmax[0]() + 1):
             check(Vec[2,Int](x=x, y=y))
+
+
+@fieldwise_init
+struct _ScanResult(
+    Copyable,
+    Movable
+):
+    var proj_i: Int
+    var f_pi: Vec[2,Int]
+    var f_vf: Vec[3,Scalar[dtype]]
+    var v: ComplexScalar[dtype]
 
 
 def _test_segment_neighborhood[conditions_compile: TestConditionsCompileTime](

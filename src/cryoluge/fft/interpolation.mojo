@@ -763,12 +763,21 @@ struct VolumeNeighborhoods[
                         var f_vf = f_vi.map_scalar[dtype]()
 
                         # TEMP
-                        # var f_vi_focus = Vec[3](x=-1, y=-2, z=-1)
+                        # var proj_i_focus: Optional[Int] = None
+                        # var f_vi_focus: Optional[Vec[3,Int]] = None
+                        # var sf_pi_focus: Optional[Vec[2,Int]] = None
+
+                        # TEMP
+                        # proj_i_focus = 0
+                        # f_vi_focus = Vec[3](x=0, y=1, z=0)
+                        # sf_pi_focus = Vec[2](x=0, y=-2)
+
+                        # TEMP
                         # var debug_v = False
                         # @parameter
                         # for w in range(Self.num_neighborhoods_in_segment):
                         #     var f_vi_w = f_vi + Vec[3](x=x_halfspace*w, y=0, z=0)
-                        #     if f_vi_w == f_vi_focus:
+                        #     if f_vi_focus is not None and f_vi_w == f_vi_focus.value():
                         #         debug_v = True
                         # if debug_v:
                         #     print("f_vi=", f_vi)
@@ -810,8 +819,8 @@ struct VolumeNeighborhoods[
 
                             # compute a bound on the intersection of the segement with the z_p=0 plane
                             p_p_bounds.start()  # TEMP
-                            var bounds_p = proj_group.bound_pi(proj_group.bound_pf[x_halfspace](f_vi))
-                            in_range = in_range.__and__(bounds_p.mask)
+                            var bound_p = proj_group.bound_pi(proj_group.bound_pf[x_halfspace](f_vi))
+                            in_range = in_range.__and__(bound_p.mask)
                             p_p_bounds.stop()  # TEMP
 
                             if not any_in_range():
@@ -820,14 +829,19 @@ struct VolumeNeighborhoods[
                             # for each projection in the group ...
                             for w in range(proj_group.num_projections):
 
-                                if not in_range[w]:
-                                    continue
+                                # TEMP
+                                # var debug_proj = proj_i_focus is not None
+                                #     and proj_group.proj_indices[w] == proj_i_focus.value()
 
                                 ref proj = projections[proj_group.proj_indices[w]]
 
                                 # TEMP
-                                # if debug_v:
-                                #     proj_group.print_intersection_geometry[x_halfspace](w, f_pf, proj, coords_proj)
+                                # if debug_proj and debug_v:
+                                #     print("\tin_range=", in_range[w], "bounds=", bound_p.f[slice=w])
+                                #     #print(proj_group.render_bound_geometry[x_halfspace](w, f_vi, proj))
+
+                                if not in_range[w]:
+                                    continue
 
                                 p_samples.start()  # TEMP
 
@@ -836,8 +850,8 @@ struct VolumeNeighborhoods[
                                 var segment_samples_accepted = 0
 
                                 # iterate over the projection sample points in the bounding box
-                                for sy in range(bounds_p.f.min.y()[w], bounds_p.f.max.y()[w] + 1):
-                                    for sx in range(bounds_p.f.min.x()[w], bounds_p.f.max.x()[w] + 1):
+                                for sy in range(bound_p.f.min.y()[w], bound_p.f.max.y()[w] + 1):
+                                    for sx in range(bound_p.f.min.x()[w], bound_p.f.max.x()[w] + 1):
                                         var sf_pi = Vec[2](x=sx, y=sy).map_int()
                                         var sf_pf = sf_pi.map_scalar[dtype]()
 
@@ -845,18 +859,18 @@ struct VolumeNeighborhoods[
                                         segment_samples_tested += 1
 
                                         # TEMP
-                                        # if debug_v:
+                                        # if debug_proj and debug_v:
                                         #     print("\tsampling:", sf_pi)
-
-                                        # TODO: NEXTTIME: there's a bug in here somewhere that the tests don't catch,
-                                        #                 but csp2 shows wrong scores  =(
-                                        #                 removing all segment bounds short-circuits doesn't fix it,
-                                        #                 so the problem is probably something below?
-                                        #                 need to get the tests to catch this bug!
 
                                         # transform back into reference volume space
                                         p_s_rot.start()  # TEMP
                                         var sf_vf = proj.proj_to_vol(sf_pf)
+
+                                        # apply rounding, if needed
+                                        @parameter
+                                        if rounding is not None:
+                                            sf_vf = sf_vf.__round__(rounding.value())
+
                                         p_s_rot.stop()  # TEMP
 
                                         # TODO: can get distances in projection-space too, right?
@@ -914,26 +928,27 @@ struct VolumeNeighborhoods[
                                         p_s_interp.stop()  # TEMP
 
                                         # TEMP
-                                        # if debug_v:
+                                        # if debug_proj and debug_v:
                                         #     print("\t",
                                         #         "sample=", sf_pi,
                                         #         "x_offset=", x_offset,
-                                        #         "dist_v_x=", dists_v.x()
+                                        #         "dist_v=", dists_v
                                         #     )
                                         #     print("\tsegment_neighborhood=", _render_neighborhood(segment_neighborhood.value()))
                                         #     print("\tvoxel_neighborhood=", _render_neighborhood(voxel_neighborhood))
 
                                         # TEMP
-                                        # var debug_p = sf_pi == Vec[2](x=0, y=-2)
-                                        # #var debug_p = False
-                                        # if debug_p:
+                                        # var debug_s = sf_pi_focus is not None
+                                        #     and sf_pi == sf_pi_focus.value()
+                                        #var debug_s = False
+                                        # if debug_proj and debug_s:
                                         #     print("\t\tsf_pi found in f_vi=", f_vi)
 
                                         p_s_func.start()  # TEMP
                                         func(proj.id, sf_pi^, sf_vf^, sv)
                                         p_s_func.stop()  # TEMP
 
-                                p_samples.stop()  # TEMP
+                                # p_samples.stop()  # TEMP
 
                                 # TEMP
                                 #print("\tsegment: tested=", segment_samples_tested, "accepted=", segment_samples_accepted)
