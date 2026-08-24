@@ -519,10 +519,13 @@ def test_p_bounds():
         for rot in TestConditionsRunTime.rots():
             @parameter
             for simd_width in TestConditionsCompileTime.simd_widths():
-                try:
-                    _test_p_bounds[simd_width](sizes_real_proj, rot)
-                except e:
-                    errors.append(String(e))
+                @parameter
+                #for num_projections in [1, 2, 4]:
+                for num_projections in [4]:
+                    try:
+                        _test_p_bounds[simd_width,num_projections](sizes_real_proj, rot)
+                    except e:
+                        errors.append(String(e))
 
     if len(errors) > 0:
         var msg = String("p bounds tests failed:")
@@ -826,17 +829,17 @@ def _test_segment_neighborhood[conditions_compile: TestConditionsCompileTime](
                             assert_true(False, String("Neighborhoods don't match.") + check_context)
 
 
-def _test_p_bounds[simd_width: Int](
+def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
     sizes_real_proj: Vec[2,Int],
     rot: Vec[3,Int]
 ):
-    # build a group with one projection
-    var projections = [
-        VolumeNeighborhoodsProjection(0, _make_rot(rot))
-    ]
-    ref proj = projections[0]
+    # build a group out of the projections
+    var projections = List[VolumeNeighborhoodsProjection[dtype]](capacity=num_projections)
+    @parameter
+    for p in range(num_projections):
+        var delta = Vec[3](x=5, y=6, z=7)*(p - 1)
+        projections.append(VolumeNeighborhoodsProjection(p, _make_rot(rot + delta)))
     var simd_projections = _Projections[simd_width](projections)
-    ref proj_group = simd_projections.groups[0]
 
     # imagine a reference volume large enough to cover all the projection samples
     var coords_vol = FFTCoords(Vec[3](fill=sizes_real_proj.max()))
@@ -856,71 +859,77 @@ def _test_p_bounds[simd_width: Int](
             var f_pi = Vec[2](x=x, y=y)
             var f_pf = f_pi.map_scalar[dtype]()
 
-            # rotate into volume space and discretize to the voxel
-            var f_vf = proj.proj_to_vol(f_pf)
-            var f_vi_vox = f_vf.floor().map_int()
+            # for each projection ...
+            for group_i in range(len(simd_projections.groups)):
+                ref proj_group = simd_projections.groups[group_i]
+                for p in range(proj_group.num_projections):
+                    var proj_i = proj_group.proj_indices[p]
+                    ref proj = projections[proj_i]
 
-            # get the segment start coordinates
-            var i_vi_vox = coords_vol.f2i_contiguous(f_vi_vox)
-            comptime n = _num_neighborhoods_in_segment[simd_width]()
-            var i_vi_seg = i_vi_vox // Vec[3](x=n, y=1, z=1) 
-            var x_offset = i_vi_vox.x() % n
+                    # rotate into volume space and discretize to the voxel
+                    var f_vf = proj.proj_to_vol(f_pf)
+                    var f_vi_vox = f_vf.floor().map_int()
 
-            # get the x halfspace
-            var x_halfspace: Int
-            if f_vi_vox.x() >= 0:
-                x_halfspace = 1
-            else:
-                x_halfspace = -1
+                    # get the x offset of the voxel into the segment
+                    var i_vi_vox = coords_vol.f2i_contiguous(f_vi_vox)
+                    comptime n = _num_neighborhoods_in_segment[simd_width]()
+                    var i_vi_seg = i_vi_vox // Vec[3](x=n, y=1, z=1) 
+                    var x_offset = i_vi_vox.x() % n
 
-            # get the projection-space coordinates of the segment
-            var f_vi_seg = f_vi_vox - Vec[3](x=x_halfspace*x_offset, y=0, z=0)
-            var f_pf_seg = proj.vol_to_proj(f_vi_seg.map_scalar[dtype]().splat[simd_width]())[slice=0]
+                    # get the x halfspace
+                    var x_halfspace: Int
+                    if f_vi_vox.x() >= 0:
+                        x_halfspace = 1
+                    else:
+                        x_halfspace = -1
 
-            # compute the projection-space bound
-            # HACKHACK: x_halfspace is usually a compile-time parameter,
-            #           but we only know it at run-time here,
-            #           so make a small if statement to translate run-time to compile-time
-            var rendered_geometry: String
-            var bounds_p: _PBound[simd_width]
-            if x_halfspace == 1:
-                comptime _x_halfspace = 1
-                bounds_p = proj_group.bound_p[_x_halfspace](f_vi_seg)
-                rendered_geometry = proj_group.render_bound_geometry[_x_halfspace,0](f_vi_seg, proj)
-            else:
-                comptime _x_halfspace = -1
-                bounds_p = proj_group.bound_p[_x_halfspace](f_vi_seg)
-                rendered_geometry = proj_group.render_bound_geometry[_x_halfspace,0](f_vi_seg, proj)
+                    # get the segment coordinates
+                    var f_vi_seg = f_vi_vox - Vec[3](x=x_halfspace*x_offset, y=0, z=0)
 
-            var check_context = test_context + String(
-                "\n", indent, "f_pi=", f_pi,
-                "\n", indent, "f_vf=", f_vf,
-                "\n", indent, "f_vi_vox=", f_vi_vox,
-                "\n", indent, "i_vi_vox=", i_vi_vox,
-                "\n", indent, "i_vi_seg=", i_vi_seg,
-                "\n", indent, "x_offset=", x_offset,
-                "\n", indent, "x_halfspace=", x_halfspace,
-                "\n", indent, "f_vi_seg=", f_vi_seg,
-                "\n", indent, "f_pf_seg=", f_pf_seg,
-                "\n", indent, "mask=", bounds_p.mask[0],
-                "\n", indent, "min=", bounds_p.f_i.min[slice=0],
-                "\n", indent, "max=", bounds_p.f_i.max[slice=0],
-                "\n", rendered_geometry
-            )
+                    # compute the projection-space bound
+                    # HACKHACK: x_halfspace is usually a compile-time parameter,
+                    #           but we only know it at run-time here,
+                    #           so make a small if statement to translate run-time to compile-time
+                    var rendered_geometry: String
+                    var bounds_p: _PBound[simd_width]
+                    if x_halfspace == 1:
+                        comptime x_hs = 1
+                        bounds_p = proj_group.bound_p[x_hs](f_vi_seg)
+                        rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj)
+                    else:
+                        comptime x_hs = -1
+                        bounds_p = proj_group.bound_p[x_hs](f_vi_seg)
+                        rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj)
 
-            # the given bound should contain the point
-            assert_true(
-                bounds_p.mask[0],
-                "No intersection with z=0" + check_context
-            )
-            assert_true(
-                f_pi.ge_all(bounds_p.f_i.min[slice=0].map_int()),
-                "Min doesn't capture sample" + check_context
-            )
-            assert_true(
-                f_pi.le_all(bounds_p.f_i.max[slice=0].map_int()),
-                "Max doesn't capture sample" + check_context
-            )
+                    var check_context = test_context + String(
+                        "\n", indent, "f_pi=", f_pi,
+                        "\n", indent, "proj_i=", proj_i, " (", group_i, ",", p, ")",
+                        "\n", indent, "f_vf=", f_vf,
+                        "\n", indent, "f_vi_vox=", f_vi_vox,
+                        "\n", indent, "i_vi_vox=", i_vi_vox,
+                        "\n", indent, "i_vi_seg=", i_vi_seg,
+                        "\n", indent, "x_offset=", x_offset,
+                        "\n", indent, "x_halfspace=", x_halfspace,
+                        "\n", indent, "f_vi_seg=", f_vi_seg,
+                        "\n", indent, "mask=", bounds_p.mask[p],
+                        "\n", indent, "min=", bounds_p.f_i.min[slice=p],
+                        "\n", indent, "max=", bounds_p.f_i.max[slice=p],
+                        "\n", rendered_geometry
+                    )
+
+                    # the given bound should contain the point
+                    assert_true(
+                        bounds_p.mask[p],
+                        "No intersection with z=0" + check_context
+                    )
+                    assert_true(
+                        f_pi.ge_all(bounds_p.f_i.min[slice=p].map_int()),
+                        "Min doesn't capture sample" + check_context
+                    )
+                    assert_true(
+                        f_pi.le_all(bounds_p.f_i.max[slice=p].map_int()),
+                        "Max doesn't capture sample" + check_context
+                    )
 
 
 fn make_fft_image(

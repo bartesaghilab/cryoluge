@@ -1082,6 +1082,15 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int](
             + materialize[p3.normal_f[dtype]().splat[simd_width]()]()*c3
 
     @always_inline
+    fn in_range[p3: _CTPlane](
+        self,
+        f_vf: Vec[3,SIMD[dtype,simd_width]],
+        out in_range: SIMDBool[simd_width]
+    ):
+        var c = f_vf[p3.d]
+        in_range = c.ge(0).__and__(c.le(p3.len))
+
+    @always_inline
     fn update_p_bounds[d1: Int, d2: Int, p3: _CTPlane](
         self,
         f_vi: Vec[3,Int],
@@ -1093,7 +1102,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int](
 
         # check the range against the third planes
         var f_vf = f_vi.map_scalar[dtype]().splat[simd_width]()
-        var in_range = Self.Plane[p3].in_range(p_vf - f_vf)
+        var in_range = self.in_range[p3](p_vf - f_vf)
 
         # rotate into projection space
         var p_pf = self.vol_to_proj(p_vf).project[2]()
@@ -1150,11 +1159,23 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int](
         # push the max up to the min, if needed
         # (needed in edge cases where the floating-point bound has zero width
         # but still intersects a grid line)
-        bound_p.f_i.max = bound_p.f_i.max.max(bound_p.f_i.min)
+        @parameter
+        for d in range(2):
+            # when the rotation keeps the axes in the same direction, round up,
+            # otherwise, round down
+            # to treat the voxel upper boundaries as exclusive
+            @parameter
+            for w in range(simd_width):
+                if self.same_dir[d][w]:
+                    bound_p.f_i.max[d][w] = max(bound_p.f_i.max[d][w], bound_p.f_i.min[d][w])
+                else:
+                    bound_p.f_i.min[d][w] = min(bound_p.f_i.min[d][w], bound_p.f_i.max[d][w])
+            # TODO: vectorize this!
 
     # for debugging
-    fn render_bound_geometry[x_halfspace: Int, w: Int = 0](
+    fn render_bound_geometry[x_halfspace: Int](
         self,
+        w: Int,
         f_vi: Vec[3,Int],
         proj: VolumeNeighborhoodsProjection[dtype],
         out str: String
@@ -1177,7 +1198,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int](
             planes: Self.Planes[_,_,p3]
         ):
             var f_vf = self.intersect[d1,d2](f_vi_corner, planes)
-            var inside = Self.Plane[p3].in_range(f_vf - f_vf_corner)
+            var inside = self.in_range[p3](f_vf - f_vf_corner)
             var f_pf = self.vol_to_proj(f_vf)[slice=w]
             if inside[w]:
                 inside_points.append((f_pf^, f_vf[slice=w]))
@@ -1341,15 +1362,7 @@ struct _RTPlane[dtype: DType, simd_width: Int, plane: _CTPlane](
 
     fn init(mut self, i: Int, proj: VolumeNeighborhoodsProjection[dtype]):
         var unit_z_v = proj.proj_to_vol(materialize[_CTPlane.z().normal_f[dtype]()]())
-        self.unit_z_component = unit_z_v.inner_product(materialize[plane.normal_f[dtype]()]())
-
-    @staticmethod
-    fn in_range(
-        f_vf: Vec[3,SIMD[dtype,simd_width]],
-        out in_range: SIMDBool[simd_width]
-    ):
-        var c = f_vf[Self.plane.d]
-        in_range = c.ge(0).__and__(c.le(Self.plane.len))
+        self.unit_z_component[i] = unit_z_v.inner_product(materialize[plane.normal_f[dtype]()]())
 
 
 struct _RTPlanes[dtype: DType, simd_width: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
