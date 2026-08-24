@@ -937,13 +937,13 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
                     if x_halfspace == 1:
                         comptime x_hs = 1
                         bound_pf = proj_group.bound_pf[x_hs](f_vi_seg)
-                        rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj)
+                        rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj, coords_proj)
                     else:
                         comptime x_hs = -1
                         bound_pf = proj_group.bound_pf[x_hs](f_vi_seg)
-                        rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj)
+                        rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj, coords_proj)
 
-                    var bound_pi = proj_group.bound_pi(bound_pf)
+                    var bound_pi = proj_group.bound_pi(bound_pf, coords_proj)
 
                     var check_context = test_context + String(
                         "\n", indent, "f_pi=", f_pi,

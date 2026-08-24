@@ -819,7 +819,8 @@ struct VolumeNeighborhoods[
 
                             # compute a bound on the intersection of the segement with the z_p=0 plane
                             p_p_bounds.start()  # TEMP
-                            var bound_p = proj_group.bound_pi(proj_group.bound_pf[x_halfspace](f_vi))
+                            var bound_pf = proj_group.bound_pf[x_halfspace](f_vi)
+                            var bound_p = proj_group.bound_pi(bound_pf, coords_proj)
                             in_range = in_range.__and__(bound_p.mask)
                             p_p_bounds.stop()  # TEMP
 
@@ -1192,6 +1193,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
     fn bound_pi(
         self,
         bound_pf: _PBound[dtype,simd_width],
+        coords_proj: FFTCoords[2],
         out bound_pi: _PBound[DType.int,simd_width]
     ):
         bound_pi = _PBound[DType.int,simd_width]()
@@ -1216,6 +1218,16 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
                     bi.max[d][w] = SIMDInt[1]( floor(bf.max[d][w]) )
                 else:
                     bi.max[d][w] = SIMDInt[1]( ceil(bf.max[d][w] - 1) )
+        # TODO: vectorize
+
+        # intersect with the projection bounds
+        @parameter
+        for d in range(2):
+            @parameter
+            for w in range(simd_width):
+                bound_pi.f.min[d][w] = max(bound_pi.f.min[d][w], coords_proj.fmin_pos[d]())
+                bound_pi.f.max[d][w] = min(bound_pi.f.max[d][w], coords_proj.fmax[d]())
+        # TODO: vectorize
 
         # the above logic creates fully-inclusive integer bounds
         bi.min_inclusive = Vec[2,SIMDBool[simd_width]](fill=SIMDBool[simd_width](fill=True))
@@ -1227,6 +1239,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         w: Int,
         f_vi: Vec[3,Int],
         proj: VolumeNeighborhoodsProjection[dtype],
+        coords_proj: FFTCoords[2],
         out str: String
     ):
         # TEMP: move to the segment corner, if in the -x halfspace
@@ -1284,7 +1297,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         classify_intersection[1,1](self.planes_yz)
 
         var bound_pf = self.bound_pf[x_halfspace](f_vi_corner)
-        var bound_pi = self.bound_pi(bound_pf)
+        var bound_pi = self.bound_pi(bound_pf, coords_proj)
 
         @parameter
         fn display_intersections(
