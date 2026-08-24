@@ -677,6 +677,12 @@ struct Vec[
     fn __mod__(mut self: Vec[dim,Int], other: Int):
         self %= Vec[dim,Int](fill=other)
 
+    fn __round__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], digits: Int, out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].__round__(digits)
+
     fn sum(self: Vec[dim,Int], out result: Int):
         result = 0
         @parameter

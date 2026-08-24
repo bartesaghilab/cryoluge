@@ -515,13 +515,13 @@ def test_p_bounds():
 
     var errors = List[String]()
 
+    # don't need all test conditions for this, just a few
     for sizes_real_proj in TestConditionsRunTime.sizes_real_projs():
         for rot in TestConditionsRunTime.rots():
             @parameter
             for simd_width in TestConditionsCompileTime.simd_widths():
                 @parameter
-                #for num_projections in [1, 2, 4]:
-                for num_projections in [4]:
+                for num_projections in TestConditionsCompileTime.num_projectionss():
                     try:
                         _test_p_bounds[simd_width,num_projections](sizes_real_proj, rot)
                     except e:
@@ -544,6 +544,7 @@ struct TestConditionsCompileTime(
 ):
     var out_of_range: OutOfRangeBehavior[dtype]
     var simd_width: Int
+    var num_projections: Int
 
     @staticmethod
     fn oors() -> List[OutOfRangeBehavior[dtype]]:
@@ -562,16 +563,27 @@ struct TestConditionsCompileTime(
         ]
 
     @staticmethod
+    fn num_projectionss() -> List[Int]:
+        return [
+            1,
+            2,
+            16,  # max simd_width
+            22  # a little bit more
+        ]
+
+    @staticmethod
     fn all(out list: List[Self]):
         
         # iterate over the cartesian product of test parameters
         list = []
         for oor in Self.oors():
                 for simd_width in Self.simd_widths():
-                    list.append(Self(
-                        oor,
-                        simd_width
-                    ))
+                    for num_projections in Self.num_projectionss():
+                        list.append(Self(
+                            oor,
+                            simd_width,
+                            num_projections
+                        ))
 
 
 @fieldwise_init
@@ -598,7 +610,7 @@ struct TestConditionsRunTime(
     fn sizes_real_projs() -> List[Vec[2,Int]]:
         return [
             Vec[2](fill=5),  # smaller
-            Vec[2](fill=9)  # bigger
+            Vec[2](fill=9)  # bigger than volume grid, will test more out-of-range behvaior
         ]
 
     @staticmethod
@@ -647,17 +659,6 @@ fn _make_rot(params: Vec[3,Int], out rot: Matrix[3,3,dtype]):
         phi=Deg[dtype](params.z())
     )
     angles.to_matrix(mat=rot)
-
-    # HACKHACK: for "round" rotations (like 180 degrees),
-    #           we're getting roundoff error in the radian value,
-    #           which is making the rotation matrix slightly off
-    #           so just round off a few digits off the matrix elements
-    #           and hope for the best
-    @parameter
-    for r in range(3):
-        @parameter
-        for c in range(3):
-            rot[r,c] = rot[r,c].__round__(6)
 
 
 def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: TestConditionsRunTime):
@@ -833,13 +834,19 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
     sizes_real_proj: Vec[2,Int],
     rot: Vec[3,Int]
 ):
-    # build a group out of the projections
+    # need to round points a bit to avoid edge cases that only matter during testing
+    # in real-world use, a sample point on a boundary being included in another voxel
+    # will still interpolate to nearly the same value
+    comptime rounding = 5
+
+    # build groups out of the projections
     var projections = List[VolumeNeighborhoodsProjection[dtype]](capacity=num_projections)
+    fn rot_delta(p: Int) -> Vec[3,Int]:
+        return Vec[3](x=5, y=6, z=7)*(p - 1)
     @parameter
     for p in range(num_projections):
-        var delta = Vec[3](x=5, y=6, z=7)*(p - 1)
-        projections.append(VolumeNeighborhoodsProjection(p, _make_rot(rot + delta)))
-    var simd_projections = _Projections[simd_width](projections)
+        projections.append(VolumeNeighborhoodsProjection(p, _make_rot(rot + rot_delta(p))))
+    var simd_projections = _Projections[simd_width,rounding=rounding](projections)
 
     # imagine a reference volume large enough to cover all the projection samples
     var coords_vol = FFTCoords(Vec[3](fill=sizes_real_proj.max()))
@@ -848,7 +855,8 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
     var test_context = String(
         "\n", indent, "sizes_real_proj=", sizes_real_proj,
         "\n", indent, "rot=", rot,
-        "\n", indent, "simd_width=", simd_width
+        "\n", indent, "simd_width=", simd_width,
+        "\n", indent, "num_projections=", num_projections
     )
 
     # iterate over the projection grid points
@@ -863,11 +871,12 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
             for group_i in range(len(simd_projections.groups)):
                 ref proj_group = simd_projections.groups[group_i]
                 for p in range(proj_group.num_projections):
-                    var proj_i = proj_group.proj_indices[p]
+                    var proj_i = Int(proj_group.proj_indices[p])
                     ref proj = projections[proj_i]
 
                     # rotate into volume space and discretize to the voxel
                     var f_vf = proj.proj_to_vol(f_pf)
+                        .__round__(rounding)
                     var f_vi_vox = f_vf.floor().map_int()
 
                     # get the x offset of the voxel into the segment
@@ -891,19 +900,22 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
                     #           but we only know it at run-time here,
                     #           so make a small if statement to translate run-time to compile-time
                     var rendered_geometry: String
-                    var bounds_p: _PBound[simd_width]
+                    var bound_pf: _PBound[dtype,simd_width]
                     if x_halfspace == 1:
                         comptime x_hs = 1
-                        bounds_p = proj_group.bound_p[x_hs](f_vi_seg)
+                        bound_pf = proj_group.bound_pf[x_hs](f_vi_seg)
                         rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj)
                     else:
                         comptime x_hs = -1
-                        bounds_p = proj_group.bound_p[x_hs](f_vi_seg)
+                        bound_pf = proj_group.bound_pf[x_hs](f_vi_seg)
                         rendered_geometry = proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj)
+
+                    var bound_pi = proj_group.bound_pi(bound_pf)
 
                     var check_context = test_context + String(
                         "\n", indent, "f_pi=", f_pi,
                         "\n", indent, "proj_i=", proj_i, " (", group_i, ",", p, ")",
+                        "\n", indent, "rot+delta=", rot + rot_delta(proj_i),
                         "\n", indent, "f_vf=", f_vf,
                         "\n", indent, "f_vi_vox=", f_vi_vox,
                         "\n", indent, "i_vi_vox=", i_vi_vox,
@@ -911,23 +923,23 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
                         "\n", indent, "x_offset=", x_offset,
                         "\n", indent, "x_halfspace=", x_halfspace,
                         "\n", indent, "f_vi_seg=", f_vi_seg,
-                        "\n", indent, "mask=", bounds_p.mask[p],
-                        "\n", indent, "min=", bounds_p.f_i.min[slice=p],
-                        "\n", indent, "max=", bounds_p.f_i.max[slice=p],
+                        "\n", indent, "mask=", bound_pf.mask[p],
+                        "\n", indent, "bound_pf=", bound_pf.f[slice=p],
+                        "\n", indent, "bound_pi=", bound_pi.f[slice=p],
                         "\n", rendered_geometry
                     )
 
                     # the given bound should contain the point
                     assert_true(
-                        bounds_p.mask[p],
+                        bound_pi.mask[p],
                         "No intersection with z=0" + check_context
                     )
                     assert_true(
-                        f_pi.ge_all(bounds_p.f_i.min[slice=p].map_int()),
+                        f_pi.ge_all(bound_pi.f.min[slice=p].map_int()),
                         "Min doesn't capture sample" + check_context
                     )
                     assert_true(
-                        f_pi.le_all(bounds_p.f_i.max[slice=p].map_int()),
+                        f_pi.le_all(bound_pi.f.max[slice=p].map_int()),
                         "Max doesn't capture sample" + check_context
                     )
 
