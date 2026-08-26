@@ -664,7 +664,7 @@ struct VolumeNeighborhoods[
             segment_neighborhood.in_range_x_mask[0] = True
             segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.reversed()
 
-    fn _voxels_bounds(
+    fn _voxels_bounds[rounding: Optional[Int] = None](
         self,
         coords_proj: FFTCoords[2],
         projections: List[VolumeNeighborhoodsProjection[dtype]],
@@ -681,7 +681,7 @@ struct VolumeNeighborhoods[
                 sizes = coords_proj.sizes_fourier().map_scalar[dtype]().lift(z=0),
                 orientation = proj.rot_proj_to_vol.copy()
             ).bounding_box()
-            var offset = proj.proj_to_vol(Vec[2](x=0, y=coords_proj.fmin[1]()).map_scalar[dtype]())
+            var offset = proj.proj_to_vol[rounding=rounding](Vec[2](x=0, y=coords_proj.fmin[1]()).map_scalar[dtype]())
             f_v_minf = f_v_minf.min(bound.origin + offset)
             f_v_maxf = f_v_maxf.max(bound.max() + offset)
 
@@ -724,7 +724,7 @@ struct VolumeNeighborhoods[
 
         # iterate over the voxel coords that cover the projection range
         p.start('v-bounds')  # TEMP
-        var bounds = self._voxels_bounds(coords_proj, projections)
+        var bounds = self._voxels_bounds[rounding=rounding](coords_proj, projections)
         ref f_v_mini = bounds[0]
         ref f_v_maxi = bounds[1]
         p.stop('v-bounds')  # TEMP
@@ -852,6 +852,96 @@ struct VolumeNeighborhoods[
 
                                 # iterate over the projection sample points in the bounding box
                                 for sy in range(bound_p.f.min.y()[w], bound_p.f.max.y()[w] + 1):
+
+                                    # TEMP \/\/\/ try doing intersection tests to determine the x-bounds for this scanline
+
+                                    # skip over empty bounds
+                                    if bound_p.f.min.x()[w] > bound_p.f.max.x()[w]:
+                                        continue
+
+                                    # define the geometry 
+                                    comptime lens = Vec[3,Int](
+                                        x=Self.num_neighborhoods_in_segment,
+                                        y=1,
+                                        z=1
+                                    )
+
+                                    var p = proj.proj_to_vol[rounding=rounding](Vec[3](x=0, y=Int(sy), z=0).map_scalar[dtype]())
+                                    var n = proj.proj_to_vol[rounding=rounding](Vec[3](x=1, y=0, z=0).map_scalar[dtype]())
+
+                                    fn solve_t[d: Int, l: Int](
+                                        f_vi_corner: Vec[3,Int],
+                                        p: Vec[3,Scalar[dtype]],
+                                        n: Vec[3,Scalar[dtype]],
+                                        out t: Scalar[dtype]
+                                    ):
+                                        comptime ld = l*lens[d]
+                                        var vd = Scalar[dtype]( ld + f_vi_corner[d] )
+                                        t = (vd - p[d])/n[d]
+                                    
+                                    fn intersect[d: Int, l: Int, debug: Bool = False](
+                                        p: Vec[3,Scalar[dtype]],
+                                        n: Vec[3,Scalar[dtype]],
+                                        f_vi_corner: Vec[3,Int],
+                                        proj: VolumeNeighborhoodsProjection[dtype],
+                                        out i_p: _IntersectionPoint[1,dtype,simd_width]
+                                    ):
+                                        var t = solve_t[d,l](f_vi_corner, p, n)
+                                        var f_vf = p + n*t
+                                        var f_vf_rel = f_vf - f_vi_corner.map_scalar[dtype]()
+                                        var f_vf_min = Vec[3](fill=0).map_scalar[dtype]()
+                                        var f_vf_max = materialize[lens.map_scalar[dtype]()]()
+                                        var in_range = f_vf_rel.ge_all(f_vf_min) and f_vf_rel.le_all(f_vf_max)
+                                        i_p = _IntersectionPoint(
+                                            p = proj.vol_to_proj[rounding=rounding](f_vf).project[1]().splat[simd_width](),
+                                            in_range = SIMDBool[simd_width](fill=in_range)
+                                        )
+                                        # TEMP
+                                        if debug:
+                                            print("\ti_p=", i_p, "f_vf_ref=", f_vf_rel)
+
+                                    # get the segment corner
+                                    var f_vi_corner = f_vi.copy()
+                                    @parameter
+                                    if x_halfspace == -1:
+                                        f_vi_corner.x() -= materialize[lens.x() - 1]()
+
+                                    # compute the intersections
+                                    var intersections = [
+                                        intersect[0,0](p,n,f_vi_corner,proj),
+                                        intersect[0,1](p,n,f_vi_corner,proj),
+                                        intersect[1,0](p,n,f_vi_corner,proj),
+                                        intersect[1,1](p,n,f_vi_corner,proj),
+                                        intersect[2,0](p,n,f_vi_corner,proj),
+                                        intersect[2,1](p,n,f_vi_corner,proj)
+                                    ]
+
+                                    # aggregate the bound and discretize
+                                    var bound_xf = _PBound[1,dtype,simd_width]()
+                                    for i in intersections:
+                                        bound_xf.update(i.in_range, i.p)
+                                    var bound_xi = proj_group.bound_pi(bound_xf, coords_proj)
+
+                                    # check against the old bounds
+                                    if bound_xi.f.min.x()[0] < bound_p.f.min.x()[w]
+                                        or bound_xi.f.max.x()[0] > bound_p.f.max.x()[w]:
+                                        print("FAILED!!")
+                                        print(
+                                            "y=", sy,
+                                            "old=", bound_p.f[slice=w], bound_pf.f[slice=w],
+                                            "new=", bound_xi.f[slice=0], bound_xf.f[slice=0]
+                                        )
+                                        _ = intersect[0,0,debug=True](p,n,f_vi_corner,proj),
+                                        _ = intersect[0,1,debug=True](p,n,f_vi_corner,proj),
+                                        _ = intersect[1,0,debug=True](p,n,f_vi_corner,proj),
+                                        _ = intersect[1,1,debug=True](p,n,f_vi_corner,proj),
+                                        _ = intersect[2,0,debug=True](p,n,f_vi_corner,proj),
+                                        _ = intersect[2,1,debug=True](p,n,f_vi_corner,proj)
+                                        # TODO: NEXTTIME: why are these x-bounds failing?
+                                        #                 try to visualize the geometry
+
+                                    # TEMP /\/\/\
+
                                     for sx in range(bound_p.f.min.x()[w], bound_p.f.max.x()[w] + 1):
                                         var sf_pi = Vec[2](x=sx, y=sy).map_int()
                                         var sf_pf = sf_pi.map_scalar[dtype]()
@@ -865,13 +955,7 @@ struct VolumeNeighborhoods[
 
                                         # transform back into reference volume space
                                         p_s_rot.start()  # TEMP
-                                        var sf_vf = proj.proj_to_vol(sf_pf)
-
-                                        # apply rounding, if needed
-                                        @parameter
-                                        if rounding is not None:
-                                            sf_vf = sf_vf.__round__(rounding.value())
-
+                                        var sf_vf = proj.proj_to_vol[rounding=rounding](sf_pf)
                                         p_s_rot.stop()  # TEMP
 
                                         # TODO: can get distances in projection-space too, right?
@@ -949,15 +1033,18 @@ struct VolumeNeighborhoods[
                                         func(proj.id, sf_pi^, sf_vf^, sv)
                                         p_s_func.stop()  # TEMP
 
-                                # p_samples.stop()  # TEMP
+                                p_samples.stop()  # TEMP
 
                                 # TEMP
-                                #print("\tsegment: tested=", segment_samples_tested, "accepted=", segment_samples_accepted)
                                 samples_tested += segment_samples_tested
                                 samples_accepted += segment_samples_accepted
-                                # if segment_samples_accepted <= 0:
-                                #     print("rejected all samples!")
-                                #     print(proj_group.render_bound_geometry[x_halfspace](f_vi, proj))
+                                if segment_samples_tested >= 64:
+                                    print("\tsegment: tested=", segment_samples_tested, "accepted=", segment_samples_accepted)
+                                    print(proj_group.render_bound_geometry[x_halfspace](w, f_vi, proj, coords_proj))
+                            # end of projection loop
+                        # end of projection group loop
+                    # end of halfspace loop
+                # end of voxel loop
 
         # TEMP
         p.stop('scan')
@@ -992,16 +1079,38 @@ struct VolumeNeighborhoodsProjection[dtype: DType](
         self.rot_proj_to_vol = rot_proj_to_vol.copy()
 
     @always_inline
-    fn proj_to_vol(self, v: Vec[3,Scalar[dtype]], out result: Vec[3,Scalar[dtype]]):
+    fn proj_to_vol[*, rounding: Optional[Int] = None](
+        self,
+        v: Vec[3,Scalar[dtype]],
+        out result: Vec[3,Scalar[dtype]]
+    ):
         result = self.rot_proj_to_vol*v
 
-    @always_inline
-    fn proj_to_vol(self, v: Vec[2,Scalar[dtype]], out result: Vec[3,Scalar[dtype]]):
-        result = self.proj_to_vol(v.lift(z=0))
+        # apply rounding behavior, if needed
+        @parameter
+        if rounding is not None:
+            result = result.__round__(rounding.value())
 
     @always_inline
-    fn vol_to_proj[simd_width: Int](self, v: Vec[3,SIMD[dtype,simd_width]], out result: Vec[3,SIMD[dtype,simd_width]]):
+    fn proj_to_vol[*, rounding: Optional[Int] = None](
+        self,
+        v: Vec[2,Scalar[dtype]],
+        out result: Vec[3,Scalar[dtype]]
+    ):
+        result = self.proj_to_vol[rounding=rounding](v.lift(z=0))
+
+    @always_inline
+    fn vol_to_proj[simd_width: Int, *, rounding: Optional[Int] = None](
+        self,
+        v: Vec[3,SIMD[dtype,simd_width]],
+        out result: Vec[3,SIMD[dtype,simd_width]]
+    ):
         result = self.rot_proj_to_vol.mul_transpose(v)
+
+        # apply rounding behavior, if needed
+        @parameter
+        if rounding is not None:
+            result = result.__round__(rounding.value())
     
 
 comptime _VoxelNeighborhood[dtype: DType] = ComplexSIMD[dtype,8]
@@ -1016,6 +1125,10 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
     var vol_to_proj_xfactors: Vec[3,SIMD[dtype,simd_width]]
     var vol_to_proj_yfactors: Vec[3,SIMD[dtype,simd_width]]
     var vol_to_proj_zfactors: Vec[3,SIMD[dtype,simd_width]]
+    var proj_to_vol_xfactors: Vec[3,SIMD[dtype,simd_width]]
+    var proj_to_vol_yfactors: Vec[3,SIMD[dtype,simd_width]]
+    var proj_to_vol_zfactors: Vec[3,SIMD[dtype,simd_width]]
+    # TODO: make this a (simd) matrix?? (need to add SIMD support to matrices)
     var segment_extents_neg: Vec[3,SIMD[dtype,simd_width]]
     var segment_extents_pos: Vec[3,SIMD[dtype,simd_width]]
     var plane_x: Self.Plane[Self.PX]
@@ -1040,6 +1153,9 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         self.vol_to_proj_xfactors = Vec[3](fill=zero_f)
         self.vol_to_proj_yfactors = Vec[3](fill=zero_f)
         self.vol_to_proj_zfactors = Vec[3](fill=zero_f)
+        self.proj_to_vol_xfactors = Vec[3](fill=zero_f)
+        self.proj_to_vol_yfactors = Vec[3](fill=zero_f)
+        self.proj_to_vol_zfactors = Vec[3](fill=zero_f)
         self.segment_extents_neg = Vec[3](fill=zero_f)
         self.segment_extents_pos = Vec[3](fill=zero_f)
         self.plane_x = Self.Plane[Self.PX]()
@@ -1074,6 +1190,31 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         @parameter
         if Self.rounding is not None:
             f_pf = f_pf.__round__(Self.rounding.value())
+
+    # TEMP
+    fn proj_to_vol(
+        self,
+        f_pf: Vec[3,SIMD[dtype,simd_width]],
+        out f_vf: Vec[3,SIMD[dtype,simd_width]]
+    ):
+        f_vf = Vec[3](
+            x=self.proj_to_vol_xfactors.inner_product(f_pf),
+            y=self.proj_to_vol_yfactors.inner_product(f_pf),
+            z=self.proj_to_vol_zfactors.inner_product(f_pf)
+        )
+
+        # apply rounding behavior, if needed
+        @parameter
+        if Self.rounding is not None:
+            f_vf = f_vf.__round__(Self.rounding.value())
+
+    # TEMP
+    fn proj_to_vol(
+        self,
+        f_pf: Vec[2,SIMD[dtype,simd_width]],
+        out f_vf: Vec[3,SIMD[dtype,simd_width]]
+    ):
+        f_vf = self.proj_to_vol(f_pf.lift(z=0))
 
     @always_inline
     fn intersect_v[d1: Int, d2: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
@@ -1111,12 +1252,10 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
     fn in_range[p3: _CTPlane](
         self,
         f_vf: Vec[3,SIMD[dtype,simd_width]],
-        mut in_range: SIMDBool[simd_width],
-        mut inclusive_p3: SIMDBool[simd_width]
+        out in_range: SIMDBool[simd_width]
     ):
         var c = f_vf[p3.d]
         in_range = c.ge(0).__and__(c.le(p3.len))
-        inclusive_p3 = c.ge(0).__and__(c.lt(p3.len))
 
     @always_inline
     fn intersect_p[d1: Int, d2: Int, p3: _CTPlane](
@@ -1124,8 +1263,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         f_vi: Vec[3,Int],
         planes: Self.Planes[_,_,p3],
         mut p_pf: Vec[2,SIMD[dtype,simd_width]],
-        mut in_range: SIMDBool[simd_width],
-        mut inclusive: SIMDBool[simd_width]
+        mut in_range: SIMDBool[simd_width]
     ):
         # compute the intersection point
         var p_vf = self.intersect_v[d1,d2](f_vi, planes)
@@ -1133,22 +1271,13 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
 
         # check the range against the third planes
         var f_vf = f_vi.map_scalar[dtype]().splat[simd_width]()
-        var inclusive_p3 = SIMDBool[simd_width](fill=False)
-        self.in_range[p3](p_vf - f_vf, in_range, inclusive_p3)
-
-        # calculate the inclusivity
-        # ie, when the point lies on a segment boundary, is it an inclusive boundary
-        @parameter
-        if d1 == 0 and d2 == 0:
-            inclusive = inclusive_p3
-        else:
-            inclusive = SIMDBool[simd_width](fill=False)
+        in_range = self.in_range[p3](p_vf - f_vf)
 
     # TODO: @always_inline?
     fn bound_pf[x_halfspace: Int](
         self,
         f_vi: Vec[3,Int],
-        out bound_pf: _PBound[dtype,simd_width]
+        out bound_pf: _PBound[2,dtype,simd_width]
     ):
         # TEMP: move to the segment corner, if in the -x halfspace
         # TODO: share this somewhere?
@@ -1157,7 +1286,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         if x_halfspace == -1:
             f_vi_corner.x() -= materialize[Self.PX.len - 1]()
 
-        bound_pf = _PBound[dtype,simd_width]()
+        bound_pf = _PBound[2,dtype,simd_width]()
 
         @parameter
         @always_inline
@@ -1167,11 +1296,10 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
             # compute the intersection point
             var p_pf = Vec[2,SIMD[dtype,simd_width]](fill=0)
             var in_range = SIMDBool[simd_width](fill=False)
-            var inclusive = SIMDBool[simd_width](fill=False)
-            self.intersect_p[d1,d2](f_vi_corner, planes, p_pf, in_range, inclusive)
+            self.intersect_p[d1,d2](f_vi_corner, planes, p_pf, in_range)
 
             # update the bounds
-            bound_pf.update(in_range, inclusive, p_pf)
+            bound_pf.update(in_range, p_pf)
 
         # check all 12 intersection points
         update[0,0](self.planes_xy)
@@ -1189,14 +1317,64 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         update[1,0](self.planes_yz)
         update[1,1](self.planes_yz)
 
+        fn is_inclusive(
+            self: Self,
+            w: Int,
+            f_pf: Vec[2,Scalar[dtype]],
+            f_vi_corner: Vec[3,Int],
+            out inclusive: Bool
+        ):
+            var f_vf = self.proj_to_vol(f_pf.splat[simd_width]())[slice=w]
+            var f_vf_rel = f_vf - f_vi_corner.map_scalar[dtype]()
+
+            var max = Vec[3](
+                x=Self.num_neighborhoods_in_segment,
+                y=1,
+                z=1
+            ).map_scalar[dtype]()
+            inclusive = f_vf_rel.neq_all(max)
+
+        # TEMP: determine edge-inclusivity
+        fn inclusive_edge(
+            self: Self,
+            w: Int,
+            p1_f: Vec[2,Scalar[dtype]],
+            p2_f: Vec[2,Scalar[dtype]],
+            f_vi_corner: Vec[3,Int],
+            *,
+            debug: Bool = False,
+            out inclusive: Bool
+        ):
+            # TODO: explain why we want the edge midpoint too
+            inclusive = is_inclusive(self, w, (p1_f + p2_f)/2, f_vi_corner)
+                or is_inclusive(self, w, p1_f, f_vi_corner)
+                or is_inclusive(self, w, p2_f, f_vi_corner)
+
+        @parameter
+        for d in range(2):
+            @parameter
+            for w in range(simd_width):
+
+                var p1 = bound_pf.f.min[slice=w]
+                var p2 = bound_pf.f.max[slice=w]
+
+                p1[d] = bound_pf.f.min[d][w]
+                p2[d] = bound_pf.f.min[d][w]
+                bound_pf.f.min_inclusive[d][w] = inclusive_edge(self, w, p1, p2, f_vi_corner)
+
+                p1[d] = bound_pf.f.max[d][w]
+                p2[d] = bound_pf.f.max[d][w]
+                bound_pf.f.max_inclusive[d][w] = inclusive_edge(self, w, p1, p2, f_vi_corner)
+        # TODO: vectorize
+
     # TODO: @always_inline?
-    fn bound_pi(
+    fn bound_pi[dim: Int](
         self,
-        bound_pf: _PBound[dtype,simd_width],
+        bound_pf: _PBound[dim,dtype,simd_width],
         coords_proj: FFTCoords[2],
-        out bound_pi: _PBound[DType.int,simd_width]
+        out bound_pi: _PBound[dim,DType.int,simd_width]
     ):
-        bound_pi = _PBound[DType.int,simd_width]()
+        bound_pi = _PBound[dim,DType.int,simd_width]()
         ref bf = bound_pf.f
         ref bi = bound_pi.f
 
@@ -1205,7 +1383,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
 
         # discretize the bound, paying attention to the inclusivity of each coordinate
         @parameter
-        for d in range(2):
+        for d in range(dim):
             @parameter
             for w in range(simd_width):
 
@@ -1222,16 +1400,16 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
 
         # intersect with the projection bounds
         @parameter
-        for d in range(2):
+        for d in range(dim):
             @parameter
             for w in range(simd_width):
-                bound_pi.f.min[d][w] = max(bound_pi.f.min[d][w], coords_proj.fmin_pos[d]())
-                bound_pi.f.max[d][w] = min(bound_pi.f.max[d][w], coords_proj.fmax[d]())
+                bi.min[d][w] = max(bi.min[d][w], coords_proj.fmin_pos[d]())
+                bi.max[d][w] = min(bi.max[d][w], coords_proj.fmax[d]())
         # TODO: vectorize
 
         # the above logic creates fully-inclusive integer bounds
-        bi.min_inclusive = Vec[2,SIMDBool[simd_width]](fill=SIMDBool[simd_width](fill=True))
-        bi.max_inclusive = Vec[2,SIMDBool[simd_width]](fill=SIMDBool[simd_width](fill=True))
+        bi.min_inclusive = Vec[dim,SIMDBool[simd_width]](fill=SIMDBool[simd_width](fill=True))
+        bi.max_inclusive = Vec[dim,SIMDBool[simd_width]](fill=SIMDBool[simd_width](fill=True))
 
     # for debugging
     fn render_bound_geometry[x_halfspace: Int](
@@ -1259,19 +1437,19 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         fn classify_intersection[d1: Int, d2: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
             planes: Self.Planes[p1,p2,p3]
         ):
-            var p_vf = self.intersect_v[d1,d2](f_vi_corner, planes) - f_vf_corner
-
+            # compute the intersection point
             var p_pf = Vec[2,SIMD[dtype,simd_width]](fill=0)
             var in_range = SIMDBool[simd_width](fill=False)
-            var inclusive = SIMDBool[simd_width](fill=False)
-            self.intersect_p[d1,d2,p3](f_vi, planes, p_pf, in_range, inclusive)
+            self.intersect_p[d1,d2,p3](f_vi_corner, planes, p_pf, in_range)
+
+            # get the intersection point relative to the segment corner too
+            var p_vf = self.intersect_v[d1,d2](f_vi_corner, planes) - f_vf_corner
 
             var comment = String(
                 "  ", p1.name, "=", d1,
                 "  ", p2.name, "=", d2,
                 "  p_vf=", p_vf[slice=w],
-                "  in_range=", in_range[w],
-                "  inclusive=", inclusive[w]
+                "  in_range=", in_range[w]
             )
             var entry = (p_pf[slice=w], comment)
 
@@ -1296,7 +1474,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         classify_intersection[1,0](self.planes_yz)
         classify_intersection[1,1](self.planes_yz)
 
-        var bound_pf = self.bound_pf[x_halfspace](f_vi_corner)
+        var bound_pf = self.bound_pf[x_halfspace](f_vi)
         var bound_pi = self.bound_pi(bound_pf, coords_proj)
 
         @parameter
@@ -1312,12 +1490,14 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
                 s += p[1]
 
         str = "Plane bound geometry:"
+            + "\ngrid_p=[" + String(coords_proj.fmin_pos()) + "," + String(coords_proj.fmax()) + "]"
             + "\nf_pf=pt" + String(self.vol_to_proj(f_vi.map_scalar[dtype]())[slice=w])
+                + " # f_vi=pt" + String(f_vi)
             + "\nf_pf_corner=pt" + String(self.vol_to_proj(f_vf_corner)[slice=w])
             + "\naxes=["
-                + "\n\tpt" + String(proj.vol_to_proj(Vec[3](x=1, y=0, z=0).map_scalar[dtype]())) + ","
-                + "\n\tpt" + String(proj.vol_to_proj(Vec[3](x=0, y=1, z=0).map_scalar[dtype]())) + ","
-                + "\n\tpt" + String(proj.vol_to_proj(Vec[3](x=0, y=0, z=1).map_scalar[dtype]()))
+                + "\n\tpt" + String(proj.vol_to_proj[rounding=rounding](Vec[3](x=1, y=0, z=0).map_scalar[dtype]())) + ","
+                + "\n\tpt" + String(proj.vol_to_proj[rounding=rounding](Vec[3](x=0, y=1, z=0).map_scalar[dtype]())) + ","
+                + "\n\tpt" + String(proj.vol_to_proj[rounding=rounding](Vec[3](x=0, y=0, z=1).map_scalar[dtype]()))
             + "\n]"
             + "\nx_halfspace=" + String(x_halfspace)
             + "\nx_len=" + String(_num_neighborhoods_in_segment[simd_width]())
@@ -1364,6 +1544,13 @@ struct _Projections[simd_width: Int, dtype: DType, *, rounding: Optional[Int] = 
             group.vol_to_proj_yfactors[slice=i] = proj.rot_proj_to_vol.vec(col=1)
             group.vol_to_proj_zfactors[slice=i] = proj.rot_proj_to_vol.vec(col=2)
 
+            # and the proj->vol rotation too
+            group.proj_to_vol_xfactors[slice=i] = proj.rot_proj_to_vol.vec(row=0)
+            group.proj_to_vol_yfactors[slice=i] = proj.rot_proj_to_vol.vec(row=1)
+            group.proj_to_vol_zfactors[slice=i] = proj.rot_proj_to_vol.vec(row=2)
+
+            # TODO: make a SIMD matrix!
+
             comptime n_i = _num_neighborhoods_in_segment[simd_width]()
             comptime n_f = Scalar[dtype](n_i)
 
@@ -1383,9 +1570,9 @@ struct _Projections[simd_width: Int, dtype: DType, *, rounding: Optional[Int] = 
             group.segment_extents_pos[slice=i] = voxel_extents_pos.max(voxel_extents_pos + seg_vec)
 
             # init the plane info
-            group.plane_x.init(i, proj)
-            group.plane_y.init(i, proj)
-            group.plane_z.init(i, proj)
+            group.plane_x.init[rounding=rounding](i, proj)
+            group.plane_y.init[rounding=rounding](i, proj)
+            group.plane_z.init[rounding=rounding](i, proj)
 
         # init the plane pairs
         for i in range(len(self.groups)):
@@ -1433,8 +1620,8 @@ struct _RTPlane[dtype: DType, simd_width: Int, plane: _CTPlane](
     fn __init__(out self):
         self.unit_z_component = SIMD[dtype,simd_width](0)
 
-    fn init(mut self, i: Int, proj: VolumeNeighborhoodsProjection[dtype]):
-        var unit_z_v = proj.proj_to_vol(materialize[_CTPlane.z().normal_f[dtype]()]())
+    fn init[*, rounding: Optional[Int] = None](mut self, i: Int, proj: VolumeNeighborhoodsProjection[dtype]):
+        var unit_z_v = proj.proj_to_vol[rounding=rounding](materialize[_CTPlane.z().normal_f[dtype]()]())
         self.unit_z_component[i] = unit_z_v.inner_product(materialize[plane.normal_f[dtype]()]())
 
 
@@ -1461,29 +1648,48 @@ struct _RTPlanes[dtype: DType, simd_width: Int, p1: _CTPlane, p2: _CTPlane, p3: 
         )/_p3.unit_z_component
 
 
+# TEMP
+# TODO: use this for other intersection points?
 @fieldwise_init
-struct _PBound[dtype: DType, simd_width: Int](
+struct _IntersectionPoint[dim: Int, dtype: DType, simd_width: Int](
+    Copyable,
+    Movable,
+    Writable,
+    Stringable
+):
+    var p: Vec[dim,SIMD[dtype,simd_width]]
+    var in_range: SIMDBool[simd_width]
+
+    # TEMP: just print the 0 entry
+    fn write_to[W: Writer](self, mut writer: W):
+        writer.write(self.p[slice=0], "  inr=", self.in_range[0])
+
+    fn __str__(self) -> String:
+        return String.write(self)
+
+
+@fieldwise_init
+struct _PBound[dim: Int, dtype: DType, simd_width: Int](
     Copyable,
     Movable
 ):
     var mask: SIMDBool[simd_width]
-    var f: _Bounds[2,dtype,simd_width]
+    var f: _Bounds[dim,dtype,simd_width]
 
     fn __init__(out self):
         self.mask = SIMDBool[simd_width](fill=False)
-        self.f = _Bounds[2,dtype,simd_width]()
+        self.f = _Bounds[dim,dtype,simd_width]()
 
     fn update(
         mut self,
         in_range: SIMDBool[simd_width],
-        inclusive: SIMDBool[simd_width],
-        f: Vec[2,SIMD[dtype,simd_width]]
+        f: Vec[dim,SIMD[dtype,simd_width]]
     ):
         # TODO: vectorize this?
         @parameter
         for w in range(simd_width):
             if in_range[w]:
-                self.f.update[w](f, inclusive, overwrite=not self.mask[w])
+                self.f.update[w](f, overwrite=not self.mask[w])
             self.mask[w] = self.mask[w] or in_range[w]
 
 
@@ -1510,7 +1716,6 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
     fn update[w: Int](
         mut self,
         v: Vec[dim,SIMD[dtype,simd_width]],
-        inclusive: SIMDBool[simd_width],
         overwrite: Bool = False
     ):
         @parameter
@@ -1518,15 +1723,9 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
             if overwrite:
                 self.min[d][w] = v[d][w]
                 self.max[d][w] = v[d][w]
-                self.min_inclusive[d][w] = inclusive[w]
-                self.max_inclusive[d][w] = inclusive[w]
             else:
-                if v[d][w] <= self.min[d][w]:
-                    self.min_inclusive[d][w] = self.min_inclusive[d][w] or inclusive[w]
                 if v[d][w] < self.min[d][w]:
                     self.min[d][w] = v[d][w]
-                if v[d][w] >= self.max[d][w]:
-                    self.max_inclusive[d][w] = self.max_inclusive[d][w] or inclusive[w]
                 if v[d][w] > self.max[d][w]:
                     self.max[d][w] = v[d][w]
 

@@ -680,7 +680,7 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
     # build the projections
     var projections = List[VolumeNeighborhoodsProjection[dtype]](capacity=conditions_compile.num_projections)
     fn rot_delta(p: Int) -> Vec[3,Int]:
-        return Vec[3](x=5, y=6, z=7)*(p - 1)
+        return Vec[3](x=5, y=6, z=7)*p
     @parameter
     for p in range(conditions_compile.num_projections):
         projections.append(VolumeNeighborhoodsProjection(p, _make_rot(conditions_run.rot + rot_delta(p))))
@@ -724,8 +724,7 @@ def _test_scan[conditions_compile: TestConditionsCompileTime](conditions_run: Te
             var group_offset = proj_i % conditions_compile.simd_width
 
             # rotate into volume space and interpolate the volume
-            var exp_f_vf = proj.proj_to_vol(f_pi.map_scalar[dtype]())
-                .__round__(rounding)
+            var exp_f_vf = proj.proj_to_vol[rounding=rounding](f_pi.map_scalar[dtype]())
             var exp_v = interp.get(f=exp_f_vf)
 
             var start_dists = interp._start_dists(f=exp_f_vf)
@@ -875,7 +874,7 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
     # build groups out of the projections
     var projections = List[VolumeNeighborhoodsProjection[dtype]](capacity=num_projections)
     fn rot_delta(p: Int) -> Vec[3,Int]:
-        return Vec[3](x=5, y=6, z=7)*(p - 1)
+        return Vec[3](x=5, y=6, z=7)*p
     @parameter
     for p in range(num_projections):
         projections.append(VolumeNeighborhoodsProjection(p, _make_rot(rot + rot_delta(p))))
@@ -908,8 +907,7 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
                     ref proj = projections[proj_i]
 
                     # rotate into volume space and discretize to the voxel
-                    var f_vf = proj.proj_to_vol(f_pf)
-                        .__round__(rounding)
+                    var f_vf = proj.proj_to_vol[rounding=rounding](f_pf)
                     var f_vi_vox = f_vf.floor().map_int()
 
                     # get the x offset of the voxel into the segment
@@ -933,7 +931,7 @@ def _test_p_bounds[simd_width: Int, num_projections: Int = 1](
                     #           but we only know it at run-time here,
                     #           so make a small if statement to translate run-time to compile-time
                     var rendered_geometry: String
-                    var bound_pf: _PBound[dtype,simd_width]
+                    var bound_pf: _PBound[2,dtype,simd_width]
                     if x_halfspace == 1:
                         comptime x_hs = 1
                         bound_pf = proj_group.bound_pf[x_hs](f_vi_seg)
