@@ -111,13 +111,6 @@ struct Vec[
         for d in range(dim):
             self[d][slice] = v[d]
 
-    fn __eq__(self, other: Self) -> Bool:
-        @parameter
-        for d in range(dim):
-            if self._values[d] != other._values[d]:
-                return False
-        return True
-
     fn write_to[W: Writer](self, mut writer: W):
         writer.write("(")
         @parameter
@@ -683,6 +676,13 @@ struct Vec[
         for d in range(dim):
             result[d] = self[d].__round__(digits)
 
+    fn round[rounding: Optional[Int], dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        @parameter
+        if rounding is not None:
+            result = self.__round__(rounding.value())
+        else:
+            result = self.copy()
+
     fn sum(self: Vec[dim,Int], out result: Int):
         result = 0
         @parameter
@@ -800,7 +800,55 @@ struct Vec[
         result = self.map[mapper=func]()
 
     # comparisons
-    # NOTE: don't use operator overloads, since we need to explicitly pick all or any aggregators
+
+    # number -> bool comparisons
+
+    fn __lt__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[DType.bool,w]]):
+        result = Vec[dim,SIMD[DType.bool,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].lt(other[d])
+
+    fn __le__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[DType.bool,w]]):
+        result = Vec[dim,SIMD[DType.bool,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].le(other[d])
+
+    fn __gt__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[DType.bool,w]]):
+        result = Vec[dim,SIMD[DType.bool,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].gt(other[d])
+
+    fn __ge__[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[DType.bool,w]]):
+        result = Vec[dim,SIMD[DType.bool,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].ge(other[d])
+
+    # aggregated number -> bool comparisons
+
+    fn __eq__(self, other: Self, out result: Bool):
+        result = self.eq_all(other)
+
+    fn eq_all(self, other: Self, out result: Bool):
+        result = True
+        @parameter
+        for d in range(dim):
+            result = result and self._values[d] == other._values[d]
+
+    fn eq_any(self, other: Self, out result: Bool):
+        result = False
+        @parameter
+        for d in range(dim):
+            result = result or self._values[d] == other._values[d]
+
+    fn neq_all(self, other: Self, out result: Bool):
+        result = not self.eq_any(other)
+
+    fn neq_any(self, other: Self, out result: Bool):
+        result = not self.eq_all(other)
 
     fn lt_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
@@ -909,6 +957,26 @@ struct Vec[
 
     fn ge_all[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
         result = ~self.lt_any(other)
+
+    # boolean logic
+
+    fn __invert__[w: Int](self: Vec[dim,SIMD[DType.bool,w]], out result: Vec[dim,SIMD[DType.bool,w]]):
+        result = Vec[dim,SIMD[DType.bool,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = ~self[d]
+
+    fn __and__[w: Int](self: Vec[dim,SIMD[DType.bool,w]], other: Vec[dim,SIMD[DType.bool,w]], out result: Vec[dim,SIMD[DType.bool,w]]):
+        result = Vec[dim,SIMD[DType.bool,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].__and__(other[d])
+
+    fn __or__[w: Int](self: Vec[dim,SIMD[DType.bool,w]], other: Vec[dim,SIMD[DType.bool,w]], out result: Vec[dim,SIMD[DType.bool,w]]):
+        result = Vec[dim,SIMD[DType.bool,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].__or__(other[d])
 
     # mappings
 
