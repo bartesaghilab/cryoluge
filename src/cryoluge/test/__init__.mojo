@@ -49,8 +49,18 @@ def assert_equal_angles[dtype: DType](
     )
 
 
+@parameter
+fn _no_context() -> String:
+    return ""
+
+
 @always_inline
-def assert_equal_float[dtype: DType, //, err_fn: ErrFn[dtype]](
+def assert_equal_float[
+    dtype: DType,
+    //,
+    err_fn: ErrFn[dtype],
+    context: fn () capturing -> String = _no_context
+](
     obs: Scalar[dtype],
     exp: Scalar[dtype],
     msg: Optional[String] = None,
@@ -59,20 +69,25 @@ def assert_equal_float[dtype: DType, //, err_fn: ErrFn[dtype]](
     location: Optional[_SourceLocation] = None
 ):
     var err = err[dtype,err_fn](obs, exp)
-    assert_true(
-        is_err_small(err, eps=eps),
-        String("Floats mismatch!\n",
-            String("\t     msg: ", msg.value(), "\n") if msg is not None else "",
-            "\tobserved: ", obs, "\n",
-            "\texpected: ", exp, "\n",
-            "\t   error: ", err
-        ),
-        location=location.or_else(__call_location())
-    )
-
+    if not is_err_small(err, eps=eps):
+        assert_true(
+            False,
+            String("Floats mismatch!\n",
+                String("\t     msg: ", msg.value(), "\n") if msg is not None else "",
+                "\tobserved: ", obs, "\n",
+                "\texpected: ", exp, "\n",
+                "\t   error: ", err
+            ) + context(),
+            location=location.or_else(__call_location())
+        )
 
 @always_inline
-def assert_equal_float[dtype: DType, //, err_fn: ErrFn[dtype]](
+def assert_equal_float[
+    dtype: DType,
+    //,
+    err_fn: ErrFn[dtype],
+    context: fn () capturing -> String = _no_context
+](
     obs: ComplexScalar[dtype],
     exp: ComplexScalar[dtype],
     msg: Optional[String] = None,
@@ -81,20 +96,27 @@ def assert_equal_float[dtype: DType, //, err_fn: ErrFn[dtype]](
     location: Optional[_SourceLocation] = None
 ):
     var err = err[dtype,err_fn](obs, exp)
-    assert_true(
-        is_err_small(err, eps=eps),
-        String("Floats mismatch!\n",
-            String("\t     msg: ", msg.value(), "\n") if msg is not None else "",
-            "\tobserved: ", obs, "\n",
-            "\texpected: ", exp, "\n",
-            "\t     err: ", err
-        ),
-        location=location.or_else(__call_location())
-    )
+    if not is_err_small(err, eps=eps):
+        assert_true(
+            False,
+            String("Floats mismatch!\n",
+                String("\t     msg: ", msg.value(), "\n") if msg is not None else "",
+                "\tobserved: ", obs, "\n",
+                "\texpected: ", exp, "\n",
+                "\t     err: ", err
+            ) + context(),
+            location=location.or_else(__call_location())
+        )
 
 
 @always_inline
-def assert_equal_float[dim: Int, dtype: DType, //, err_fn: ErrFn[dtype]](
+def assert_equal_float[
+    dim: Int,
+    dtype: DType,
+    //,
+    err_fn: ErrFn[dtype],
+    context: fn () capturing -> String = _no_context
+](
     obs: Vec[dim,Scalar[dtype]],
     exp: Vec[dim,Scalar[dtype]],
     msg: Optional[String] = None,
@@ -106,13 +128,14 @@ def assert_equal_float[dim: Int, dtype: DType, //, err_fn: ErrFn[dtype]](
     @parameter
     for d in range(dim):
         err_sum += err[dtype,err_fn](obs[d], exp[d])
-    assert_true(
-        is_err_small(err_sum, eps=eps),
-        String("Floats mismatch!\n",
-            String("\t     msg: ", msg.value(), "\n") if msg is not None else "",
-            "\tobserved: ", obs, "\n",
-            "\texpected: ", exp, "\n",
-            "\t     err: ", err_sum
-        ),
-        location=location.or_else(__call_location())
-    )
+    if not is_err_small(err_sum, eps=eps):
+        assert_true(
+            False,
+            String("Floats mismatch!\n",
+                String("\t     msg: ", msg.value(), "\n") if msg is not None else "",
+                "\tobserved: ", obs, "\n",
+                "\texpected: ", exp, "\n",
+                "\t     err: ", err_sum
+            ) + context(),
+            location=location.or_else(__call_location())
+        )
