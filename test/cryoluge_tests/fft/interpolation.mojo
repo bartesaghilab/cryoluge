@@ -721,7 +721,6 @@ def _test_scan[
             # rotate into volume space and interpolate the volume
             var exp_f_vf = proj.proj_to_vol(f_pf)
                 .round[rounding]()
-                # TODO: there should be a way to get rid of this rounding ...
             var exp_v = interp.get(f=exp_f_vf)
 
             # get intermediate interpolation values too
@@ -760,8 +759,8 @@ def _test_scan[
                     "\n", indent, "f_vi=", exp_f_vi,
                     "\n", indent, "f_vi_seg=", exp_f_vi_seg,
                     "\n", indent, "f_vf=", exp_f_vf,
-                    "\n", indent, "neighborhood=", _render_neighborhood(exp_neighborhood),
-                    "\n", indent, "dists=", dists
+                    "\n", indent, "dists=", dists,
+                    "\n", indent, "neighborhood=", _render_neighborhood(exp_neighborhood)
                 ) + debug_log
 
             # get the results for this projection
@@ -1016,10 +1015,28 @@ def _test_p_bounds[
 
                     @parameter
                     fn check_x_context() -> String:
+
+                        # run the bound again with a debugger
+                        var _debugger = ScanDebugger(proj_i, f_pi, i_vi_seg)
+                        @parameter
+                        fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
+                            return UnsafePointer(to=_debugger)
+
+                        if x_halfspace == 1:
+                            comptime x_hs = 1
+                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_seg, f_pi.y(), proj)
+                        else:
+                            comptime x_hs = -1
+                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_seg, f_pi.y(), proj)
+
+                        # render the debug log
+                        var debug_log = "\n" + indent + "Debug Log:"
+                            + "\n" + indent + ("\n" + indent).join(_debugger.msgs)
+
                         return check_context() + String(
                             "\n", indent, "bound_x_pf=", bound_x_pf.f[slice=0],
                             "\n", indent, "bound_x_pi=", bound_x_pi.f[slice=0]
-                        )
+                        ) + debug_log
 
                     # the given bound should contain the point
                     if not bound_x_pi.mask[0]:
@@ -1034,6 +1051,21 @@ def _test_p_bounds[
                         raise Error("Scanline x-min outside of 2d min" + check_x_context() + "\n" + render())
                     if bound_x_pi.f.max[0][0] > bound_pi.f.max[0][p]:
                         raise Error("Scanline x-min outside of 2d min" + check_x_context() + "\n" + render())
+
+                    # TEMP: extend lifetimes to avoid compiler bug
+                    _ = proj_i
+                    _ = proj
+                    _ = f_vf
+                    _ = f_vi_vox
+                    _ = i_vi_vox
+                    _ = i_vi_seg
+                    _ = x_offset
+                    _ = x_halfspace
+                    _ = f_vi_seg
+                    _ = bound_pf
+                    _ = bound_pi
+                    _ = bound_x_pf
+                    _ = bound_x_pi
 
 
 fn make_fft_image(
