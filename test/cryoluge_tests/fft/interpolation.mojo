@@ -952,6 +952,9 @@ def _test_p_bounds[
 
                     # get the segment coordinates
                     var f_vi_seg = f_vi_vox - Vec[3](x=x_halfspace*x_offset, y=0, z=0)
+                    var f_vi_corner = f_vi_seg.copy()
+                    if x_halfspace == -1:
+                        f_vi_corner.x() -= n - 1
 
                     # compute the projection-space bound
                     # HACKHACK: x_halfspace is usually a compile-time parameter,
@@ -960,10 +963,10 @@ def _test_p_bounds[
                     var bound_pf: _PBound[2,dtype,simd_width]
                     if x_halfspace == 1:
                         comptime x_hs = 1
-                        bound_pf = proj_group.bound_pf[x_hs](f_vi_seg)
+                        bound_pf = proj_group.bound_pf[x_hs](f_vi_corner)
                     else:
                         comptime x_hs = -1
-                        bound_pf = proj_group.bound_pf[x_hs](f_vi_seg)
+                        bound_pf = proj_group.bound_pf[x_hs](f_vi_corner)
 
                     var bound_pi = proj_group.bound_pi(bound_pf, coords_proj)
 
@@ -971,10 +974,10 @@ def _test_p_bounds[
                     fn render() -> String:
                         if x_halfspace == 1:
                             comptime x_hs = 1
-                            return proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj, coords_proj)
+                            return proj_group.render_bound_geometry[x_hs](p, f_vi_seg, f_vi_corner, proj, coords_proj)
                         else:
                             comptime x_hs = -1
-                            return proj_group.render_bound_geometry[x_hs](p, f_vi_seg, proj, coords_proj)
+                            return proj_group.render_bound_geometry[x_hs](p, f_vi_seg, f_vi_corner, proj, coords_proj)
 
                     @parameter
                     fn check_context() -> String:
@@ -1003,13 +1006,13 @@ def _test_p_bounds[
                         raise Error("Max doesn't capture sample" + check_context() + "\n" + render())
 
                     # compute the x-bounds for this y scanline too
-                    var bound_x_pf: _PBound[1,dtype,simd_width]
+                    var bound_x_pf: _PBound[1,dtype,1]
                     if x_halfspace == 1:
                         comptime x_hs = 1
-                        bound_x_pf = proj_group.bound_x_pf[x_hs](f_vi_seg, f_pi.y(), proj)
+                        bound_x_pf = proj_group.bound_x_pf[x_hs](f_vi_corner, f_pi.y(), proj)
                     else:
                         comptime x_hs = -1
-                        bound_x_pf = proj_group.bound_x_pf[x_hs](f_vi_seg, f_pi.y(), proj)
+                        bound_x_pf = proj_group.bound_x_pf[x_hs](f_vi_corner, f_pi.y(), proj)
                     
                     var bound_x_pi = proj_group.bound_pi(bound_x_pf, coords_proj)
 
@@ -1024,32 +1027,33 @@ def _test_p_bounds[
 
                         if x_halfspace == 1:
                             comptime x_hs = 1
-                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_seg, f_pi.y(), proj)
+                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_corner, f_pi.y(), proj)
                         else:
                             comptime x_hs = -1
-                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_seg, f_pi.y(), proj)
+                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_corner, f_pi.y(), proj)
 
                         # render the debug log
                         var debug_log = "\n" + indent + "Debug Log:"
                             + "\n" + indent + ("\n" + indent).join(_debugger.msgs)
 
                         return check_context() + String(
-                            "\n", indent, "bound_x_pf=", bound_x_pf.f[slice=0],
-                            "\n", indent, "bound_x_pi=", bound_x_pi.f[slice=0]
+                            "\n", indent, "mask_x=", bound_x_pf.mask[p],
+                            "\n", indent, "bound_x_pf=", bound_x_pf.f,
+                            "\n", indent, "bound_x_pi=", bound_x_pi.f
                         ) + debug_log
 
                     # the given bound should contain the point
                     if not bound_x_pi.mask[0]:
                         raise Error("No intersection with scanline" + check_x_context() + "\n" + render())
-                    if f_pi.x() < Int(bound_x_pi.f.min[slice=0].x()):
+                    if f_pi.x() < Int(bound_x_pi.f.min.x()):
                         raise Error("Scanline x-min doesn't capture sample" + check_x_context() + "\n" + render())
-                    if f_pi.x() > Int(bound_x_pi.f.max[slice=0].x()):
+                    if f_pi.x() > Int(bound_x_pi.f.max.x()):
                         raise Error("Scanline x-max doesn't capture sample" + check_x_context() + "\n" + render())
 
                     # the 1d bound shouldn't be bigger than the 2d bound
-                    if bound_x_pi.f.min[0][0] < bound_pi.f.min[0][p]:
+                    if bound_x_pi.f.min.x() < bound_pi.f.min.x()[p]:
                         raise Error("Scanline x-min outside of 2d min" + check_x_context() + "\n" + render())
-                    if bound_x_pi.f.max[0][0] > bound_pi.f.max[0][p]:
+                    if bound_x_pi.f.max.x() > bound_pi.f.max.x()[p]:
                         raise Error("Scanline x-min outside of 2d min" + check_x_context() + "\n" + render())
 
                     # TEMP: extend lifetimes to avoid compiler bug
@@ -1062,6 +1066,7 @@ def _test_p_bounds[
                     _ = x_offset
                     _ = x_halfspace
                     _ = f_vi_seg
+                    _ = f_vi_corner
                     _ = bound_pf
                     _ = bound_pi
                     _ = bound_x_pf
