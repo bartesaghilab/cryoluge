@@ -743,7 +743,8 @@ struct VolumeNeighborhoods[
 
         # TEMP
         ref p_extents = p.counter('extents')
-        ref p_p_bounds = p.counter('p_bounds')
+        ref p_p_bounds_f = p.counter('p_bounds_f')
+        ref p_p_bounds_i = p.counter('p_bounds_i')
         ref p_xp_bounds = p.counter('xp_bounds')
         ref p_samples = p.counter('samples')
         ref p_s_rot = p.counter('s_rot')
@@ -825,11 +826,13 @@ struct VolumeNeighborhoods[
                                 continue
 
                             # compute a bound on the intersection of the segement with the z_p=0 plane
-                            p_p_bounds.start()  # TEMP
+                            p_p_bounds_f.start()  # TEMP
                             var bound_pf = proj_group.bound_pf[x_halfspace](f_vi_corner)
+                            p_p_bounds_f.stop()  # TEMP
                             var bound_pi = proj_group.bound_pi(bound_pf, coords_proj)
+                            p_p_bounds_i.start()  # TEMP
                             in_range = in_range.__and__(bound_pi.mask)
-                            p_p_bounds.stop()  # TEMP
+                            p_p_bounds_i.stop()  # TEMP
 
                             if not any_in_range():
                                 continue
@@ -1138,14 +1141,14 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
     @always_inline
     fn intersect_p[d1: Int, d2: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
         self,
-        f_vi: Vec[3,Int],
+        f_vi_corner: Vec[3,Int],
         planes: Self.Planes[p1,p2,p3],
         mut p_pf: Vec[2,SIMD[dtype,simd_width]],
         mut in_range: SIMDBool[simd_width]
     ):
         # start at the segment position
-        var c1 = f_vi[p1.d]
-        var c2 = f_vi[p2.d]
+        var c1 = f_vi_corner[p1.d]
+        var c2 = f_vi_corner[p2.d]
 
         # offset by the two plane distances
         c1 += materialize[p1.len*d1]()
@@ -1167,8 +1170,8 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         p_pf = self.vol_to_proj(p_vf).project[2]()
 
         # check the range against the third planes
-        var f_vf = f_vi.map_scalar[dtype]().splat[simd_width]()
-        var c = (p_vf - f_vf).round[rounding]()[p3.d]
+        var f_vf_corner = f_vi_corner.map_scalar[dtype]().splat[simd_width]()
+        var c = (p_vf - f_vf_corner).round[rounding]()[p3.d]
         in_range = c.ge(0).__and__(c.le(p3.len))
 
     # TODO: @always_inline?
@@ -1210,52 +1213,35 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         update[1,0](self.planes_yz)
         update[1,1](self.planes_yz)
 
-        fn is_inclusive(
-            self: Self,
-            w: Int,
-            f_pf: Vec[2,Scalar[dtype]],
-            f_vi_corner: Vec[3,Int],
-            out inclusive: Bool
-        ):
-            var f_vf = self.proj_to_vol(f_pf.splat[simd_width]())[slice=w]
-            var excluded = materialize[Self.segment_sizes.map_scalar[dtype]()]() + f_vi_corner.map_scalar[dtype]()
-            inclusive = f_vf.neq_all(excluded)
+        # check inclusivity for the bound edges
+        # even if the edge endpoints are not inclusive, a non-endpoint could be,
+        # and all non-endpoints on an edge will have the same inclusivity,
+        # so we can check any arbitrary point, like the midpoint
+        var min_vf = self.proj_to_vol(bound_pf.f.min)
+        comptime zero = Scalar[dtype](0)
+        var delta_pf = bound_pf.f.max - bound_pf.f.min
+        var dir_x_vf = self.plane_x.normal_v*delta_pf.x()
+        var dir_y_vf = self.plane_y.normal_v*delta_pf.y()
 
-        # TEMP: determine edge-inclusivity
-        fn inclusive_edge(
-            self: Self,
-            w: Int,
-            p1_f: Vec[2,Scalar[dtype]],
-            p2_f: Vec[2,Scalar[dtype]],
-            f_vi_corner: Vec[3,Int],
-            *,
-            debug: Bool = False,
-            out inclusive: Bool
-        ):
-            # TODO: explain why we want the edge midpoint too
-            inclusive = is_inclusive(self, w, (p1_f + p2_f)/2, f_vi_corner)
-                or is_inclusive(self, w, p1_f, f_vi_corner)
-                or is_inclusive(self, w, p2_f, f_vi_corner)
+        var excluded = (materialize[Self.segment_sizes.map_scalar[dtype]()]() + f_vi_corner.map_scalar[dtype]())
+            .splat[simd_width]()
 
-        @parameter
-        for d in range(2):
-            @parameter
-            for w in range(simd_width):
+        var p00 = (min_vf + dir_x_vf*0.0 + dir_y_vf*0.0).ne_all_simd(excluded)
+        var p01 = (min_vf + dir_x_vf*0.0 + dir_y_vf*0.5).ne_all_simd(excluded)
+        var p02 = (min_vf + dir_x_vf*0.0 + dir_y_vf*1.0).ne_all_simd(excluded)
 
-                if not bound_pf.mask[w]:
-                    continue
+        var p10 = (min_vf + dir_x_vf*0.5 + dir_y_vf*0.0).ne_all_simd(excluded)
+        var p12 = (min_vf + dir_x_vf*0.5 + dir_y_vf*1.0).ne_all_simd(excluded)
 
-                var p1 = bound_pf.f.min[slice=w]
-                var p2 = bound_pf.f.max[slice=w]
+        var p20 = (min_vf + dir_x_vf*1.0 + dir_y_vf*0.0).ne_all_simd(excluded)
+        var p21 = (min_vf + dir_x_vf*1.0 + dir_y_vf*0.5).ne_all_simd(excluded)
+        var p22 = (min_vf + dir_x_vf*1.0 + dir_y_vf*1.0).ne_all_simd(excluded)
 
-                p1[d] = bound_pf.f.min[d][w]
-                p2[d] = bound_pf.f.min[d][w]
-                bound_pf.f.min_inclusive[d][w] = inclusive_edge(self, w, p1, p2, f_vi_corner)
+        bound_pf.f.min_inclusive.x() = (p00 | p01 | p02) & bound_pf.mask
+        bound_pf.f.max_inclusive.x() = (p20 | p21 | p22) & bound_pf.mask
 
-                p1[d] = bound_pf.f.max[d][w]
-                p2[d] = bound_pf.f.max[d][w]
-                bound_pf.f.max_inclusive[d][w] = inclusive_edge(self, w, p1, p2, f_vi_corner)
-        # TODO: NEXTTIME: vectorize me!!!
+        bound_pf.f.min_inclusive.y() = (p00 | p10 | p20) & bound_pf.mask
+        bound_pf.f.max_inclusive.y() = (p02 | p12 | p22) & bound_pf.mask
 
     # TODO: @always_inline?
     fn bound_pi[dim: Int, bound_simd_width: Int](
@@ -1275,28 +1261,20 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         # discretize the bound, paying attention to the inclusivity of each boundary
         @parameter
         for d in range(dim):
-            @parameter
-            for w in range(bound_simd_width):
-
-                if bf.min_inclusive[d][w]:
-                    bi.min[d][w] = SIMDInt[1]( ceil(bf.min[d][w]) )
-                else:
-                    bi.min[d][w] = SIMDInt[1]( floor(bf.min[d][w] + 1) )
-
-                if bf.max_inclusive[d][w]:
-                    bi.max[d][w] = SIMDInt[1]( floor(bf.max[d][w]) )
-                else:
-                    bi.max[d][w] = SIMDInt[1]( ceil(bf.max[d][w] - 1) )
-        # TODO: vectorize
+            bi.min[d] = bf.min_inclusive[d].select(
+                true_case = SIMDInt[bound_simd_width]( ceil(bf.min[d]) ),
+                false_case = SIMDInt[bound_simd_width]( floor(bf.min[d] + 1) )
+            )
+            bi.max[d] = bf.max_inclusive[d].select(
+                true_case = SIMDInt[bound_simd_width]( floor(bf.max[d]) ),
+                false_case = SIMDInt[bound_simd_width]( ceil(bf.max[d] - 1) )
+            )
 
         # intersect with the projection bounds
-        @parameter
-        for d in range(dim):
-            @parameter
-            for w in range(bound_simd_width):
-                bi.min[d][w] = max(bi.min[d][w], coords_proj.fmin_pos[d]())
-                bi.max[d][w] = min(bi.max[d][w], coords_proj.fmax[d]())
-        # TODO: vectorize
+        var f_min_p = coords_proj.fmin_pos().project[dim]().map_scalar[DType.int]().splat[bound_simd_width]()
+        var f_max_p = coords_proj.fmax().project[dim]().map_scalar[DType.int]().splat[bound_simd_width]()
+        bi.min = bi.min.max(f_min_p)
+        bi.max = bi.max.min(f_max_p)
 
         # the above logic creates fully-inclusive integer bounds
         bi.min_inclusive = Vec[dim,SIMDBool[bound_simd_width]](fill=SIMDBool[bound_simd_width](fill=True))
@@ -1336,7 +1314,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         in_range = f_vf_rounded.ge_all(f_vf_min) and f_vf_rounded.le_all(f_vf_max)
 
         # determine inclusivity (upper segment boundaries are exclusive)
-        inclusive = f_vf.neq_all(f_vf_max)
+        inclusive = f_vf.ne_all(f_vf_max)
 
         # rotate into projection space
         f_pf = proj.vol_to_proj(f_vf)
@@ -1614,12 +1592,17 @@ struct _RTPlane[dtype: DType, simd_width: Int, plane: _CTPlane](
     Copyable,
     Movable
 ):
+    var normal_v: Vec[3,SIMD[dtype,simd_width]]
     var unit_z_component: SIMD[dtype,simd_width]
 
     fn __init__(out self):
+        self.normal_v = Vec[3,SIMD[dtype,simd_width]](fill=0)
         self.unit_z_component = SIMD[dtype,simd_width](0)
 
     fn init(mut self, i: Int, proj: VolumeNeighborhoodsProjection[dtype]):
+
+        self.normal_v[slice=i] = proj.proj_to_vol(materialize[plane.normal_f[dtype]()]())
+
         var unit_z_v = proj.proj_to_vol(materialize[_CTPlane.z().normal_f[dtype]()]())
         self.unit_z_component[i] = unit_z_v.inner_product(materialize[plane.normal_f[dtype]()]())
 
