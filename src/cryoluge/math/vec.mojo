@@ -838,17 +838,35 @@ struct Vec[
         for d in range(dim):
             result = result and self._values[d] == other._values[d]
 
+    fn eq_all_simd[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = SIMD[DType.bool,w](fill=True)
+        @parameter
+        for d in range(dim):
+            result = result & self._values[d].eq(other._values[d])
+
     fn eq_any(self, other: Self, out result: Bool):
         result = False
         @parameter
         for d in range(dim):
             result = result or self._values[d] == other._values[d]
 
-    fn neq_all(self, other: Self, out result: Bool):
+    fn eq_any_simd[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = SIMD[DType.bool,w](fill=False)
+        @parameter
+        for d in range(dim):
+            result = result | self._values[d].eq(other._values[d])
+
+    fn ne_all(self, other: Self, out result: Bool):
         result = not self.eq_any(other)
 
-    fn neq_any(self, other: Self, out result: Bool):
+    fn ne_all_simd[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = ~self.eq_any_simd(other)
+
+    fn ne_any(self, other: Self, out result: Bool):
         result = not self.eq_all(other)
+
+    fn ne_any_simd[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], other: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = ~self.eq_all_simd(other)
 
     fn lt_any(self: Vec[dim,Int], other: Vec[dim,Int], out result: Bool):
         result = False
