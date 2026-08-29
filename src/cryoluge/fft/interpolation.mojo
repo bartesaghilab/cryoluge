@@ -1056,20 +1056,16 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
     var rot_proj_to_vol: Matrix[3,3,dtype,simd_width]
     var segment_extents_neg: Vec[3,SIMD[dtype,simd_width]]
     var segment_extents_pos: Vec[3,SIMD[dtype,simd_width]]
-    var plane_x: Self.Plane[Self.PX]
-    var plane_y: Self.Plane[Self.PY]
-    var plane_z: Self.Plane[Self.PZ]
     var planes_xy: Self.Planes[Self.PX,Self.PY,Self.PZ]
     var planes_xz: Self.Planes[Self.PX,Self.PZ,Self.PY]
     var planes_yz: Self.Planes[Self.PY,Self.PZ,Self.PX]
 
     comptime num_neighborhoods_in_segment = _num_neighborhoods_in_segment[simd_width]()
     comptime segment_sizes = Vec[3,Int](x=Self.num_neighborhoods_in_segment, y=1, z=1)
-    comptime PX = _CTPlane.x(Self.segment_sizes.x())
-    comptime PY = _CTPlane.y()
-    comptime PZ = _CTPlane.z()
-    comptime Plane = _RTPlane[dtype,simd_width,_]
-    comptime Planes = _RTPlanes[dtype,simd_width,_]
+    comptime PX = _Plane.x(Self.segment_sizes.x())
+    comptime PY = _Plane.y()
+    comptime PZ = _Plane.z()
+    comptime Planes = _Planes[dtype,simd_width,_]
 
     fn __init__(out self):
         comptime zero_i = SIMDInt[simd_width](0)
@@ -1079,9 +1075,6 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         self.rot_proj_to_vol = Matrix[3,3,dtype,simd_width](fill=0)
         self.segment_extents_neg = Vec[3](fill=zero_f)
         self.segment_extents_pos = Vec[3](fill=zero_f)
-        self.plane_x = Self.Plane[Self.PX]()
-        self.plane_y = Self.Plane[Self.PY]()
-        self.plane_z = Self.Plane[Self.PZ]()
         self.planes_xy = Self.Planes[Self.PX,Self.PY,Self.PZ]()
         self.planes_xz = Self.Planes[Self.PX,Self.PZ,Self.PY]()
         self.planes_yz = Self.Planes[Self.PY,Self.PZ,Self.PX]()
@@ -1119,35 +1112,37 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         f_vf = self.proj_to_vol(f_pf.lift(z=0))
 
     @always_inline
-    fn intersect_p[d1: Int, d2: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
+    fn normal_p[p: _Plane](
+        self,
+        out normal_p: Vec[3,SIMD[dtype,simd_width]]
+    ):
+        normal_p = self.rot_proj_to_vol.vec(row=p.d)
+
+    @always_inline
+    fn normal_v[p: _Plane](
+        self,
+        out normal_v: Vec[3,SIMD[dtype,simd_width]]
+    ):
+        normal_v = self.rot_proj_to_vol.vec(col=p.d)
+
+    @always_inline
+    fn unit_z_v_component[p: _Plane](
+        self,
+        out z: SIMD[dtype,simd_width]
+    ):
+        z = self.rot_proj_to_vol[p.d,2]
+
+    @always_inline
+    fn segment_bounds_vf(
         self,
         f_vi_corner: Vec[3,Int],
-        planes: Self.Planes[p1,p2,p3],
-        mut p_pf: Vec[2,SIMD[dtype,simd_width]],
-        mut in_range: SIMDBool[simd_width]
+        out bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]]
     ):
-        # start at the segment position, then offset by the two plane distances
-        var p_vi = Vec[2,Scalar[dtype]](
-            x = f_vi_corner[p1.d] + materialize[p1.len*d1](),
-            y = f_vi_corner[p2.d] + materialize[p2.len*d2]()
-        ).splat[simd_width]()
+        # get the segment bounds in volume-space
+        var min_vf = f_vi_corner.map_scalar[dtype]().splat[simd_width]()
+        var max_vf = (min_vf + materialize[Self.segment_sizes.map_scalar[dtype]().splat[simd_width]()]())
+        bounds_vf = (min_vf^, max_vf^)
 
-        # get the third plane coordinate by intersecting with the z_p=0 plane
-        # (for each projection)
-        var p_vf = Vec[3,SIMD[dtype,simd_width]](uninitialized=True)
-        p_vf[p1.d] = p_vi.x()
-        p_vf[p2.d] = p_vi.y()
-        p_vf[p3.d] = p_vi.inner_product(planes.f)
-
-        # transform the intersection point into projection-space
-        p_pf = self.vol_to_proj(p_vf).project[2]()
-
-        # check the range against the third planes
-        var f_vf_corner = f_vi_corner.map_scalar[dtype]().splat[simd_width]()
-        var c = (p_vf - f_vf_corner).round[rounding]()[p3.d]
-        in_range = c.ge(0).__and__(c.le(p3.len))
-
-    # TODO: @always_inline?
     fn bound_pf[x_halfspace: Int](
         self,
         f_vi_corner: Vec[3,Int],
@@ -1155,122 +1150,68 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
     ):
         bound_pf = _PBound[2,dtype,simd_width]()
 
-        # TEMP
-        # get the segment bounds in volume-space
-        var seg_min_vf = f_vi_corner.map_scalar[dtype]()
-        var seg_max_vf = (seg_min_vf + materialize[Self.segment_sizes.map_scalar[dtype]()]())
-        var seg_bounds_vf = (seg_min_vf^, seg_max_vf^)
+        var seg_bounds_vf = self.segment_bounds_vf(f_vi_corner)
 
-        # TEMP: can we move the corner outside at all?
-        # var seg_sizes_f = materialize[Self.segment_sizes.map_scalar[dtype]()]()
+        # TODO: NEXTTIME: is this separable by volume-space dimension?
+        #                 maybe only small parts change when moving along a volume-space axis
 
-        # TEMP: inline the first intersection point x,y
-        from cryoluge.lang import LexicalScope
-        with LexicalScope():
+        # check ranges first
+        var bound_terms_xy = self.planes_xy.bound_terms(seg_bounds_vf)
+        var in_range_xy_00 = self.planes_xy.in_range_p[0,0](seg_bounds_vf, bound_terms_xy)
+        var in_range_xy_01 = self.planes_xy.in_range_p[0,1](seg_bounds_vf, bound_terms_xy)
+        var in_range_xy_10 = self.planes_xy.in_range_p[1,0](seg_bounds_vf, bound_terms_xy)
+        var in_range_xy_11 = self.planes_xy.in_range_p[1,1](seg_bounds_vf, bound_terms_xy)
+        var bound_terms_xz = self.planes_xz.bound_terms(seg_bounds_vf)
+        var in_range_xz_00 = self.planes_xz.in_range_p[0,0](seg_bounds_vf, bound_terms_xz)
+        var in_range_xz_01 = self.planes_xz.in_range_p[0,1](seg_bounds_vf, bound_terms_xz)
+        var in_range_xz_10 = self.planes_xz.in_range_p[1,0](seg_bounds_vf, bound_terms_xz)
+        var in_range_xz_11 = self.planes_xz.in_range_p[1,1](seg_bounds_vf, bound_terms_xz)
+        var bound_terms_yz = self.planes_yz.bound_terms(seg_bounds_vf)
+        var in_range_yz_00 = self.planes_yz.in_range_p[0,0](seg_bounds_vf, bound_terms_yz)
+        var in_range_yz_01 = self.planes_yz.in_range_p[0,1](seg_bounds_vf, bound_terms_yz)
+        var in_range_yz_10 = self.planes_yz.in_range_p[1,0](seg_bounds_vf, bound_terms_yz)
+        var in_range_yz_11 = self.planes_yz.in_range_p[1,1](seg_bounds_vf, bound_terms_yz)
 
-            # TEMP: try to solve the first intersection in projection-space
-            var f_vf_corner = f_vi_corner.map_scalar[dtype]()
-            var p = self.vol_to_proj(f_vf_corner)
+        # if nothing's in range, we're done here
+        var any_in_range = (
+              in_range_xy_00 | in_range_xy_01 | in_range_xy_10 | in_range_xy_11
+            | in_range_xz_00 | in_range_xz_01 | in_range_xz_10 | in_range_xz_11
+            | in_range_yz_00 | in_range_yz_01 | in_range_yz_10 | in_range_yz_11
+        ).reduce_or()
+        if not any_in_range:
+            return
 
-            # per-bound constants
-            var pnx = p.inner_product(self.plane_x.normal_p)
-            var pny = p.inner_product(self.plane_y.normal_p)
-            var pnz = p.inner_product(self.plane_z.normal_p)
-
-            @parameter
-            fn test_update_bound[
-                dv: Int, dw: Int,  # TODO: rename to u,v ??
-                p1: _CTPlane, p2: _CTPlane, p3: _CTPlane
-            ](
-                planes: _RTPlanes[dtype,simd_width,p1,p2,p3],
-                u: Vec[2,SIMD[dtype,simd_width]]
-            ):
-                # compute if the intersection lies inside the segment
-                # (only need to check the third planes)
-                var corner_vf = Vec[2](
-                    x = seg_bounds_vf[dv][p1.d],
-                    y = seg_bounds_vf[dw][p2.d]
-                )
-                var c3_vf = corner_vf.splat[simd_width]().inner_product(planes.f)
-                var in_range = c3_vf.ge(seg_bounds_vf[0][p3.d]).__and__(c3_vf.le(seg_bounds_vf[1][p3.d]))
-
-                # compute the intersection point
-                var p_pf = u + planes.v*dv + planes.w*dw
-
-                bound_pf.update(in_range, p_pf.round[rounding]())
-
-            # xy intersections
-            var u_xy = self.planes_xy.u(Vec[2](x=pnx, y=pny))
-            test_update_bound[0,0](self.planes_xy, u_xy)
-            test_update_bound[0,1](self.planes_xy, u_xy)
-            test_update_bound[1,0](self.planes_xy, u_xy)
-            test_update_bound[1,1](self.planes_xy, u_xy)
-
-            # xz intersections
-            var u_xz = self.planes_xz.u(Vec[2](x=pnx, y=pnz))
-            # test_update_bound[0,0](self.planes_xz, u_xz)
-            # TODO: NEXTTIME: get the other plane pairs working!!
-
-            # TEMP: extend lifetimes to work around compiler bug
-            _ = seg_bounds_vf
-
-        @parameter
-        @always_inline
-        fn update[d1: Int, d2: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
-            planes: Self.Planes[p1,p2,p3]
-        ):
-            # start on two of the segment boundaries
-            var p_vi = Vec[2,SIMD[dtype,simd_width]](
-                x = seg_bounds_vf[d1][p1.d],
-                y = seg_bounds_vf[d2][p2.d]
-            )
-
-            # get the third plane coordinate by intersecting with the z_p=0 plane
-            # (for each projection)
-            var p_vf = Vec[3,SIMD[dtype,simd_width]](uninitialized=True)
-            p_vf[p1.d] = p_vi.x()
-            p_vf[p2.d] = p_vi.y()
-            p_vf[p3.d] = p_vi.inner_product(planes.f)
-
-            # transform the intersection point into projection-space
-            var p_pf = self.vol_to_proj(p_vf).project[2]()
-
-            # check the range against the third planes
-            var f_vf_corner = f_vi_corner.map_scalar[dtype]().splat[simd_width]()
-            var c = (p_vf - f_vf_corner).round[rounding]()[p3.d]
-            var in_range = c.ge(0).__and__(c.le(p3.len))
-
-            # update the bounds
-            bound_pf.update(in_range, p_pf.round[rounding]())
-
-        # check all 12 intersection points
-        #update[0,0](self.planes_xy)
-        #update[0,1](self.planes_xy)
-        #update[1,0](self.planes_xy)
-        #update[1,1](self.planes_xy)
-
-        update[0,0](self.planes_xz)
-        update[0,1](self.planes_xz)
-        update[1,0](self.planes_xz)
-        update[1,1](self.planes_xz)
-
-        update[0,0](self.planes_yz)
-        update[0,1](self.planes_yz)
-        update[1,0](self.planes_yz)
-        update[1,1](self.planes_yz)
+        # then compute the intersections
+        var p_pf_xy = self.planes_xy.intersect_min_p(seg_bounds_vf)
+        bound_pf.update[rounding=rounding](in_range_xy_00, self.planes_xy.intersect_p[0,0](p_pf_xy))
+        bound_pf.update[rounding=rounding](in_range_xy_01, self.planes_xy.intersect_p[0,1](p_pf_xy))
+        bound_pf.update[rounding=rounding](in_range_xy_10, self.planes_xy.intersect_p[1,0](p_pf_xy))
+        bound_pf.update[rounding=rounding](in_range_xy_11, self.planes_xy.intersect_p[1,1](p_pf_xy))
+        var p_pf_xz = self.planes_xz.intersect_min_p(seg_bounds_vf)
+        bound_pf.update[rounding=rounding](in_range_xz_00, self.planes_xz.intersect_p[0,0](p_pf_xz))
+        bound_pf.update[rounding=rounding](in_range_xz_01, self.planes_xz.intersect_p[0,1](p_pf_xz))
+        bound_pf.update[rounding=rounding](in_range_xz_10, self.planes_xz.intersect_p[1,0](p_pf_xz))
+        bound_pf.update[rounding=rounding](in_range_xz_11, self.planes_xz.intersect_p[1,1](p_pf_xz))
+        var p_pf_yz = self.planes_yz.intersect_min_p(seg_bounds_vf)
+        bound_pf.update[rounding=rounding](in_range_yz_00, self.planes_yz.intersect_p[0,0](p_pf_yz))
+        bound_pf.update[rounding=rounding](in_range_yz_01, self.planes_yz.intersect_p[0,1](p_pf_yz))
+        bound_pf.update[rounding=rounding](in_range_yz_10, self.planes_yz.intersect_p[1,0](p_pf_yz))
+        bound_pf.update[rounding=rounding](in_range_yz_11, self.planes_yz.intersect_p[1,1](p_pf_yz))
 
         # check inclusivity for the bound edges
         # even if the edge endpoints are not inclusive, a non-endpoint could be,
         # and all non-endpoints on an edge will have the same inclusivity,
         # so we can check any arbitrary point, like the midpoint
-        var min_vf = self.proj_to_vol(bound_pf.f.min)
-        comptime zero = Scalar[dtype](0)
-        var delta_pf = bound_pf.f.max - bound_pf.f.min
-        var dir_x_vf = self.plane_x.normal_v*delta_pf.x()
-        var dir_y_vf = self.plane_y.normal_v*delta_pf.y()
 
-        var excluded = (materialize[Self.segment_sizes.map_scalar[dtype]()]() + f_vi_corner.map_scalar[dtype]())
-            .splat[simd_width]()
+        # NOTE: disabling this check doesn't seem to speed things up much,
+        #       even on non-degenerate cases (eg, not 90-degree rotations) where we don't expect it to help
+
+        var min_vf = self.proj_to_vol(bound_pf.f.min)
+        var delta_pf = bound_pf.f.max - bound_pf.f.min
+        var dir_x_vf = self.normal_v[Self.PX]()*delta_pf.x()
+        var dir_y_vf = self.normal_v[Self.PY]()*delta_pf.y()
+
+        ref excluded = seg_bounds_vf[1]
 
         var p00 = (min_vf + dir_x_vf*0.0 + dir_y_vf*0.0).ne_all_simd(excluded)
         var p01 = (min_vf + dir_x_vf*0.0 + dir_y_vf*0.5).ne_all_simd(excluded)
@@ -1289,7 +1230,6 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         bound_pf.f.min_inclusive.y() = (p00 | p10 | p20) & bound_pf.mask
         bound_pf.f.max_inclusive.y() = (p02 | p12 | p22) & bound_pf.mask
 
-    # TODO: @always_inline?
     fn bound_pi[dim: Int, bound_simd_width: Int](
         self,
         bound_pf: _PBound[dim,dtype,bound_simd_width],
@@ -1441,18 +1381,21 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         var outside_points = List[Vec[2,Scalar[dtype]]]()
 
         @parameter
-        fn classify_intersection[d1: Int, d2: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
+        fn classify_intersection[d1: Int, d2: Int, p1: _Plane, p2: _Plane, p3: _Plane](
             planes: Self.Planes[p1,p2,p3]
         ):
-            # compute the intersection point
-            var p_pf = Vec[2,SIMD[dtype,simd_width]](fill=0)
-            var in_range = SIMDBool[simd_width](fill=False)
-            self.intersect_p[d1,d2](f_vi_corner, planes, p_pf, in_range)
+            var seg_bounds_vf = self.segment_bounds_vf(f_vi_corner)
+
+            var terms = planes.bound_terms(seg_bounds_vf)
+            var in_range = planes.in_range_p[d1,d2](seg_bounds_vf, terms)
+
+            var p_pf = planes.intersect_min_p(seg_bounds_vf)
+            var pd_pf = planes.intersect_p[d1,d2](p_pf)
 
             if in_range[w]:
-                inside_points.append(p_pf[slice=w])
+                inside_points.append(pd_pf[slice=w])
             else:
-                outside_points.append(p_pf[slice=w])
+                outside_points.append(pd_pf[slice=w])
 
         # collect all 12 intersection points
         classify_intersection[0,0](self.planes_xy)
@@ -1543,7 +1486,9 @@ struct _Projections[simd_width: Int, dtype: DType, *, rounding: Optional[Int] = 
     Copyable,
     Movable
 ):
-    var groups: List[_ProjectionGroup[dtype,simd_width,rounding=rounding]]
+    var groups: List[Self.Group]
+
+    comptime Group = _ProjectionGroup[dtype,simd_width,rounding=rounding]
 
     fn __init__(out self, projections: List[VolumeNeighborhoodsProjection[dtype]]):
 
@@ -1582,21 +1527,16 @@ struct _Projections[simd_width: Int, dtype: DType, *, rounding: Optional[Int] = 
             group.segment_extents_neg[slice=i] = voxel_extents_neg.min(voxel_extents_neg + seg_vec)
             group.segment_extents_pos[slice=i] = voxel_extents_pos.max(voxel_extents_pos + seg_vec)
 
-            # init the plane info
-            group.plane_x.init(i, proj)
-            group.plane_y.init(i, proj)
-            group.plane_z.init(i, proj)
-
         # init the plane pairs
         for i in range(len(self.groups)):
             ref g = self.groups[i]
-            g.planes_xy.init(g.plane_x, g.plane_y, g.plane_z)
-            g.planes_xz.init(g.plane_x, g.plane_z, g.plane_y)
-            g.planes_yz.init(g.plane_y, g.plane_z, g.plane_x)
+            g.planes_xy = _Planes[dtype,simd_width,Self.Group.PX,Self.Group.PY,Self.Group.PZ](g)
+            g.planes_xz = _Planes[dtype,simd_width,Self.Group.PX,Self.Group.PZ,Self.Group.PY](g)
+            g.planes_yz = _Planes[dtype,simd_width,Self.Group.PY,Self.Group.PZ,Self.Group.PX](g)
 
 
 @fieldwise_init
-struct _CTPlane(
+struct _Plane(
     Copyable,
     Movable
 ):
@@ -1624,88 +1564,116 @@ struct _CTPlane(
         n = self.normal_i().map_scalar[dtype]()
 
 
-struct _RTPlane[dtype: DType, simd_width: Int, plane: _CTPlane](
+struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane](
     Copyable,
     Movable
 ):
-    var normal_v: Vec[3,SIMD[dtype,simd_width]]
-    var normal_p: Vec[3,SIMD[dtype,simd_width]]
-    var unit_z_v_component: SIMD[dtype,simd_width]
-
-    fn __init__(out self):
-        self.normal_v = Vec[3,SIMD[dtype,simd_width]](fill=0)
-        self.normal_p = Vec[3,SIMD[dtype,simd_width]](fill=0)
-        self.unit_z_v_component = SIMD[dtype,simd_width](0)
-
-    fn init(mut self, i: Int, proj: VolumeNeighborhoodsProjection[dtype]):
-
-        # TODO: these are just components of the rotation matrix, right?
-        self.normal_v[slice=i] = proj.proj_to_vol(materialize[plane.normal_f[dtype]()]())
-        self.normal_p[slice=i] = proj.vol_to_proj(materialize[plane.normal_f[dtype]()]())
-
-        var unit_z_v = proj.proj_to_vol(materialize[_CTPlane.z().normal_f[dtype]()]())
-        self.unit_z_v_component[i] = unit_z_v[plane.d]
-
-
-struct _RTPlanes[dtype: DType, simd_width: Int, p1: _CTPlane, p2: _CTPlane, p3: _CTPlane](
-    Copyable,
-    Movable
-):
+    # TODO: rename these to something more meaningful!
     var f: Vec[2,SIMD[dtype,simd_width]]
-    var u1: Vec[2,SIMD[dtype,simd_width]]
-    var u2: Vec[2,SIMD[dtype,simd_width]]
+    var s1: Vec[3,SIMD[dtype,simd_width]]
+    var s2: Vec[3,SIMD[dtype,simd_width]]
+    var u: Vec[2,SIMD[dtype,simd_width]]
     var v: Vec[2,SIMD[dtype,simd_width]]
-    var w: Vec[2,SIMD[dtype,simd_width]]
-
-    comptime Plane = _RTPlane[dtype,simd_width,_]
 
     fn __init__(out self):
         self.f = Vec[2,SIMD[dtype,simd_width]](fill=0)
-        self.u1 = Vec[2,SIMD[dtype,simd_width]](fill=0)
-        self.u2 = Vec[2,SIMD[dtype,simd_width]](fill=0)
+        self.s1 = Vec[3,SIMD[dtype,simd_width]](fill=0)
+        self.s2 = Vec[3,SIMD[dtype,simd_width]](fill=0)
+        self.u = Vec[2,SIMD[dtype,simd_width]](fill=0)
         self.v = Vec[2,SIMD[dtype,simd_width]](fill=0)
-        self.w = Vec[2,SIMD[dtype,simd_width]](fill=0)
 
-    fn init(
-        mut self,
-        _p1: Self.Plane[Self.p1],
-        _p2: Self.Plane[Self.p2],
-        _p3: Self.Plane[Self.p3]
+    fn __init__(
+        out self,
+        group: _ProjectionGroup[dtype,simd_width,rounding=_]
     ):
-        self.f = -Vec[2](
-            x = _p1.unit_z_v_component,
-            y = _p2.unit_z_v_component
-        )/_p3.unit_z_v_component
+        # intersection forumla for two axis-aligned volume-space planes with z_p=0,
+        # but only the third coordinate
+        # ie, at a point p_v, the third coord is p_v.f
+        var unit_z_v = group.normal_v[_Plane.z()]()
+        self.f = -Vec[2](x=unit_z_v[p1.d], y=unit_z_v[p2.d])/unit_z_v[p3.d]
 
-        # compute the planes' mixed components for z_p=0 intersection
-        ref n0 = _p1.normal_p
-        ref n1 = _p2.normal_p
-        comptime d0 = p1.d
-        comptime d1 = p2.d
-
-        var d = n1[d0]*n0[d1] - n0[d0]*n1[d1]
-        self.u1 = Vec[2](x=n0[d1], y=-n1[d1])/d
-        self.u2 = Vec[2](x=n1[d0], y=-n0[d0])/d
-
+        # get the plane normals and mix them
+        var n0 = group.normal_p[p1]()
+        var n1 = group.normal_p[p2]()
         var n00 = n0.inner_product(n0)
         var n01 = n0.inner_product(n1)
         var n11 = n1.inner_product(n1)
 
-        self.v = Vec[2](
-            x = Vec[2](x=n01, y=n00).inner_product(self.u1),
-            y = Vec[2](x=n00, y=n01).inner_product(self.u2)
-        )*p1.len
-        self.w = Vec[2](
-            x = Vec[2](x=n11, y=n01).inner_product(self.u1),
-            y = Vec[2](x=n01, y=n11).inner_product(self.u2)
-        )*p2.len
-
-    # TODO: come up with more descriptive names
-    fn u(self, p: Vec[2,SIMD[dtype,simd_width]], out u: Vec[2,SIMD[dtype,simd_width]]):
-        u = Vec[2](
-            x = Vec[2](x=p[1], y=p[0]).inner_product(self.u1),
-            y = Vec[2](x=p[0], y=p[1]).inner_product(self.u2)
+        # intersection formula for two planes in projection-space at z_p=0
+        # ie, at a point p_p, the intersection is <p_p.t1, p_p.t2>
+        var d = n1[0]*n0[1] - n0[0]*n1[1]
+        var u1 = Vec[2](x=-n1[1], y=n0[1])/d
+        var u2 = Vec[2](x=n1[0], y=-n0[0])/d
+        var t1 = u1.three_inner_products(
+            Vec[2](x=n0[0], y=n1[0]),
+            Vec[2](x=n0[1], y=n1[1]),
+            Vec[2](x=n0[2], y=n1[2])
         )
+        var t2 = u2.three_inner_products(
+            Vec[2](x=n0[0], y=n1[0]),
+            Vec[2](x=n0[1], y=n1[1]),
+            Vec[2](x=n0[2], y=n1[2])
+        )
+
+        # rotate t1,t2 into volume space so we can apply them to volume-space points directly
+        # ie, at a point p_v, the intersection is <p_v.s1, p_v.s2>
+        self.s1 = group.proj_to_vol(t1)
+        self.s2 = group.proj_to_vol(t2)
+
+        # direction vectors for the volume-space unit axes in the z_p=0 plane
+        # ie, for a delta vector <dx_v,dy_v> in volume-space,
+        # the intersection point moves by <dx_v*u, dy_v*v> in projection-space
+        self.u = Vec[2](x=n00, y=n01).two_inner_products(u1, u2)*p1.len
+        self.v = Vec[2](x=n01, y=n11).two_inner_products(u1, u2)*p2.len
+
+    @always_inline
+    fn project(
+        self,
+        v: Vec[3,SIMD[dtype,simd_width]],
+        out result: Vec[2,SIMD[dtype,simd_width]]
+    ):
+        result = Vec[2](x=v[p1.d], y=v[p2.d])
+
+    @always_inline
+    fn bound_terms(
+        self,
+        seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
+        out terms: Tuple[Vec[2,SIMD[dtype,simd_width]],Vec[2,SIMD[dtype,simd_width]]]
+    ):
+        terms = (
+            self.project(seg_bounds_vf[0])*self.f,
+            self.project(seg_bounds_vf[1])*self.f
+        )
+
+    @always_inline
+    fn in_range_p[d1: Int, d2: Int](
+        self,
+        seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
+        terms: Tuple[Vec[2,SIMD[dtype,simd_width]],Vec[2,SIMD[dtype,simd_width]]],
+        out in_range: SIMDBool[simd_width]
+    ):
+        # compute if the intersection lies inside the segment, in volume-space
+        # (only need to check the third planes)
+        var c3 = terms[d1][0] + terms[d2][1]
+        in_range = c3.ge(seg_bounds_vf[0][p3.d]).__and__(c3.le(seg_bounds_vf[1][p3.d]))
+
+    @always_inline
+    fn intersect_min_p(
+        self,
+        seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
+        out p: Vec[2,SIMD[dtype,simd_width]]
+    ):
+        p = seg_bounds_vf[0].two_inner_products(self.s1, self.s2)
+
+    @always_inline
+    fn intersect_p[du: Int, dv: Int](
+        self,
+        p_pf: Vec[2,SIMD[dtype,simd_width]],
+        out i_pf: Vec[2,SIMD[dtype,simd_width]]
+    ):
+        # compute the intersection point, in projection-space,
+        # by just translating the existing intersection point along the u,v directions
+        i_pf = p_pf + self.u*du + self.v*dv
 
 
 @fieldwise_init
@@ -1720,21 +1688,21 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
         self.mask = SIMDBool[simd_width](fill=False)
         self.f = _Bounds[dim,dtype,simd_width]()
 
-    fn update(
+    fn update[*, rounding: Optional[Int] = None](
         mut self,
         in_range: SIMDBool[simd_width],
         f: Vec[dim,SIMD[dtype,simd_width]]
     ):
-        self.f.update(in_range, f, self.mask)
+        self.f.update(in_range, f.round[rounding](), self.mask)
         self.mask |= in_range
 
-    fn update(
+    fn update[*, rounding: Optional[Int] = None](
         mut self,
         in_range: SIMDBool[simd_width],
         f: Vec[dim,SIMD[dtype,simd_width]],
         inclusive: SIMDBool[simd_width]
     ):
-        self.f.update(in_range, f, self.mask, inclusive)
+        self.f.update(in_range, f.round[rounding](), self.mask, inclusive)
         self.mask |= in_range
 
 

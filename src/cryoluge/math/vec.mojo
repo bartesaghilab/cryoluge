@@ -202,11 +202,11 @@ struct Vec[
         result = self.lift[4,1](Vec[1,T](x=w))
 
     @always_inline
-    fn has_nan[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Bool):
+    fn has_nan[dtype: DType, w:Int](self: Vec[dim,SIMD[dtype,w]], out result: Bool):
         result = False
         @parameter
         for d in range(dim):
-            result = result or isnan(self[d])
+            result = result or isnan(self[d]).reduce_or()
 
     @always_inline
     fn min(self: Vec[dim,Int], out result: Int):
@@ -886,6 +886,32 @@ struct Vec[
     @always_inline
     fn inner_product[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], other: Vec[dim,Scalar[dtype]], out result: Unit[utype,dtype]):
         result = self.inner_product(other.map_unit[utype]())
+
+    @always_inline
+    fn two_inner_products[dtype: DType, w: Int](
+        self: Vec[dim,SIMD[dtype,w]],
+        v0: Vec[dim,SIMD[dtype,w]],
+        v1: Vec[dim,SIMD[dtype,w]],
+        out result: Vec[2,SIMD[dtype,w]]
+    ):
+        result = Vec[2](
+            x = self.inner_product(v0),
+            y = self.inner_product(v1)
+        )
+
+    @always_inline
+    fn three_inner_products[dtype: DType, w: Int](
+        self: Vec[dim,SIMD[dtype,w]],
+        v0: Vec[dim,SIMD[dtype,w]],
+        v1: Vec[dim,SIMD[dtype,w]],
+        v2: Vec[dim,SIMD[dtype,w]],
+        out result: Vec[3,SIMD[dtype,w]]
+    ):
+        result = Vec[3](
+            x = self.inner_product(v0),
+            y = self.inner_product(v1),
+            z = self.inner_product(v2)
+        )
 
     @always_inline
     fn len2(self: Vec[dim,Int], out result: Int):
