@@ -104,17 +104,17 @@ struct Benchmark(
         return String.write(self)
 
 
-struct Profiler(
+struct Profiler[*, enabled: Bool = True](
     Movable,
     Writable,
     Stringable
 ):
-    var _counters: MovableList[ProfilerCounter]
+    var _counters: MovableList[ProfilerCounter[enabled=enabled]]
     var _lookup: Dict[String,Int]
     var unit: StaticString
 
     fn __init__(out self, *, unit: StaticString = 's'):
-        self._counters = MovableList[ProfilerCounter](capacity=64)
+        self._counters = MovableList[ProfilerCounter[enabled=enabled]](capacity=64)
         # NOTE: use a somewhat large initial capacity for the list,
         #       otherwise, creating new counters can invalidate outstanding counter references
         #       when the list resizes
@@ -124,38 +124,46 @@ struct Profiler(
         self._lookup = {}
         self.unit = unit
 
-    fn counter(mut self, name: String) -> ref [self._counters[0]] ProfilerCounter:
+    fn counter(mut self, name: String) -> ref [self._counters[0]] ProfilerCounter[enabled=enabled]:
         var i = self._lookup.get(name)
         if i is None:
             i = len(self._counters)
-            self._counters.append(ProfilerCounter(name, self.unit))
+            self._counters.append(ProfilerCounter[enabled=enabled](name, self.unit))
             self._lookup[name] = i.value()
         return self._counters[i.value()]
 
     fn start(mut self, name: String):
-        self.counter(name).start()
+        @parameter
+        if enabled:
+            self.counter(name).start()
 
     fn stop[*, verbose: Bool = False](mut self, name: String):
-        self.counter(name).stop[verbose=verbose]()
+        @parameter
+        if enabled:
+            self.counter(name).stop[verbose=verbose]()
         
     fn switch[*, verbose: Bool = False](mut self, stop: String, start: String):
-        self.stop[verbose=verbose](stop)
-        self.start(start)
+        @parameter
+        if enabled:
+            self.stop[verbose=verbose](stop)
+            self.start(start)
 
     fn write_to[W: Writer](self, mut writer: W):
-        writer.write("Profiler[")
-        for i in range(len(self._counters)):
-            if i > 0:
-                writer.write("  ")
-            ref counter = self._counters[i]
-            writer.write(counter.name, "=", _render_elapsed(counter.elapsed_s(), self.unit))
-        writer.write("]")
+        @parameter
+        if enabled:
+            writer.write("Profiler[")
+            for i in range(len(self._counters)):
+                if i > 0:
+                    writer.write("  ")
+                ref counter = self._counters[i]
+                writer.write(counter.name, "=", _render_elapsed(counter.elapsed_s(), self.unit))
+            writer.write("]")
 
     fn __str__(self) -> String:
         return String.write(self)
 
 
-struct ProfilerCounter(
+struct ProfilerCounter[*, enabled: Bool = True](
     Movable,
     Writable,
     Stringable
@@ -173,29 +181,33 @@ struct ProfilerCounter(
 
     @always_inline
     fn start(mut self):
-        self._start = now()
+        @parameter
+        if enabled:
+            self._start = now()
 
     @always_inline
     fn stop[*, verbose: Bool = False](mut self):
-        var elapsed = now() - self._start.value()
-        self._start = None
-        self._elapsed += elapsed
         @parameter
-        if verbose:
-            print("ProfilerCounter[", self.name, ":",
-                "  elapsed=", _render_elapsed(_ns_to_s(elapsed), self.unit),
-                "  total=", _render_elapsed(self.elapsed_s(), self.unit),
-            "]", sep="")
+        if enabled:
+            var elapsed = now() - self._start.value()
+            self._start = None
+            self._elapsed += elapsed
+            @parameter
+            if verbose:
+                print("ProfilerCounter[", self.name, ":",
+                    "  elapsed=", _render_elapsed(_ns_to_s(elapsed), self.unit),
+                    "  total=", _render_elapsed(self.elapsed_s(), self.unit),
+                "]", sep="")
     
     fn elapsed_s(self, out s: Float32):
         s = _ns_to_s(self._elapsed)
 
     fn write_to[W: Writer](self, mut writer: W):
-        writer.write("ProfilerCounter[",
-            self.name, "=", _render_elapsed(self.elapsed_s(), self.unit),
-            # TEMP
-            "p=", String(Pointer(to=self._elapsed)),
-        "]")
+        @parameter
+        if enabled:
+            writer.write("ProfilerCounter[",
+                self.name, "=", _render_elapsed(self.elapsed_s(), self.unit),
+            "]")
 
     fn __str__(self) -> String:
         return String.write(self)
