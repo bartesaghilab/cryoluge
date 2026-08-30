@@ -639,13 +639,23 @@ struct TestConditions:
 
 fn _make_rot(params: Vec[3,Int], out rot: Matrix[3,3,dtype]):
 
-    rot = Matrix[3,3,dtype](uninitialized=True)
-    var angles = EulerAnglesZYZ[dtype](
-        psi=Deg[dtype](params.x()),
-        theta=Deg[dtype](params.y()),
-        phi=Deg[dtype](params.z())
-    )
-    angles.to_matrix(mat=rot)
+    # HACKHACK: many right angle rotations can't be exactly represented in the matrix,
+    #           so round a bit, as needed
+    comptime rounding = 5
+
+    var rot_psi = Matrix[3,3,dtype](rotate_z=Deg[dtype](params.x()))
+    if params.x() % 90 == 0:
+        rot_psi = rot_psi.__round__(rounding)
+
+    var rot_theta = Matrix[3,3,dtype](rotate_y=Deg[dtype](params.y()))
+    if params.y() % 90 == 0:
+        rot_theta = rot_theta.__round__(rounding)
+
+    var rot_phi = Matrix[3,3,dtype](rotate_z=Deg[dtype](params.z()))
+    if params.z() % 90 == 0:
+        rot_phi = rot_phi.__round__(rounding)
+
+    rot = rot_phi*rot_theta*rot_psi
 
 
 def _test_scan[
@@ -957,27 +967,19 @@ def _test_p_bounds[
                         f_vi_corner.x() -= n - 1
 
                     # compute the projection-space bound
-                    # HACKHACK: x_halfspace is usually a compile-time parameter,
-                    #           but we only know it at run-time here,
-                    #           so make a small if statement to translate run-time to compile-time
-                    var bound_pf: _PBound[2,dtype,simd_width]
-                    if x_halfspace == 1:
-                        comptime x_hs = 1
-                        bound_pf = proj_group.bound_pf[x_hs](f_vi_corner)
-                    else:
-                        comptime x_hs = -1
-                        bound_pf = proj_group.bound_pf[x_hs](f_vi_corner)
-
-                    var bound_pi = proj_group.bound_pi(bound_pf, coords_proj)
+                    from cryoluge.fft.interpolation import _PIntersections
+                    var intersections = _PIntersections[dtype,simd_width]()
+                    intersections.compute(f_vi_corner, proj_group)
+                    var bound_y_pf = intersections.bound_y_f(proj_group)
+                    var bound_y_pi = proj_group.bound_pi(
+                        bound_y_pf,
+                        coords_proj.fmin_pos().select[1](),
+                        coords_proj.fmax().select[1]()
+                    )
 
                     @parameter
                     fn render() -> String:
-                        if x_halfspace == 1:
-                            comptime x_hs = 1
-                            return proj_group.render_bound_geometry[x_hs](p, f_vi_seg, f_vi_corner, proj, coords_proj)
-                        else:
-                            comptime x_hs = -1
-                            return proj_group.render_bound_geometry[x_hs](p, f_vi_seg, f_vi_corner, proj, coords_proj)
+                        return proj_group.render_bound_geometry(p, x_halfspace, f_vi_seg, f_vi_corner, proj, coords_proj)
 
                     @parameter
                     fn check_context() -> String:
@@ -992,18 +994,18 @@ def _test_p_bounds[
                             "\n", indent, "x_offset=", x_offset,
                             "\n", indent, "x_halfspace=", x_halfspace,
                             "\n", indent, "f_vi_seg=", f_vi_seg,
-                            "\n", indent, "mask=", bound_pf.mask[p],
-                            "\n", indent, "bound_pf=", bound_pf.f[slice=p],
-                            "\n", indent, "bound_pi=", bound_pi.f[slice=p]
+                            "\n", indent, "mask=", bound_y_pf.mask[p],
+                            "\n", indent, "bound_y_pf=", bound_y_pf.f[slice=p],
+                            "\n", indent, "bound_y_pi=", bound_y_pi.f[slice=p]
                         )
 
                     # the given bound should contain the point
-                    if not bound_pi.mask[p]:
+                    if not bound_y_pi.mask[p]:
                         raise Error("No intersection with z=0" + check_context() + "\n" + render())
-                    if f_pi.lt_any(bound_pi.f.min[slice=p].map_int()):
-                        raise Error("Min doesn't capture sample" + check_context() + "\n" + render())
-                    if f_pi.gt_any(bound_pi.f.max[slice=p].map_int()):
-                        raise Error("Max doesn't capture sample" + check_context() + "\n" + render())
+                    if f_pi.y() < bound_y_pi.f.min[slice=p].map_int()[0]:
+                        raise Error("y-min doesn't capture sample" + check_context() + "\n" + render())
+                    if f_pi.y() > bound_y_pi.f.max[slice=p].map_int()[0]:
+                        raise Error("y-max doesn't capture sample" + check_context() + "\n" + render())
 
                     # compute the x-bounds for this y scanline too
                     var bound_x_pf: _PBound[1,dtype,1]
@@ -1014,7 +1016,11 @@ def _test_p_bounds[
                         comptime x_hs = -1
                         bound_x_pf = proj_group.bound_x_pf[x_hs](f_vi_corner, f_pi.y(), proj)
                     
-                    var bound_x_pi = proj_group.bound_pi(bound_x_pf, coords_proj)
+                    var bound_x_pi = proj_group.bound_pi(
+                        bound_x_pf,
+                        coords_proj.fmin_pos().select[0](),
+                        coords_proj.fmax().select[0]()
+                    )
 
                     @parameter
                     fn check_x_context() -> String:
@@ -1050,12 +1056,6 @@ def _test_p_bounds[
                     if f_pi.x() > Int(bound_x_pi.f.max.x()):
                         raise Error("Scanline x-max doesn't capture sample" + check_x_context() + "\n" + render())
 
-                    # the 1d bound shouldn't be bigger than the 2d bound
-                    if bound_x_pi.f.min.x() < bound_pi.f.min.x()[p]:
-                        raise Error("Scanline x-min outside of 2d min" + check_x_context() + "\n" + render())
-                    if bound_x_pi.f.max.x() > bound_pi.f.max.x()[p]:
-                        raise Error("Scanline x-min outside of 2d min" + check_x_context() + "\n" + render())
-
                     # TEMP: extend lifetimes to avoid compiler bug
                     _ = proj_i
                     _ = proj
@@ -1067,8 +1067,8 @@ def _test_p_bounds[
                     _ = x_halfspace
                     _ = f_vi_seg
                     _ = f_vi_corner
-                    _ = bound_pf
-                    _ = bound_pi
+                    _ = bound_y_pf
+                    _ = bound_y_pi
                     _ = bound_x_pf
                     _ = bound_x_pi
 
