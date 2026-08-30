@@ -164,6 +164,10 @@ struct Vec[
         return self.project[1]()
 
     @always_inline
+    fn select[d: Int](self, out result: Vec[1,T]):
+        result = Vec[1](x=self[d])
+
+    @always_inline
     fn lift[
         higher_dim: Int,
         diff_dim: Int

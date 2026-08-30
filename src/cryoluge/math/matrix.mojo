@@ -377,6 +377,21 @@ struct Matrix[
                 v += self[i,d]*vec[i]
             result[d] = v
 
+    @always_inline
+    fn __round__(self, digits: Int, out result: Self):
+        result = Matrix[rows,cols,dtype,simd_width](uninitialized=True)
+        @parameter
+        for i in range(Self.num_elements):
+            result._values[i] = self._values[i].__round__(digits)
+
+    @always_inline
+    fn round[rounding: Optional[Int] = None](self, out result: Self):
+        @parameter
+        if rounding is not None:
+            result = self.__round__(rounding.value())
+        else:
+            result = self.copy()
+
     # conversion
 
     @always_inline
