@@ -26,6 +26,20 @@ fn is_odd(n: Int) -> Bool:
     return not is_even(n)
 
 
+fn round[digits: Int, dtype: DType, w: Int](v: SIMD[dtype,w]) -> SIMD[dtype,w]:
+    # the SIMD.__round__(digits) implementation is slow
+    # this is a lot faster, when we know the number of digits at compile-time
+    @parameter
+    if digits == 0:
+        return v
+    else:
+        comptime f = SIMD[dtype,w]( 10**digits )
+        comptime oof = 1.0/f
+        return (v*f).__round__()*oof
+
+    # TODO: would a bitwise right shift then left shift accomplish something similar?
+
+
 fn clamp[dtype: DType, width: Int](
     n: SIMD[dtype,width],
     out r: SIMD[dtype,width],

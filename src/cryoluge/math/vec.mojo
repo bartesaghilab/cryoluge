@@ -2,7 +2,7 @@
 from math import sqrt, floor, ceil
 from utils.numerics import isnan
 
-from cryoluge.math import unrecognized_dimension
+from cryoluge.math import unrecognized_dimension, round
 from cryoluge.math.units import Unit, UnitType, Ang, Px
 
 
@@ -264,6 +264,22 @@ struct Vec[
     @always_inline
     fn splat[w: Int](self: Vec[dim,Int], out result: Vec[dim,SIMD[DType.int,w]]):
         result = self.map_dint().splat[w]()
+
+    @always_inline
+    fn select[dtype: DType, w: Int](
+        self: Vec[dim,SIMD[DType.bool,w]],
+        *,
+        true_case: Vec[dim,SIMD[dtype,w]],
+        false_case: Vec[dim,SIMD[dtype,w]],
+        out result: Vec[dim,SIMD[dtype,w]]
+    ):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            result[d] = self[d].select(
+                true_case=true_case[d],
+                false_case=false_case[d]
+            )
 
     # math things
     # NOTE: looks like we need to use conditional conformance here (eg, specialize on Int),
@@ -824,12 +840,11 @@ struct Vec[
             result[d] = self[d].__round__(digits)
 
     @always_inline
-    fn round[rounding: Optional[Int], dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+    fn round[digits: Int, dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = Vec[dim,SIMD[dtype,w]](uninitialized=True)
         @parameter
-        if rounding is not None:
-            result = self.__round__(rounding.value())
-        else:
-            result = self.copy()
+        for d in range(dim):
+            result[d] = round[digits](self[d])
 
     @always_inline
     fn sum(self: Vec[dim,Int], out result: Int):

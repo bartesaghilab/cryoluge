@@ -1,4 +1,5 @@
 
+from cryoluge.math import round
 from cryoluge.math.units import Rad, Deg
 
 
@@ -385,12 +386,11 @@ struct Matrix[
             result._values[i] = self._values[i].__round__(digits)
 
     @always_inline
-    fn round[rounding: Optional[Int] = None](self, out result: Self):
+    fn round[digits: Int](self, out result: Self):
+        result = Matrix[rows,cols,dtype,simd_width](uninitialized=True)
         @parameter
-        if rounding is not None:
-            result = self.__round__(rounding.value())
-        else:
-            result = self.copy()
+        for i in range(Self.num_elements):
+            result._values[i] = round[digits](self._values[i])
 
     # conversion
 

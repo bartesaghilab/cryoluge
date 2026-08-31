@@ -665,7 +665,7 @@ struct VolumeNeighborhoods[
             segment_neighborhood.in_range_x_mask[0] = True
             segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.reversed()
 
-    fn _voxels_bounds[*, rounding: Optional[Int] = None](
+    fn _voxels_bounds[*, rounding: Int = 0](
         self,
         coords_proj: FFTCoords[2],
         projections: List[VolumeNeighborhoodsProjection[dtype]],
@@ -705,7 +705,7 @@ struct VolumeNeighborhoods[
     fn scan[
         func: fn(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing,
         *,
-        rounding: Optional[Int] = None,
+        rounding: Int = 0,
         debug: Bool = False,
         debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
@@ -744,6 +744,7 @@ struct VolumeNeighborhoods[
         p.stop('v-bounds')  # TEMP
 
         # TEMP
+        ref p_p_compute = p.counter('p_compute')
         ref p_p_advance = p.counter('p_advance')
         ref p_p_bounds_f = p.counter('p_bounds_f')
         ref p_p_bounds_i = p.counter('p_bounds_i')
@@ -781,7 +782,7 @@ struct VolumeNeighborhoods[
 
                 # compute all the intersections for this z-line
                 # start below the y-min
-                p_p_advance.start()  # TEMP
+                p_p_compute.start()  # TEMP
                 var f_vi_pos = Vec[3](x=x, y=f_v_mini.y() - 1, z=z)
                 for g in range(len(simd_projections.groups)):
                     ref proj_group = simd_projections.groups[g]
@@ -801,7 +802,7 @@ struct VolumeNeighborhoods[
                             f_vi_corner.x() -= materialize[segment_sizes.x() - 1]()
 
                         intersection_groups[g].get[x_halfspace]().compute(f_vi_corner, proj_group)
-                p_p_advance.stop()  # TEMP
+                p_p_compute.stop()  # TEMP
 
                 for y in range(f_v_mini.y(), f_v_maxi.y() + 1):
 
@@ -846,7 +847,7 @@ struct VolumeNeighborhoods[
                             intersections.advance_y[x_halfspace](proj_group)
                             p_p_advance.stop()  # TEMP
 
-                            # compute a bound on the intersection of the segement with the z_p=0 plane
+                            # compute a y-bound on the intersection of the segement with the z_p=0 plane
                             p_p_bounds_f.start()  # TEMP
                             var bound_y_pf = intersections.bound_y_f(proj_group)
                             var any_in_range = bound_y_pf.mask.reduce_or()
@@ -1092,7 +1093,7 @@ struct VolumeNeighborhoodsProjection[dtype: DType](
 comptime _VoxelNeighborhood[dtype: DType] = ComplexSIMD[dtype,8]
 
 
-struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int] = None](
+struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
     Copyable,
     Movable
 ):
@@ -1170,13 +1171,6 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
     ):
         normal_v = self.rot_proj_to_vol.vec(col=p.d)
 
-    @always_inline
-    fn unit_z_v_component[p: _Plane](
-        self,
-        out z: SIMD[dtype,simd_width]
-    ):
-        z = self.rot_proj_to_vol[p.d,2]
-
     fn bound_pi[dim: Int, bound_simd_width: Int](
         self,
         bound_pf: _PBound[dim,dtype,bound_simd_width],
@@ -1192,16 +1186,20 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         ref bf = bound_pf.f
         ref bi = bound_pi.f
 
+        # apply rounding before discretizing, if needed
+        var bf_min = bf.min.round[rounding]()
+        var bf_max = bf.max.round[rounding]()
+
         # discretize the bound, paying attention to the inclusivity of each boundary
         @parameter
         for d in range(dim):
             bi.min[d] = bf.min_inclusive[d].select(
-                true_case = SIMDInt[bound_simd_width]( ceil(bf.min[d]) ),
-                false_case = SIMDInt[bound_simd_width]( floor(bf.min[d] + 1) )
+                true_case = SIMDInt[bound_simd_width]( ceil(bf_min[d]) ),
+                false_case = SIMDInt[bound_simd_width]( floor(bf_min[d] + 1) )
             )
             bi.max[d] = bf.max_inclusive[d].select(
-                true_case = SIMDInt[bound_simd_width]( floor(bf.max[d]) ),
-                false_case = SIMDInt[bound_simd_width]( ceil(bf.max[d] - 1) )
+                true_case = SIMDInt[bound_simd_width]( floor(bf_max[d]) ),
+                false_case = SIMDInt[bound_simd_width]( ceil(bf_max[d] - 1) )
             )
 
         # intersect with the projection bounds
@@ -1423,7 +1421,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Optional[Int
         )
 
 
-struct _Projections[simd_width: Int, dtype: DType, *, rounding: Optional[Int] = None](
+struct _Projections[simd_width: Int, dtype: DType, *, rounding: Int = 0](
     Copyable,
     Movable
 ):
@@ -1435,7 +1433,7 @@ struct _Projections[simd_width: Int, dtype: DType, *, rounding: Optional[Int] = 
 
         # allocate all the groups
         var num_groups = ceildiv(len(projections), simd_width)
-        self.groups = List(length=num_groups, fill=_ProjectionGroup[dtype,simd_width,rounding=rounding]())
+        self.groups = List(length=num_groups, fill=Self.Group())
 
         # populate the groups with each projection
         for p in range(len(projections)):
@@ -1615,19 +1613,15 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
         result = Vec[2](x=v[p1.d], y=v[p2.d])
 
     @always_inline
-    fn d3_vf(
+    fn d3_vf_terms(
         self,
         seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
-        mut d3_vf: _PlaneMap[3,_UVMap[SIMD[dtype,simd_width]]]
+        out d3_vf_terms: Tuple[Vec[2,SIMD[dtype,simd_width]],Vec[2,SIMD[dtype,simd_width]]]
     ):
-        var terms = (
+        d3_vf_terms = (
             self.project(seg_bounds_vf[0])*self.f,
             self.project(seg_bounds_vf[1])*self.f
         )
-        
-        @parameter
-        for uv in _UV.all:
-            d3_vf[self].at[uv]() = terms[uv.u][0] + terms[uv.v][1]
 
     @always_inline
     fn intersect_min_p(
@@ -1699,7 +1693,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
     Movable
 ):
     var seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]]
-    var d3_vf: _PlaneMap[3,_UVMap[SIMD[dtype,simd_width]]]
+    var d3_vf_terms: _PlaneMap[3,Tuple[Vec[2,SIMD[dtype,simd_width]],Vec[2,SIMD[dtype,simd_width]]]]
     var points_pf: _PlaneMap[3,Vec[2,SIMD[dtype,simd_width]]]
 
     comptime Group = _ProjectionGroup[dtype,simd_width,rounding=_]
@@ -1713,13 +1707,13 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         comptime zero3 = Vec[3,SIMD[dtype,simd_width]](fill=0)
 
         self.seg_bounds_vf = materialize[(zero3, zero3)]()
-        self.d3_vf = _PlaneMap[3](fill=_UVMap(fill=zero))
+        self.d3_vf_terms = _PlaneMap[3](fill=materialize[(zero2, zero2)]())
         self.points_pf = _PlaneMap[3](fill=materialize[zero2]())
 
-    fn compute[rounding: Optional[Int]](
+    fn compute(
         mut self,
         f_vi_corner: Vec[3,Int],
-        group: Self.Group[rounding=rounding]
+        group: Self.Group
     ):
         # get the segment bounds in volume-space
         var min_vf = f_vi_corner.map_scalar[dtype]().splat[simd_width]()
@@ -1731,9 +1725,9 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         ref pyz = group.planes_yz
 
         # compute the intersection point third dimension coordinates in volume-space, for in-range testing
-        pxy.d3_vf(self.seg_bounds_vf, self.d3_vf)
-        pxz.d3_vf(self.seg_bounds_vf, self.d3_vf)
-        pyz.d3_vf(self.seg_bounds_vf, self.d3_vf)
+        self.d3_vf_terms[pxy] = pxy.d3_vf_terms(self.seg_bounds_vf)
+        self.d3_vf_terms[pxz] = pxz.d3_vf_terms(self.seg_bounds_vf)
+        self.d3_vf_terms[pyz] = pyz.d3_vf_terms(self.seg_bounds_vf)
 
         # compute the intersection points themselves
         self.points_pf[pxy] = pxy.intersect_min_p(self.seg_bounds_vf)
@@ -1746,7 +1740,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         planes: _Planes[dtype,simd_width,_,_,p3],
         out in_range: SIMDBool[simd_width]
     ):
-        ref c3 = self.d3_vf[planes].at[uv]()
+        var c3 = self.d3_vf_terms[planes][uv.u][0] + self.d3_vf_terms[planes][uv.v][1]
         in_range = c3.ge(self.seg_bounds_vf[0][p3.d])
             .__and__(c3.le(self.seg_bounds_vf[1][p3.d]))
 
@@ -1767,9 +1761,9 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         y_pf = self.points_pf[planes].y() + planes.u.y()*uv.u + planes.v.y()*uv.v
 
     @always_inline
-    fn advance_y[dy: Int, rounding: Optional[Int]](
+    fn advance_y[dy: Int](
         mut self,
-        group: Self.Group[rounding=rounding]
+        group: Self.Group
     ):
         # update the segment bounds
         self.seg_bounds_vf[0].y() += dy
@@ -1780,35 +1774,32 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         ref pyz = group.planes_yz
 
         # advance only the intersection volume-space bounds that are affected by y_v
-        @parameter
-        for uv in _UV.all:
-            self.d3_vf[pxy].at[uv]() += pxy.f[1]*dy
-            self.d3_vf[pyz].at[uv]() += pyz.f[0]*dy
+        self.d3_vf_terms[pxy][0][1] += pxy.f[1]*dy
+        self.d3_vf_terms[pxy][1][1] += pxy.f[1]*dy
+        self.d3_vf_terms[pyz][0][0] += pyz.f[0]*dy
+        self.d3_vf_terms[pyz][1][0] += pyz.f[0]*dy
 
-        # advance the components of the intersection points affected by y_v
+        # advance the intersection points
         self.points_pf[pxy] += Vec[2](x=pxy.s1.y(), y=pxy.s2.y())*dy
         self.points_pf[pxz] += Vec[2](x=pxz.s1.y(), y=pxz.s2.y())*dy
         self.points_pf[pyz] += Vec[2](x=pyz.s1.y(), y=pyz.s2.y())*dy
     
     @always_inline
-    fn bound_y_f[rounding: Optional[Int]](
+    fn bound_y_f(
         self,
-        group: Self.Group[rounding=rounding],
+        group: Self.Group,
         out bound_y_pf: _PBound[1,dtype,simd_width]
     ):
         ref pxy = group.planes_xy
         ref pxz = group.planes_xz
         ref pyz = group.planes_yz
 
-        # TODO: NEXTTIME: still a bottleneck here ...
-        #                 what else can we do to speed it up?
-
         bound_y_pf = _PBound[1,dtype,simd_width]()
         @parameter
         for uv in _UV.all:
-            bound_y_pf.update[rounding=rounding](self.in_range[uv](pxy), Vec[1](x=self.intersection_y[uv](pxy)))
-            bound_y_pf.update[rounding=rounding](self.in_range[uv](pxz), Vec[1](x=self.intersection_y[uv](pxz)))
-            bound_y_pf.update[rounding=rounding](self.in_range[uv](pyz), Vec[1](x=self.intersection_y[uv](pyz)))
+            bound_y_pf.update(self.in_range[uv](pxy), Vec[1](x=self.intersection_y[uv](pxy)))
+            bound_y_pf.update(self.in_range[uv](pxz), Vec[1](x=self.intersection_y[uv](pxz)))
+            bound_y_pf.update(self.in_range[uv](pyz), Vec[1](x=self.intersection_y[uv](pyz)))
 
         # start with the bounds being inclusive by default
         bound_y_pf.f.set_inclusive(True)
@@ -1826,28 +1817,38 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
         self.mask = SIMDBool[simd_width](fill=False)
         self.f = _Bounds[dim,dtype,simd_width]()
 
+    @always_inline
     fn select[d: Int](self, out result: _PBound[1,dtype,simd_width]):
         result = _PBound[1,dtype,simd_width](
             mask = self.mask,
             f = self.f.select[d]()
         )
 
-    fn update[*, rounding: Optional[Int] = None](
+    @always_inline
+    fn update(
+        mut self,
+        in_range: SIMDBool[simd_width]
+    ):
+        self.mask |= in_range
+
+    @always_inline
+    fn update(
         mut self,
         in_range: SIMDBool[simd_width],
         f: Vec[dim,SIMD[dtype,simd_width]]
     ):
-        self.f.update(in_range, f.round[rounding](), self.mask)
-        self.mask |= in_range
+        self.f.update(in_range, f, self.mask)
+        self.update(in_range)
 
-    fn update[*, rounding: Optional[Int] = None](
+    @always_inline
+    fn update(
         mut self,
         in_range: SIMDBool[simd_width],
         f: Vec[dim,SIMD[dtype,simd_width]],
         inclusive: SIMDBool[simd_width]
     ):
-        self.f.update(in_range, f.round[rounding](), self.mask, inclusive)
-        self.mask |= in_range
+        self.f.update(in_range, f, self.mask, inclusive)
+        self.update(in_range)
 
 
 @fieldwise_init
@@ -1873,25 +1874,27 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
         self.min_inclusive = Vec[dim](fill=SIMDBool[simd_width](fill=v))
         self.max_inclusive = Vec[dim](fill=SIMDBool[simd_width](fill=v))
 
+    @always_inline
     fn update(
         mut self,
         in_range: SIMDBool[simd_width],
         v: Vec[dim,SIMD[dtype,simd_width]],
         has_value: SIMDBool[simd_width]
     ):
-        @parameter
-        for d in range(dim):
-            var mask_min = in_range & (~has_value | v[d].lt(self.min[d]))
-            var mask_max = in_range & (~has_value | v[d].gt(self.max[d]))
-            self.min[d] = mask_min.select(
-                true_case = v[d],
-                false_case = self.min[d]
-            )
-            self.max[d] = mask_max.select(
-                true_case = v[d],
-                false_case = self.max[d]
-            )
+        var want_value = Vec[dim](fill=~has_value)
+        var in_range_simd = Vec[dim](fill=in_range)
+        var update_min = in_range_simd & (want_value | (v < self.min))
+        var update_max = in_range_simd & (want_value | (v > self.max))
+        self.min = update_min.select(
+            true_case = v,
+            false_case = self.min
+        )
+        self.max = update_max.select(
+            true_case = v,
+            false_case = self.max
+        )
 
+    @always_inline
     fn update(
         mut self,
         in_range: SIMDBool[simd_width],
@@ -1935,6 +1938,7 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
                 false_case = self.max_inclusive[d]
             )
 
+    @always_inline
     fn is_empty(self, w: Int) -> Bool:
         return self.min[slice=w].gt_any(self.max[slice=w])
 
