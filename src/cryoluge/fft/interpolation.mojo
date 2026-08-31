@@ -856,20 +856,15 @@ struct VolumeNeighborhoods[
 
                             # compute a y-bound on the intersection of the segement with the z_p=0 plane
                             p_p_bounds_f.start()  # TEMP
-                            var bound_y_pf = intersections.bound_y_f(proj_group)
-                            var any_in_range = bound_y_pf.mask.reduce_or()
+                            var bound_pf = intersections.bound_f(proj_group)
                             p_p_bounds_f.stop()  # TEMP
 
-                            if not any_in_range:
-                                continue
-
                             p_p_bounds_i.start()  # TEMP
-                            var bound_y_pi = proj_group.bound_pi(
-                                bound_y_pf,
-                                coords_proj.fmin_pos().select[1](),
-                                coords_proj.fmax().select[1]()
-                            )
+                            var bound_pi = proj_group.bound_pi(bound_pf, coords_proj.fmin_pos(), coords_proj.fmax())
                             p_p_bounds_i.stop()  # TEMP
+
+                            if bound_pi.all_empty():
+                                continue
 
                             # for each projection in the group ...
                             for w in range(proj_group.num_projections):
@@ -880,13 +875,13 @@ struct VolumeNeighborhoods[
                                     ref dbg = debugger()[]
                                     if dbg.is_projection_segment[x_halfspace,simd_width](proj_group, w, f_vi):
                                         dbg.log(String(
-                                            "mask=", bound_y_pi.mask[w],
-                                            "  bounds=", bound_y_pi.f[slice=w]
+                                            "mask=", bound_pi.mask[w],
+                                            "  bounds=", bound_pi.f[slice=w]
                                         ))
                                         dbg.log(proj_group.render_bound_geometry(w, x_halfspace, f_vi, f_vi_corner, proj, coords_proj))
 
                                 # skip over empty bounds
-                                if not bound_y_pi.mask[w]:
+                                if bound_pi.is_empty(w):
                                     continue
                                 
                                 p_samples.start()  # TEMP
@@ -898,7 +893,7 @@ struct VolumeNeighborhoods[
                                 var segment_scanlines_accepted = 0
 
                                 # iterate over the projection sample lines in the y-bounds
-                                for sy in range(bound_y_pi.f.min[0][w], bound_y_pi.f.max[0][w] + 1):
+                                for sy in range(bound_pi.f.min[1][w], bound_pi.f.max[1][w] + 1):
 
                                     # do intersection tests for each y-scanline to get tighter x-bounds
                                     p_xp_bounds.start()  # TEMP
@@ -925,7 +920,7 @@ struct VolumeNeighborhoods[
                                             _ = proj_group.bound_x_pf[x_halfspace, debug=True, debugger=debugger](f_vi_corner, Int(sy), proj)
 
                                     # TEMP
-                                    if not bound_x_pi.mask[0] or bound_x_pi.f.min.x()[0] > bound_x_pi.f.max.x()[0]:
+                                    if bound_x_pi.is_empty(0):
                                         continue
                                     segment_scanlines_accepted += 1
 
@@ -1356,17 +1351,13 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
             classify_intersection[uv](self.planes_yz)
 
         # compute the p-bounds
-        var bound_y_pf = intersections.bound_y_f(self)
-        var bound_y_pi = self.bound_pi(
-            bound_y_pf,
-            coords_proj.fmin_pos().select[1](),
-            coords_proj.fmax().select[1]()
-        )
+        var bound_pf = intersections.bound_f(self)
+        var bound_pi = self.bound_pi(bound_pf, coords_proj.fmin_pos(), coords_proj.fmax())
 
         # compute the x p-bounds
         var x_in = List[Vec[2,Scalar[dtype]]]()
         var x_out = List[Vec[2,Scalar[dtype]]]()
-        for fy_pi in range(Int(bound_y_pi.f.min[0][w]), Int(bound_y_pi.f.max[0][w]) + 1):
+        for fy_pi in range(Int(bound_pi.f.min[1][w]), Int(bound_pi.f.max[1][w]) + 1):
             var fy_pf = Scalar[dtype](fy_pi)
 
             @parameter
@@ -1411,13 +1402,13 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
             "\nintersections_out=[",
                 display_intersections(outside_points),
             "\n]",
-            "\nbound_y_pf=[",
-                "pt", bound_y_pf.f.min[slice=w],
-                ", pt", bound_y_pf.f.max[slice=w],
+            "\nbound_pf=[",
+                "pt", bound_pf.f.min[slice=w],
+                ", pt", bound_pf.f.max[slice=w],
             "]",
-            "\nbound_y_pi=[",
-                "pt", bound_y_pi.f.min[slice=w],
-                ", pt", bound_y_pi.f.max[slice=w],
+            "\nbound_pi=[",
+                "pt", bound_pi.f.min[slice=w],
+                ", pt", bound_pi.f.max[slice=w],
             "]",
             "\nintersections_x_in=[",
                 display_intersections(x_in),
@@ -1648,6 +1639,10 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
         # by just translating the existing intersection point along the u,v directions
         i_pf = p_pf + self.u*uv.u + self.v*uv.v
 
+    @always_inline
+    fn sy(self, out sy: Vec[2,SIMD[dtype,simd_width]]):
+        sy = Vec[2](x=self.s1.y(), y=self.s2.y())
+
 
 @fieldwise_init
 struct _XHalfspaces[T: AnyType & Copyable & Movable](
@@ -1760,14 +1755,6 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         i_pf = self.points_pf[planes] + planes.u*uv.u + planes.v*uv.v
 
     @always_inline
-    fn intersection_y[uv: _UV, p3: _Plane](
-        self,
-        planes: _Planes[dtype,simd_width,_,_,p3],
-        out y_pf: SIMD[dtype,simd_width]
-    ):
-        y_pf = self.points_pf[planes].y() + planes.u.y()*uv.u + planes.v.y()*uv.v
-
-    @always_inline
     fn advance_y[dy: Int](
         mut self,
         group: Self.Group
@@ -1787,29 +1774,29 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         self.d3_vf_terms[pyz][1][0] += pyz.f[0]*dy
 
         # advance the intersection points
-        self.points_pf[pxy] += Vec[2](x=pxy.s1.y(), y=pxy.s2.y())*dy
-        self.points_pf[pxz] += Vec[2](x=pxz.s1.y(), y=pxz.s2.y())*dy
-        self.points_pf[pyz] += Vec[2](x=pyz.s1.y(), y=pyz.s2.y())*dy
-    
+        self.points_pf[pxy] += pxy.sy()*dy
+        self.points_pf[pxz] += pxz.sy()*dy
+        self.points_pf[pyz] += pyz.sy()*dy
+
     @always_inline
-    fn bound_y_f(
+    fn bound_f(
         self,
         group: Self.Group,
-        out bound_y_pf: _PBound[1,dtype,simd_width]
+        out bound_pf: _PBound[2,dtype,simd_width]
     ):
         ref pxy = group.planes_xy
         ref pxz = group.planes_xz
         ref pyz = group.planes_yz
 
-        bound_y_pf = _PBound[1,dtype,simd_width]()
+        bound_pf = _PBound[2,dtype,simd_width]()
         @parameter
         for uv in _UV.all:
-            bound_y_pf.update(self.in_range[uv](pxy), Vec[1](x=self.intersection_y[uv](pxy)))
-            bound_y_pf.update(self.in_range[uv](pxz), Vec[1](x=self.intersection_y[uv](pxz)))
-            bound_y_pf.update(self.in_range[uv](pyz), Vec[1](x=self.intersection_y[uv](pyz)))
+            bound_pf.update(self.in_range[uv](pxy), self.intersection[uv](pxy))
+            bound_pf.update(self.in_range[uv](pxz), self.intersection[uv](pxz))
+            bound_pf.update(self.in_range[uv](pyz), self.intersection[uv](pyz))
 
         # start with the bounds being inclusive by default
-        bound_y_pf.f.set_inclusive(True)
+        bound_pf.f.set_inclusive(True)
 
 
 @fieldwise_init
@@ -1830,6 +1817,14 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
             mask = self.mask,
             f = self.f.select[d]()
         )
+
+    @always_inline
+    fn all_empty(self) -> Bool:
+        return not self.mask.reduce_or() or self.f.all_empty()
+
+    @always_inline
+    fn is_empty(self, w: Int) -> Bool:
+        return not self.mask[w] or self.f.is_empty(w)
 
     @always_inline
     fn update(
@@ -1944,6 +1939,10 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
                 true_case = inclusive,
                 false_case = self.max_inclusive[d]
             )
+
+    @always_inline
+    fn all_empty(self) -> Bool:
+        return self.min.gt_any(self.max).reduce_and()
 
     @always_inline
     fn is_empty(self, w: Int) -> Bool:
