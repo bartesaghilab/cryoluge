@@ -260,6 +260,7 @@ fn interpolate[
 struct PrecomputedFFTInterpolationNop[
     dim: Int,
     dtype: DType,
+    out_of_range: OutOfRangeBehavior[dtype],
     *,
     dtype_coords: DType = dtype
 ](Movable):
@@ -269,7 +270,6 @@ struct PrecomputedFFTInterpolationNop[
     NOTE: It's very poor.
     """
     var _img: FFTImage[dim,dtype]
-    var _out_of_range: OutOfRangeBehavior[dtype]
 
     comptime deltas = Delta[dim,dtype_coords].build()
     comptime num_samples = len(Self.deltas)
@@ -281,17 +281,11 @@ struct PrecomputedFFTInterpolationNop[
 
     fn __init__(
         out self,
-        img: FFTImage[dim,dtype],
-        out_of_range: OutOfRangeBehavior[dtype]
+        img: FFTImage[dim,dtype]
     ):
         self._img = img.copy()
-        self._out_of_range = out_of_range
 
-    fn get[
-        simd_width: Int,
-        *,
-        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
-    ](
+    fn get[simd_width: Int](
         self,
         *,
         f: Vec[dim,SIMD[dtype_coords,simd_width]],
@@ -318,11 +312,24 @@ struct PrecomputedFFTInterpolationNop[
             @parameter
             for s in range(Self.num_samples):
                 var f_sample = start[slice=w].map_int() + materialize[Self.deltas[s].pos]()
-                var v = self._img.get[or_else=or_else](f=f_sample)
-                samples.re[s] = v.re
-                samples.im[s] = v.im
+                var v = self._img.find(f=f_sample)
 
-                # TODO: handle out-of-range=override behavior
+                # handle out-of-range behavior
+                if v is None:
+                    @parameter
+                    if out_of_range.id == OutOfRangeBehavior.Interpolate:
+                        # interpolate with the out-of-range value
+                        samples.re[s] = out_of_range.value.re
+                        samples.im[s] = out_of_range.value.im
+                    elif out_of_range.id == OutOfRangeBehavior.Override:
+                        # override the whole pixel with the out-of-range value
+                        samples.re = SIMD[dtype,Self.num_samples](out_of_range.value.re)
+                        samples.im = SIMD[dtype,Self.num_samples](out_of_range.value.im)
+                        break
+                else:
+                    # otherwise, just interpolate with the sampled value like normal
+                    samples.re[s] = v.value().re
+                    samples.im[s] = v.value().im
 
             var vw = interpolate(dists[slice=w], samples)
             v.re[w] = vw.re
