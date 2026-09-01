@@ -206,11 +206,18 @@ struct Vec[
         result = self.lift[4,1](Vec[1,T](x=w))
 
     @always_inline
-    fn has_nan[dtype: DType, w:Int](self: Vec[dim,SIMD[dtype,w]], out result: Bool):
+    fn has_nan[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Bool):
         result = False
         @parameter
         for d in range(dim):
-            result = result or isnan(self[d]).reduce_or()
+            result = result or isnan(self[d])
+
+    @always_inline
+    fn has_nan_simd[dtype: DType, w:Int](self: Vec[dim,SIMD[dtype,w]], out result: SIMD[DType.bool,w]):
+        result = SIMD[DType.bool,w](fill=False)
+        @parameter
+        for d in range(dim):
+            result = result | isnan(self[d])
 
     @always_inline
     fn min(self: Vec[dim,Int], out result: Int):
@@ -268,7 +275,6 @@ struct Vec[
     @always_inline
     fn select[dtype: DType, w: Int](
         self: Vec[dim,SIMD[DType.bool,w]],
-        *,
         true_case: Vec[dim,SIMD[dtype,w]],
         false_case: Vec[dim,SIMD[dtype,w]],
         out result: Vec[dim,SIMD[dtype,w]]
@@ -277,8 +283,8 @@ struct Vec[
         @parameter
         for d in range(dim):
             result[d] = self[d].select(
-                true_case=true_case[d],
-                false_case=false_case[d]
+                true_case[d],
+                false_case[d]
             )
 
     # math things
