@@ -8,7 +8,7 @@ from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
 from cryoluge.image.analysis import FrequencyLimits
 from cryoluge.fft import FFTCoords, FFTImage, PrecomputedFFTInterpolation, PrecomputedFFTInterpolationFull, OutOfRangeBehavior, VolumeNeighborhoods, VolumeNeighborhoodsProjection
-from cryoluge.fft.interpolation import _render_neighborhood, _Projections, _num_neighborhoods_in_segment, _PBound, ScanDebugger
+from cryoluge.fft.interpolation import _render_neighborhood, _Projections, _num_neighborhoods_in_segment, _PBound, ScanDebugger, _PIntersections
 from cryoluge.test import assert_equal_float
 
 
@@ -967,7 +967,6 @@ def _test_p_bounds[
                         f_vi_corner.x() -= n - 1
 
                     # compute the projection-space bound
-                    from cryoluge.fft.interpolation import _PIntersections
                     var intersections = _PIntersections[dtype,simd_width]()
                     intersections.compute(f_vi_corner, proj_group)
                     var bound_pf = intersections.bound_f(proj_group)
@@ -975,7 +974,7 @@ def _test_p_bounds[
 
                     @parameter
                     fn render() -> String:
-                        return proj_group.render_bound_geometry(p, x_halfspace, f_vi_seg, f_vi_corner, proj, coords_proj)
+                        return proj_group.render_bound_geometry(p, x_halfspace, f_vi_seg, f_vi_corner, coords_proj)
 
                     @parameter
                     fn debug_it() -> String:
@@ -1019,14 +1018,7 @@ def _test_p_bounds[
                         raise Error("Max doesn't capture sample" + check_context() + "\n" + debug_it() + "\n" + render())
 
                     # compute the x-bounds for this y scanline too
-                    var bound_x_pf: _PBound[1,dtype,1]
-                    if x_halfspace == 1:
-                        comptime x_hs = 1
-                        bound_x_pf = proj_group.bound_x_pf[x_hs](f_vi_corner, f_pi.y(), proj)
-                    else:
-                        comptime x_hs = -1
-                        bound_x_pf = proj_group.bound_x_pf[x_hs](f_vi_corner, f_pi.y(), proj)
-                    
+                    var bound_x_pf = intersections.bound_x_f(proj_group, f_pi.y())[slice=p]
                     var bound_x_pi = proj_group.bound_pi(
                         bound_x_pf,
                         coords_proj.fmin_pos().select[0](),
@@ -1041,8 +1033,11 @@ def _test_p_bounds[
                             "\n", indent, "bound_x_pi=", bound_x_pi.f
                         )
 
+                    # TEMP: need to add ProjectionGroup as an arugment here,
+                    #       since relying on the closure capture trigger miscompilation bugs =(
+                    from cryoluge.fft.interpolation import _ProjectionGroup
                     @parameter
-                    fn debug_it_x() -> String:
+                    fn debug_it_x(proj_group: _ProjectionGroup[dtype,simd_width,rounding=_]) -> String:
 
                         # run the bound again with a debugger
                         var _debugger = ScanDebugger(proj_i, f_pi, i_vi_seg)
@@ -1050,12 +1045,7 @@ def _test_p_bounds[
                         fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
                             return UnsafePointer(to=_debugger)
 
-                        if x_halfspace == 1:
-                            comptime x_hs = 1
-                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_corner, f_pi.y(), proj)
-                        else:
-                            comptime x_hs = -1
-                            _ = proj_group.bound_x_pf[x_hs, debug=True, debugger=debugger](f_vi_corner, f_pi.y(), proj)
+                        _ = intersections.bound_x_f[debug=True, debugger=debugger](proj_group, f_pi.y())
 
                         # render the debug log
                         return "\n" + indent + "Debug Log:"
@@ -1063,25 +1053,24 @@ def _test_p_bounds[
 
                     # the given bound should contain the point
                     if not bound_x_pi.mask[0]:
-                        raise Error("No intersection with scanline" + check_x_context() + "\n" + debug_it_x() + "\n" + render())
+                        raise Error("No intersection with scanline" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
                     if f_pi.x() < Int(bound_x_pi.f.min.x()):
-                        raise Error("Scanline x-min doesn't capture sample" + check_x_context() + "\n" + debug_it_x() + "\n" + render())
+                        raise Error("Scanline x-min doesn't capture sample" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
                     if f_pi.x() > Int(bound_x_pi.f.max.x()):
-                        raise Error("Scanline x-max doesn't capture sample" + check_x_context() + "\n" + debug_it_x() + "\n" + render())
+                        raise Error("Scanline x-max doesn't capture sample" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
 
                     # the 1d bound shouldn't be bigger than the 2d bound
-                    comptime eps = 1e-5
+                    comptime eps = 1e-4  # NOTE: need a fairly large epsilon here to handle all the round off error
                     if bound_x_pf.f.min.x() + eps < bound_pf.f.min.x()[p]:
-                        raise Error("Scanline x-min (float) outside of 2d min" + check_x_context() + "\n" + debug_it_x() + "\n" + render())
+                        raise Error("Scanline x-min (float) outside of 2d min" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
                     if bound_x_pf.f.max.x() - eps > bound_pf.f.max.x()[p]:
-                        raise Error("Scanline x-max (float) outside of 2d max" + check_x_context() + "\n" + debug_it_x() + "\n" + render())
+                        raise Error("Scanline x-max (float) outside of 2d max" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
                     if bound_x_pi.f.min.x() < bound_pi.f.min.x()[p]:
-                        raise Error("Scanline x-min (int) outside of 2d min" + check_x_context() + "\n" + debug_it_x() + "\n" + render())
+                        raise Error("Scanline x-min (int) outside of 2d min" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
                     if bound_x_pi.f.max.x() > bound_pi.f.max.x()[p]:
-                        raise Error("Scanline x-max (int) outside of 2d max" + check_x_context() + "\n" + debug_it_x() + "\n" + render())
+                        raise Error("Scanline x-max (int) outside of 2d max" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
 
                     # TEMP: extend lifetimes to avoid compiler bug
-                    _ = proj_i
                     _ = proj
                     _ = f_vf
                     _ = f_vi_vox
@@ -1091,10 +1080,24 @@ def _test_p_bounds[
                     _ = x_halfspace
                     _ = f_vi_seg
                     _ = f_vi_corner
+                    _ = intersections
                     _ = bound_pf
                     _ = bound_pi
                     _ = bound_x_pf
                     _ = bound_x_pi
+
+                # TEMP: extend lifetimes to avoid compiler bug
+                _ = proj_group
+
+            # TEMP: extend lifetimes to avoid compiler bug
+            _ = f_pi
+            _ = f_pf
+
+    # TEMP: extend lifetimes to avoid compiler bug
+    _ = projections
+    _ = simd_projections
+    _ = coords_proj
+    _ = test_context
 
 
 fn make_fft_image(

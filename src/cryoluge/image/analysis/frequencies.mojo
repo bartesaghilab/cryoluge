@@ -63,6 +63,35 @@ struct FrequencyLimits[dtype: DType](
         else:
             contains = contains and freq_norm2 < self.freq_norm2_hi
 
+    @always_inline
+    fn contains[
+        simd_width: Int,
+        *,
+        inclusive_lo: Bool = True,
+        inclusive_hi: Bool = False,
+    ](
+        self,
+        *,
+        freq_norm2: SIMD[dtype,simd_width],
+        out contains: SIMD[DType.bool,simd_width]
+    ):
+        contains = SIMD[DType.bool,simd_width](fill=True)
+
+        var freq_norm2_lo = SIMD[dtype,simd_width](self.freq_norm2_lo)
+        var freq_norm2_hi = SIMD[dtype,simd_width](self.freq_norm2_hi)
+
+        @parameter
+        if inclusive_lo:
+            contains = contains & freq_norm2.ge(freq_norm2_lo)
+        else:
+            contains = contains & freq_norm2.gt(freq_norm2_lo)
+
+        @parameter
+        if inclusive_hi:
+            contains = contains & freq_norm2.le(freq_norm2_hi)
+        else:
+            contains = contains & freq_norm2.lt(freq_norm2_hi)
+
     fn shell_indices[dim: Int](self, shells: FourierShells[dim]) -> Tuple[Int,Int]:
         """Returns shell index lower,upper(exclusive)."""
         var shelli_min = shells.shelli(freq_norm2=self.freq_norm2_lo)
@@ -114,4 +143,19 @@ struct FrequencyLimitsChecker[dim: Int, dtype: DType](
         out contains: Bool
     ):
         var freq_norm2 = self._sizes_norm2.inner_product(f**2)
+        contains = self._limits.contains[inclusive_lo=inclusive_lo, inclusive_hi=inclusive_hi](freq_norm2=freq_norm2)
+
+    @always_inline
+    fn contains[
+        simd_width: Int,
+        *,
+        inclusive_lo: Bool = True,
+        inclusive_hi: Bool = False,
+    ](
+        self,
+        *,
+        f: Vec[dim,SIMD[dtype,simd_width]],
+        out contains: SIMD[DType.bool,simd_width]
+    ):
+        var freq_norm2 = self._sizes_norm2.splat[simd_width]().inner_product(f**2)
         contains = self._limits.contains[inclusive_lo=inclusive_lo, inclusive_hi=inclusive_hi](freq_norm2=freq_norm2)
