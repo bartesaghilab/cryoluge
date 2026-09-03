@@ -735,18 +735,24 @@ struct VolumeNeighborhoods[
         # var p = Profiler[enabled=True](unit='us')
         # p.start('scan')
 
+        # impose limits on the number of projections, so we can let the compiler optimize storage better
+        # (ie, use stack space instead of heap space)
+        # typically, a tilt series will have ~40-60 tilts,
+        # so pick a multiple of 16 (max simd width) that's a bit more than that
+        comptime max_num_projections = 64  # 4 groups @ simd_width=16
+        comptime Projections = _Projections[max_num_projections,simd_width,rounding=rounding]
+
         # p.start('setup')  # TEMP
         var coords_proj = FFTCoords(sizes_real_proj)
         var freq_limits_proj = freq_limits.checker(sizes_real_proj)
-        var simd_projections = _Projections[simd_width,rounding=rounding](projections)
-        # TODO: is this a heap allocation? can we move it outside the function somehow?
+        var simd_projections = Projections(projections)
         # p.stop('setup')  # TEMP
 
         # iterate over the voxel coords that cover the projection range
         # p.start('v-bounds')  # TEMP
         var bounds = self._voxels_bounds[rounding=rounding](coords_proj, projections)
-        ref f_v_mini = bounds[0]
-        ref f_v_maxi = bounds[1]
+        ref f_vi_min = bounds[0]
+        ref f_vi_max = bounds[1]
         # p.stop('v-bounds')  # TEMP
 
         # TEMP
@@ -757,95 +763,74 @@ struct VolumeNeighborhoods[
         # ref p_samples = p.counter('samples')
         # ref p_scalar = p.counter('scalar')
 
-        comptime segment_sizes = _ProjectionGroup[dtype,simd_width].segment_sizes
-
         # allocate space for intersection information
-        # TODO: can we combine this with the other projection info?
-        var intersection_groups = MovableList[_XHalfspaces[_PIntersections[dtype,simd_width]]](capacity=len(simd_projections.groups))
-        for _ in range(len(simd_projections.groups)):
-            intersection_groups.append(_XHalfspaces(
-                pos = _PIntersections[dtype,simd_width](),
-                neg = _PIntersections[dtype,simd_width]()
-            ))
+        var intersection_groups = InlineArray[_PIntersections[dtype,simd_width], Projections.max_num_groups](fill=_PIntersections[dtype,simd_width]())
+        var bound_groups = InlineArray[_PBound[2,dtype,simd_width], Projections.max_num_groups](fill=_PBound[2,dtype,simd_width]())
 
-        for x in range(f_v_mini.x(), f_v_maxi.x() + 1, Self.num_neighborhoods_in_segment):
-            for z in range(f_v_mini.z(), f_v_maxi.z() + 1):
+        for x in range(f_vi_min.x(), f_vi_max.x() + 1, Self.num_neighborhoods_in_segment):
+            for z in range(f_vi_min.z(), f_vi_max.z() + 1):
 
                 # compute all the intersections for this z-line
                 # start below the y-min
                 # p_compute.start()  # TEMP
-                var f_vi_pos = Vec[3](x=x, y=f_v_mini.y() - 1, z=z)
-                for g in range(len(simd_projections.groups)):
+                var f_vi_pos = Vec[3](x=x, y=f_vi_min.y() - 1, z=z)
+                for g in range(simd_projections.num_groups):
                     ref proj_group = simd_projections.groups[g]
-
-                    # TODO: these coordinate transforms are duplicated, can we consolidate?
-                    @parameter
-                    for x_halfspace in [1, -1]:
-
-                        var f_vi = f_vi_pos.copy()
-                        @parameter
-                        if x_halfspace == -1:
-                            f_vi = -f_vi - 1
-
-                        var f_vi_corner = f_vi.copy()
-                        @parameter
-                        if x_halfspace == -1:
-                            f_vi_corner.x() -= materialize[segment_sizes.x() - 1]()
-
-                        intersection_groups[g].get[x_halfspace]().compute(f_vi_corner, proj_group)
+                    ref intersections = intersection_groups[g]
+                    intersections.compute(f_vi_pos, proj_group)
                 # p_compute.stop()  # TEMP
 
-                for y in range(f_v_mini.y(), f_v_maxi.y() + 1):
+                for y in range(f_vi_min.y(), f_vi_max.y() + 1):
 
                     var f_vi_pos = Vec[3](x=x, y=y, z=z)
+
+                    # advance all the intersections along y
+                    # p_advance.start()  # TEMP
+                    for g in range(simd_projections.num_groups):
+                        ref proj_group = simd_projections.groups[g]
+                        ref intersections = intersection_groups[g]
+                        intersections.advance_y(proj_group)
+                    # p_advance.stop()  # TEMP
+
+                    # compute a bound on the intersection of the segment with the z_p=0 plane
+                    # p_bounds.start()  # TEMP
+                    for g in range(simd_projections.num_groups):
+                        ref proj_group = simd_projections.groups[g]
+                        ref intersections = intersection_groups[g]
+                        bound_groups[g] = intersections.bound_f(proj_group)
+                    # p_bounds.stop()  # TEMP
 
                     # map to both positive and negative x halfspaces
                     @parameter
                     for x_halfspace in [1, -1]:
-
-                        var f_vi = f_vi_pos.copy()
-                        @parameter
-                        if x_halfspace == -1:
-                            f_vi = -f_vi - 1
-
-                        var f_vf = f_vi.map_scalar[dtype]()
-
-                        # get the segment corner, which isn't necessarily in the origin voxel
-                        var f_vi_corner = f_vi.copy()
-                        @parameter
-                        if x_halfspace == -1:
-                            f_vi_corner.x() -= materialize[segment_sizes.x() - 1]()
+                        var f_vi = calc_f_vi[x_halfspace](f_vi_pos)
 
                         @parameter
                         if debug:
                             ref dbg = debugger()[]
                             if dbg.is_segment[x_halfspace,simd_width](f_vi):
                                 dbg.log(String("iterating segment:",
-                                    "  f_vi=", f_vi,
+                                    "  f_vi_pos=", f_vi_pos,
                                     "  x_halfspace=", x_halfspace,
-                                    "  f_vi_corner=", f_vi_corner
+                                    "  f_vi=", f_vi
                                 ))
 
                         var segment_neighborhood: Optional[_SegmentNeighborhood[dtype,simd_width]] = None
 
                         # for each group of projections ...
-                        for g in range(len(simd_projections.groups)):
+                        for g in range(simd_projections.num_groups):
                             ref proj_group = simd_projections.groups[g]
+                            ref intersections = intersection_groups[g]
 
-                            # advance the intersections along y
-                            # p_advance.start()  # TEMP
-                            ref intersections = intersection_groups[g].get[x_halfspace]()
-                            intersections.advance_y[x_halfspace](proj_group)
-                            # p_advance.stop()  # TEMP
-
-                            # compute a y-bound on the intersection of the segment with the z_p=0 plane
+                            # discretize the bounds on the intersection of the segment with the z_p=0 plane
                             # p_bounds.start()  # TEMP
-                            var bound_pf = intersections.bound_f(proj_group)
+                            var bound_pf = bound_groups[g].copy()
+                            @parameter
+                            if x_halfspace == -1:
+                                bound_pf.f.invert()
                             var bound_pi = proj_group.bound_pi(bound_pf, coords_proj.fmin_pos(), coords_proj.fmax())
                             var bound_all_empty = bound_pi.all_empty()
                             # p_bounds.stop()  # TEMP
-                            # TODO: NEXTTIME: still a bottleneck here, anything we can do to speed up?
-                            #                 maybe a faster extents check above this?
 
                             @parameter
                             if debug:
@@ -856,10 +841,11 @@ struct VolumeNeighborhoods[
                                     if dbg.is_segment[x_halfspace,simd_width](f_vi):
                                         dbg.log(String(
                                             "mask=", bound_pi.mask[w],
-                                            "  bound=", bound_pi.f[slice=w]
+                                            "  bound_f=", bound_pf.f[slice=w],
+                                            "  bound_i=", bound_pi.f[slice=w]
                                         ))
                                         ref proj = projections[proj_group.proj_indices[w]]
-                                        dbg.log(proj_group.render_bound_geometry(w, x_halfspace, f_vi, f_vi_corner, coords_proj))
+                                        dbg.log(proj_group.render_bound_geometry[x_halfspace](w, f_vi, coords_proj))
                                         _ = intersections.bound_f[debug=True, debugger=debugger](proj_group)
 
                             if bound_all_empty:
@@ -874,7 +860,7 @@ struct VolumeNeighborhoods[
 
                                 # do intersection tests for each y-scanline to get tighter x-bounds
                                 # p_x_bounds.start()  # TEMP
-                                var bound_x_pf = intersections.bound_x_f(proj_group, sy_simd)
+                                var bound_x_pf = intersections.bound_x_f[x_halfspace](proj_group, sy_simd)
                                 var bound_x_pi = proj_group.bound_pi(
                                     bound_x_pf,
                                     coords_proj.fmin_pos().select[0](),
@@ -895,7 +881,7 @@ struct VolumeNeighborhoods[
                                                 "  x-mask=", bound_x_pi.mask[w],
                                                 "  x-bound=", bound_x_pf.f[slice=w], " ", bound_x_pi.f[slice=w]
                                             ))
-                                            _ = intersections.bound_x_f[debug=True, debugger=debugger](proj_group, sy_simd)
+                                            _ = intersections.bound_x_f[x_halfspace,debug=True, debugger=debugger](proj_group, sy_simd)
 
                                 # skip empty x-bounds
                                 # (happens quite a bit actually, when the 2d bound is near an x-edge of the projection grid)
@@ -925,8 +911,9 @@ struct VolumeNeighborhoods[
 
                                     # (double-)check if the sample point actually lies in the segment
                                     # (treat the upper boundaries as exclusive)
-                                    var in_bounds = sf_vf.ge_all(intersections.seg_bounds_vf[0])
-                                        &  sf_vf.lt_all(intersections.seg_bounds_vf[1])
+                                    var seg_bounds_vf = intersections.get_seg_bounds_vf[x_halfspace]()
+                                    var in_bounds = sf_vf.ge_all(seg_bounds_vf[0])
+                                        &  sf_vf.lt_all(seg_bounds_vf[1])
                                     # NOTE: this check is still necessary, since the bounds aren't perfectly tight
 
                                     # get the x-offset into the segment and the distances
@@ -948,14 +935,13 @@ struct VolumeNeighborhoods[
                                                 dbg.log(String(
                                                     "sf_pi=", sf_pi[slice=w],
                                                     "  sv_vf=", sf_vf[slice=w],
-                                                    "  min=", intersections.seg_bounds_vf[0][slice=w],
-                                                    "  max=", intersections.seg_bounds_vf[1][slice=w],
+                                                    "  min=", seg_bounds_vf[0][slice=w],
+                                                    "  max=", seg_bounds_vf[1][slice=w],
                                                     "  in_bounds=", in_bounds[w],
                                                     "  x_offset=", x_offset[w],
                                                     "  dists_v=", dists_v[slice=w]
                                                 ))
-                                                dbg.log(String("segment_neighborhood=", _render_neighborhood(segment_neighborhood.value())))
-                                            if dbg.is_sample(sf_pi[slice=w].map_int()):
+                                            if dbg.is_sample( sf_pi[slice=w].map_int()):
                                                 dbg.log(String("sf_pi found in f_vi=", f_vi))
 
                                     # TODO: we're dropping into scalar mode after this
@@ -981,6 +967,7 @@ struct VolumeNeighborhoods[
                                         # finally, interpolate the reference volume
                                         if segment_neighborhood is None:
                                             segment_neighborhood = self._segment_neighborhood[x_halfspace](f_vi_pos)
+
                                         var voxel_neighborhood = segment_neighborhood.value()
                                             .voxel_neighborhood[x_halfspace, Self.out_of_range](x_offset)
                                         var sv = interpolate(dists_v, voxel_neighborhood)
@@ -989,6 +976,7 @@ struct VolumeNeighborhoods[
                                         if debug:
                                             ref dbg = debugger()[]
                                             if dbg.is_projection_segment[x_halfspace,simd_width](proj_group, w, f_vi):
+                                                dbg.log(String("segment_neighborhood=", _render_neighborhood(segment_neighborhood.value())))
                                                 dbg.log(String(
                                                     "voxel_neighborhood=", _render_neighborhood(voxel_neighborhood),
                                                     "  sv=", sv
@@ -1182,15 +1170,14 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
         bi.max_inclusive = Vec[dim,SIMDBool[bound_simd_width]](fill=SIMDBool[bound_simd_width](fill=True))
 
     # for debugging
-    fn render_bound_geometry(
+    fn render_bound_geometry[x_halfspace: Int](
         self,
         w: Int,
-        x_halfspace: Int,
         f_vi: Vec[3,Int],
-        f_vi_corner: Vec[3,Int],
         coords_proj: FFTCoords[2],
         out str: String
     ):
+        var f_vi_corner = calc_f_vi_corner[x_halfspace,simd_width](f_vi)
         var f_vf_corner = f_vi_corner.map_scalar[dtype]().splat[simd_width]()
 
         # compute all the intersection points
@@ -1220,6 +1207,9 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
 
         # compute the p-bounds
         var bound_pf = intersections.bound_f(self)
+        @parameter
+        if x_halfspace == -1:
+            bound_pf.f.invert()
         var bound_pi = self.bound_pi(bound_pf, coords_proj.fmin_pos(), coords_proj.fmax())
 
         # compute the x p-bounds
@@ -1232,7 +1222,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
             other_planes: Self.Planes[_,_,_],
             fy_pf: Scalar[dtype]
         ):
-            var (in_range, _inclusive, fx_pf) = intersections.intersect_x[i](self, planes, other_planes, fy_pf)
+            var (in_range, _inclusive, fx_pf) = intersections.intersect_x[x_halfspace,i](self, planes, other_planes, fy_pf)
             var p_pf = Vec[2](x=fx_pf[w], y=fy_pf)
             if in_range[w]:
                 x_in.append(p_pf^)
@@ -1311,20 +1301,41 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
             "]"
         )
 
+    fn render_bound_geometry(
+        self,
+        w: Int,
+        f_vi: Vec[3,Int],
+        coords_proj: FFTCoords[2],
+        out str: String,
+        *,
+        x_halfspace: Int
+    ):
+        if x_halfspace == 1:
+            str = self.render_bound_geometry[1](w, f_vi, coords_proj)
+        else:
+            str = self.render_bound_geometry[-1](w, f_vi, coords_proj)
 
-struct _Projections[simd_width: Int, dtype: DType, *, rounding: Int = 0](
+
+struct _Projections[max_num_projections: Int, simd_width: Int, dtype: DType, *, rounding: Int = 0](
     Copyable,
     Movable
 ):
-    var groups: List[Self.Group]
+    var num_groups: Int
+    var groups: InlineArray[Self.Group,Self.max_num_groups]
 
+    comptime max_num_groups = ceildiv(max_num_projections, simd_width)
     comptime Group = _ProjectionGroup[dtype,simd_width,rounding=rounding]
 
     fn __init__(out self, projections: List[VolumeNeighborhoodsProjection[dtype]]):
 
+        # check the sizes
+        self.num_groups = ceildiv(len(projections), simd_width)
+        if self.num_groups > Self.max_num_groups:
+            from os import abort
+            abort(String("Too many projections: ", len(projections), ", max allowed is ", max_num_projections))
+
         # allocate all the groups
-        var num_groups = ceildiv(len(projections), simd_width)
-        self.groups = List(length=num_groups, fill=Self.Group())
+        self.groups = InlineArray[Self.Group,Self.max_num_groups](fill=Self.Group())
 
         # populate the groups with each projection
         for p in range(len(projections)):
@@ -1720,27 +1731,30 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         self.q_xmy_pf[pzx] = q.x() - q.y()*pzx.v_xoy_pf
 
     @always_inline
-    fn advance_y[dy: Int](
+    fn advance_y(
         mut self,
         group: Self.Group
     ):
         # update the segment bounds
-        self.seg_bounds_vf[0].y() += dy
-        self.seg_bounds_vf[1].y() += dy
+        self.seg_bounds_vf[0].y() += 1
+        self.seg_bounds_vf[1].y() += 1
 
         ref pxy = group.planes_xy
         ref pyz = group.planes_yz
         ref pzx = group.planes_zx
 
         # advance only the intersection volume-space bounds that are affected by y_v
-        self.d3_vf_terms[pxy][0][1] += pxy.f[1]*dy
-        self.d3_vf_terms[pxy][1][1] += pxy.f[1]*dy
-        self.d3_vf_terms[pyz][0][0] += pyz.f[0]*dy
-        self.d3_vf_terms[pyz][1][0] += pyz.f[0]*dy
+        self.d3_vf_terms[pxy][0][1] += pxy.f[1]
+        self.d3_vf_terms[pxy][1][1] += pxy.f[1]
+        self.d3_vf_terms[pyz][0][0] += pyz.f[0]
+        self.d3_vf_terms[pyz][1][0] += pyz.f[0]
 
         # advance only the intersection points that are affected by y_v
-        self.points_pf[pxy] += pxy.sy()*dy
-        self.points_pf[pyz] += pyz.sy()*dy
+        self.points_pf[pxy] += pxy.sy()
+        self.points_pf[pyz] += pyz.sy()
+
+        # TODO: are any of these delta values the same?
+        #       the intersection point offsets should be, right?
 
         # re-compute y-scanline intersection factors, in projection space
         # NOTE: can't do delta updates here, since q could be either of two intersection points,
@@ -1749,6 +1763,18 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         self.q_xmy_pf[pxy] = q.x() - q.y()*pxy.v_xoy_pf
         q = pyz.uv_selector.select(self.points_pf[pyz], self.points_pf[pxy])
         self.q_xmy_pf[pyz] = q.x() - q.y()*pyz.v_xoy_pf
+
+    @always_inline
+    fn get_seg_bounds_vf[x_halfspace: Int](
+        self,
+        out seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]]
+    ):
+        seg_bounds_vf = self.seg_bounds_vf.copy()
+        @parameter
+        if x_halfspace == -1:
+            var swap = -seg_bounds_vf[0]
+            seg_bounds_vf[0] = -seg_bounds_vf[1]
+            seg_bounds_vf[1] = swap^
 
     @always_inline
     fn in_range[uv: _UV, p3: _Plane](
@@ -1760,8 +1786,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         # NOTE: we do this in volume-space because the check can be incredibly
         #       ill-conditioned in projection space, where points can be essentially at infinity
         var c3 = self.d3_vf_terms[planes][uv.u][0] + self.d3_vf_terms[planes][uv.v][1]
-        in_range = c3.ge(self.seg_bounds_vf[0][p3.d])
-            .__and__(c3.le(self.seg_bounds_vf[1][p3.d]))
+        in_range = c3.ge(self.seg_bounds_vf[0][p3.d]) & c3.le(self.seg_bounds_vf[1][p3.d])
 
     @always_inline
     fn intersection[uv: _UV, p3: _Plane](
@@ -1797,6 +1822,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
     @always_inline
     fn intersect_x[
+        x_halfspace: Int,
         i: Int, p1: _Plane, p2: _Plane, p3: _Plane, rounding: Int,
         *,
         debug: Bool = False,
@@ -1809,16 +1835,27 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         y_pf: SIMD[dtype,simd_width],
         out result: Tuple[SIMDBool[simd_width],SIMDBool[simd_width],SIMD[dtype,simd_width]]
     ):
+        var y_pf_hs = y_pf.copy()
+        @parameter
+        if x_halfspace == -1:
+            y_pf_hs = -y_pf_hs
+
         # solve for x at the given y, in projection space
-        var x_pf = self.q_xmy_pf[planes] + y_pf*planes.v_xoy_pf + i*planes.u_xmy_pf
+        var x_pf = self.q_xmy_pf[planes] + y_pf_hs*planes.v_xoy_pf + i*planes.u_xmy_pf
 
         # solve for c2,c3 at the given c1, in volume space
         var c1_vf = self.seg_bounds_vf[i][p1.d]
-        var c23_vf = planes.nx23o1*c1_vf + planes.ny23m*y_pf
+        var c23_vf = planes.nx23o1*c1_vf + planes.ny23m*y_pf_hs
+
+        @parameter
+        if x_halfspace == -1:
+            x_pf *= -1
+            c23_vf *= -1
 
         # compute in-range and inclusive by checking against the segment boundaries
-        var seg23_min_vf = planes.project23(self.seg_bounds_vf[0])
-        var seg23_max_vf = planes.project23(self.seg_bounds_vf[1])
+        var seg_bounds_vf = self.get_seg_bounds_vf[x_halfspace]()
+        var seg23_min_vf = planes.project23(seg_bounds_vf[0])
+        var seg23_max_vf = planes.project23(seg_bounds_vf[1])
         var in_range = ~c23_vf.has_nan_simd() & c23_vf.ge_all(seg23_min_vf) & c23_vf.le_all(seg23_max_vf)
         var inclusive = c23_vf.ne_all_simd(seg23_max_vf)
 
@@ -1828,10 +1865,12 @@ struct _PIntersections[dtype: DType, simd_width: Int](
             var _w = dbg.projection_offset(group)
             if _w is not None:
                 var w = _w.value()
-                dbg.log(String("intersect_x:",
+                dbg.log(String("intersect_x()",
+                    "  x_halfspace=", x_halfspace,
                     "  planes=", p1.name, p2.name, p3.name,
                     "  i=", i,
                     "  y_pf=", y_pf[w],
+                    "  y_pf_hs=", y_pf_hs[w],
                     "  x_pf=", x_pf[w],
                     "  c1_vf=", c1_vf[w],
                     "  c23_vf=", c23_vf[slice=w],
@@ -1845,6 +1884,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
     @always_inline
     fn bound_x_f[
+        x_halfspace: Int,
         *,
         debug: Bool = False,
         debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
@@ -1864,9 +1904,9 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
         @parameter
         for i in [0,1]:
-            bound_x_f.update(self.intersect_x[i,debug=debug,debugger=debugger](group, pxy, pzx, y_pf))
-            bound_x_f.update(self.intersect_x[i,debug=debug,debugger=debugger](group, pyz, pxy, y_pf))
-            bound_x_f.update(self.intersect_x[i,debug=debug,debugger=debugger](group, pzx, pyz, y_pf))
+            bound_x_f.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pxy, pzx, y_pf))
+            bound_x_f.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pyz, pxy, y_pf))
+            bound_x_f.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pzx, pyz, y_pf))
 
         @parameter
         if debug:
@@ -1874,7 +1914,30 @@ struct _PIntersections[dtype: DType, simd_width: Int](
             var _w = dbg.projection_offset(group)
             if _w is not None:
                 var w = _w.value()
-                dbg.log(String("bound_x_f:", bound_x_f.f[slice=w]))
+                dbg.log(String("bound_x_f()",
+                    "  x_halfspace=", x_halfspace,
+                    "  y_pf=", y_pf[w],
+                    "  bound_x_f=", bound_x_f.f[slice=w],
+                ))
+
+    # slow path: only use in testing
+    @always_inline
+    fn bound_x_f[
+        *,
+        debug: Bool = False,
+        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+    ](
+        self,
+        group: Self.Group,
+        y_pi: SIMDInt[simd_width],
+        out bound_x_f: _PBound[1,dtype,simd_width],
+        *,
+        x_halfspace: Int
+    ):
+        if x_halfspace == 1:
+            bound_x_f = self.bound_x_f[1,debug=debug,debugger=debugger](group, y_pi)
+        else:
+            bound_x_f = self.bound_x_f[-1,debug=debug,debugger=debugger](group, y_pi)
 
 
 @fieldwise_init
@@ -2027,6 +2090,13 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
             self.max_inclusive[d] = mask_max.select(inclusive, self.max_inclusive[d])
 
     @always_inline
+    fn invert(mut self):
+        swap(self.min, self.max)
+        swap(self.min_inclusive, self.max_inclusive)
+        self.min *= -1
+        self.max *= -1
+    
+    @always_inline
     fn all_empty(self) -> Bool:
         return self.min.gt_any(self.max).reduce_and()
 
@@ -2134,6 +2204,23 @@ fn _neighborhood_out_of_range[
         out_of_range.value,
         out_of_range.value
     )
+
+
+fn calc_f_vi[x_halfspace: Int](f_vi_pos: Vec[3,Int], out f_vi: Vec[3,Int]):
+    f_vi = f_vi_pos.copy()
+    @parameter
+    if x_halfspace == -1:
+        # in the negative halfspace, apply the inversion symmetry,
+        # then subtract one to move to the origin coordinates of that voxel
+        f_vi = -f_vi - 1
+
+
+fn calc_f_vi_corner[x_halfspace: Int, simd_width: Int](f_vi: Vec[3,Int], out f_vi_corner: Vec[3,Int]):
+    f_vi_corner = f_vi.copy()
+    @parameter
+    if x_halfspace == -1:
+        # in the negative halfspace, the corner of the segment is at the far end
+        f_vi_corner.x() -= _num_neighborhoods_in_segment[simd_width]() - 1
 
 
 # complex value rendering code, mostly only useful for debugging

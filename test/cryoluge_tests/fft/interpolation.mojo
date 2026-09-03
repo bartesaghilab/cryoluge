@@ -914,7 +914,7 @@ def _test_p_bounds[
         return Vec[3](x=5, y=6, z=7)*p
     for p in range(num_projections):
         projections.append(VolumeNeighborhoodsProjection(p, _make_rot(rot + rot_delta(p))))
-    var simd_projections = _Projections[simd_width,rounding=rounding](projections)
+    var simd_projections = _Projections[32,simd_width,rounding=rounding](projections)
 
     # imagine a reference volume large enough to cover all the projection samples
     var coords_vol = FFTCoords(Vec[3](fill=sizes_real_proj.max()))
@@ -969,12 +969,15 @@ def _test_p_bounds[
                     # compute the projection-space bound
                     var intersections = _PIntersections[dtype,simd_width]()
                     intersections.compute(f_vi_corner, proj_group)
+                    # NOTE: since we're computing intersections directly in the -x halfspace here,
+                    #       all subsequent bound calculations should pretend they're in the +x halfspace,
+                    #       to avoid double-correcting for the -x halfspace
                     var bound_pf = intersections.bound_f(proj_group)
                     var bound_pi = proj_group.bound_pi(bound_pf, coords_proj.fmin_pos(), coords_proj.fmax())
 
                     @parameter
                     fn render() -> String:
-                        return proj_group.render_bound_geometry(p, x_halfspace, f_vi_seg, f_vi_corner, coords_proj)
+                        return proj_group.render_bound_geometry(p, f_vi_seg, coords_proj, x_halfspace=1)
 
                     @parameter
                     fn debug_it() -> String:
@@ -1018,7 +1021,7 @@ def _test_p_bounds[
                         raise Error("Max doesn't capture sample" + check_context() + "\n" + debug_it() + "\n" + render())
 
                     # compute the x-bounds for this y scanline too
-                    var bound_x_pf = intersections.bound_x_f(proj_group, f_pi.y())[slice=p]
+                    var bound_x_pf = intersections.bound_x_f(proj_group, f_pi.y(), x_halfspace=1)[slice=p]
                     var bound_x_pi = proj_group.bound_pi(
                         bound_x_pf,
                         coords_proj.fmin_pos().select[0](),
@@ -1045,7 +1048,7 @@ def _test_p_bounds[
                         fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
                             return UnsafePointer(to=_debugger)
 
-                        _ = intersections.bound_x_f[debug=True, debugger=debugger](proj_group, f_pi.y())
+                        _ = intersections.bound_x_f[debug=True, debugger=debugger](proj_group, f_pi.y(), x_halfspace=1)
 
                         # render the debug log
                         return "\n" + indent + "Debug Log:"
