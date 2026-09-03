@@ -972,7 +972,7 @@ def _test_p_bounds[
                     # NOTE: since we're computing intersections directly in the -x halfspace here,
                     #       all subsequent bound calculations should pretend they're in the +x halfspace,
                     #       to avoid double-correcting for the -x halfspace
-                    var bound_pf = intersections.bound_f(proj_group)
+                    var bound_pf = intersections.bound_f_pf(proj_group)
                     var bound_pi = proj_group.bound_pi(bound_pf, coords_proj.fmin_pos(), coords_proj.fmax())
 
                     @parameter
@@ -988,7 +988,7 @@ def _test_p_bounds[
                         fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
                             return UnsafePointer(to=_debugger)
 
-                        _ = intersections.bound_f[debug=True, debugger=debugger](proj_group)
+                        _ = intersections.bound_f_pf[debug=True, debugger=debugger](proj_group)
 
                         # render the debug log
                         return "\n" + indent + "Debug Log:"
@@ -1021,7 +1021,7 @@ def _test_p_bounds[
                         raise Error("Max doesn't capture sample" + check_context() + "\n" + debug_it() + "\n" + render())
 
                     # compute the x-bounds for this y scanline too
-                    var bound_x_pf = intersections.bound_x_f(proj_group, f_pi.y(), x_halfspace=1)[slice=p]
+                    var bound_x_pf = intersections.bound_fx_pf(proj_group, f_pi.y(), x_halfspace=1)[slice=p]
                     var bound_x_pi = proj_group.bound_pi(
                         bound_x_pf,
                         coords_proj.fmin_pos().select[0](),
@@ -1048,7 +1048,7 @@ def _test_p_bounds[
                         fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
                             return UnsafePointer(to=_debugger)
 
-                        _ = intersections.bound_x_f[debug=True, debugger=debugger](proj_group, f_pi.y(), x_halfspace=1)
+                        _ = intersections.bound_fx_pf[debug=True, debugger=debugger](proj_group, f_pi.y(), x_halfspace=1)
 
                         # render the debug log
                         return "\n" + indent + "Debug Log:"

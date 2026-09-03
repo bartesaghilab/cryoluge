@@ -161,6 +161,11 @@ struct Profiler[*, enabled: Bool = True](
 
     fn __str__(self) -> String:
         return String.write(self)
+    
+    fn print(self):
+        @parameter
+        if enabled:
+            print(self)
 
 
 struct ProfilerCounter[*, enabled: Bool = True](
