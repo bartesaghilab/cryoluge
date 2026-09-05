@@ -1253,6 +1253,22 @@ struct Vec[
         for d in range(dim):
             result[d] = self[d].__or__(other[d])
 
+    # matrix interop
+    
+    @always_inline
+    fn column_matrix[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out mat: Matrix[dim,1,dtype,w]):
+        mat = Matrix[dim,1,dtype,w](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            mat[d,0] = self[d]
+
+    @always_inline
+    fn row_matrix[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out mat: Matrix[1,dim,dtype,w]):
+        mat = Matrix[1,dim,dtype,w](uninitialized=True)
+        @parameter
+        for d in range(dim):
+            mat[0,d] = self[d]
+
     # mappings
 
     @always_inline

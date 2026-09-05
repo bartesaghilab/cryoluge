@@ -229,6 +229,13 @@ struct Matrix[
 
     @always_inline
     fn transpose(mut self):
+
+        # just in case ...
+        constrained[
+            rows == cols,
+            String("Can only transpose a square matrix in place, not ", rows, "x", cols)
+        ]()
+
         @parameter
         for r in range(rows):
             @parameter
@@ -240,13 +247,13 @@ struct Matrix[
                 self[c,r] = s
 
     @always_inline
-    fn transposed(self, out result: Self):
-        result = Self(uninitialized=True)
+    fn transposed(self, out result: Matrix[cols,rows,dtype,simd_width]):
+        result = Matrix[cols,rows,dtype,simd_width](uninitialized=True)
         @parameter
         for r in range(rows):
             @parameter
             for c in range(cols):
-                result[r,c] = self[c,r]
+                result[c,r] = self[r,c]
 
     # operators
 
