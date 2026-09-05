@@ -977,7 +977,7 @@ def _test_p_bounds[
 
                     @parameter
                     fn render() -> String:
-                        return proj_group.render_bound_geometry(p, f_vi_seg, coords_proj, x_halfspace=1)
+                        return proj_group.render_bound_geometry(p, f_vi_seg, coords_proj, x_halfspace=x_halfspace)
 
                     @parameter
                     fn debug_it() -> String:
@@ -1007,6 +1007,7 @@ def _test_p_bounds[
                             "\n", indent, "x_offset=", x_offset,
                             "\n", indent, "x_halfspace=", x_halfspace,
                             "\n", indent, "f_vi_seg=", f_vi_seg,
+                            "\n", indent, "f_vi_corner=", f_vi_corner,
                             "\n", indent, "mask=", bound_pf.mask[p],
                             "\n", indent, "bound_pf=", bound_pf.f[slice=p],
                             "\n", indent, "bound_pi=", bound_pi.f[slice=p]
@@ -1014,7 +1015,11 @@ def _test_p_bounds[
 
                     # the given bound should contain the point
                     if not bound_pi.mask[p]:
-                        raise Error("No intersection with z=0" + check_context() + "\n" + debug_it() + "\n" + render())
+                        raise Error("No intersection with z=0"
+                            + check_context()
+                            + "\n" + debug_it()
+                            + "\n" + render()
+                        )
                     if f_pi.lt_any(bound_pi.f.min[slice=p].map_int()):
                         raise Error("Min doesn't capture sample" + check_context() + "\n" + debug_it() + "\n" + render())
                     if f_pi.gt_any(bound_pi.f.max[slice=p].map_int()):
@@ -1051,27 +1056,59 @@ def _test_p_bounds[
                         _ = intersections.bound_fx_pf[debug=True, debugger=debugger](proj_group, f_pi.y(), x_halfspace=1)
 
                         # render the debug log
-                        return "\n" + indent + "Debug Log:"
+                        return "\n" + indent + "Debug Log x:"
                             + "\n" + indent + ("\n" + indent).join(_debugger.msgs)
 
                     # the given bound should contain the point
                     if not bound_x_pi.mask[0]:
-                        raise Error("No intersection with scanline" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
+                        raise Error("No intersection with scanline"
+                            + check_x_context()
+                            + "\n" + debug_it_x(proj_group)
+                            + "\n" + render()
+                        )
                     if f_pi.x() < Int(bound_x_pi.f.min.x()):
-                        raise Error("Scanline x-min doesn't capture sample" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
+                        raise Error("Scanline x-min doesn't capture sample"
+                            + check_x_context()
+                            + "\n" + debug_it_x(proj_group)
+                            + "\n" + render()
+                        )
                     if f_pi.x() > Int(bound_x_pi.f.max.x()):
-                        raise Error("Scanline x-max doesn't capture sample" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
+                        raise Error("Scanline x-max doesn't capture sample"
+                            + check_x_context()
+                            + "\n" + debug_it_x(proj_group)
+                            + "\n" + render()
+                        )
 
                     # the 1d bound shouldn't be bigger than the 2d bound
                     comptime eps = 1e-4  # NOTE: need a fairly large epsilon here to handle all the round off error
                     if bound_x_pf.f.min.x() + eps < bound_pf.f.min.x()[p]:
-                        raise Error("Scanline x-min (float) outside of 2d min" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
+                        raise Error("Scanline x-min (float) outside of 2d min"
+                            + check_x_context()
+                            + "\n" + debug_it()
+                            + "\n" + debug_it_x(proj_group)
+                            + "\n" + render()
+                        )
                     if bound_x_pf.f.max.x() - eps > bound_pf.f.max.x()[p]:
-                        raise Error("Scanline x-max (float) outside of 2d max" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
+                        raise Error("Scanline x-max (float) outside of 2d max"
+                            + check_x_context()
+                            + "\n" + debug_it()
+                            + "\n" + debug_it_x(proj_group)
+                            + "\n" + render()
+                        )
                     if bound_x_pi.f.min.x() < bound_pi.f.min.x()[p]:
-                        raise Error("Scanline x-min (int) outside of 2d min" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
+                        raise Error("Scanline x-min (int) outside of 2d min"
+                            + check_x_context()
+                            + "\n" + debug_it()
+                            + "\n" + debug_it_x(proj_group)
+                            + "\n" + render()
+                        )
                     if bound_x_pi.f.max.x() > bound_pi.f.max.x()[p]:
-                        raise Error("Scanline x-max (int) outside of 2d max" + check_x_context() + "\n" + debug_it_x(proj_group) + "\n" + render())
+                        raise Error("Scanline x-max (int) outside of 2d max"
+                            + check_x_context()
+                            + "\n" + debug_it()
+                            + "\n" + debug_it_x(proj_group)
+                            + "\n" + render()
+                        )
 
                     # TEMP: extend lifetimes to avoid compiler bug
                     _ = proj

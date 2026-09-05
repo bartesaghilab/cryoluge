@@ -804,7 +804,7 @@ struct VolumeNeighborhoods[
 
                 # compute intersections for this xz-line, one before the y-min
                 p_compute.start()  # TEMP
-                f_vi_pos = Vec[3](x=x_vi, y=fy_vi_min - 1, z=z_vi)
+                var f_vi_pos = Vec[3](x=x_vi, y=fy_vi_min - 1, z=z_vi)
                 for g in range(simd_projections.num_groups):
                     ref proj_group = simd_projections.groups[g]
                     ref intersections = intersection_groups[g]
@@ -812,8 +812,7 @@ struct VolumeNeighborhoods[
                 p_compute.stop()  # TEMP
 
                 for y_vi in range(fy_vi_min, fy_vi_max + 1):
-
-                    f_vi_pos = Vec[3](x=x_vi, y=y_vi, z=z_vi)
+                    f_vi_pos.y() = y_vi
 
                     # advance all the intersections along y
                     p_advance.start()  # TEMP
@@ -1294,7 +1293,8 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
             planes: Self.Planes[p1,p2,p3],
             fy_pf: Scalar[dtype]
         ):
-            var (in_range, _inclusive, fx_pf) = intersections.intersect_x[x_halfspace,i](self, planes, fy_pf)
+            var dot_bounds_x = intersections.dot_bounds_x[x_halfspace](self, fy_pf)
+            var (in_range, _inclusive, fx_pf) = intersections.intersect_x[x_halfspace,i](self, planes, fy_pf, dot_bounds_x)
             var p_pf = Vec[2](x=fx_pf[w], y=fy_pf)
             if in_range[w]:
                 x_in.append(p_pf^)
@@ -1326,6 +1326,8 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
                 s += ","
 
         str = String("Plane bound geometry:",
+            "\n# f_vi=", f_vi,
+            "\n# f_vi_corner=", f_vi_corner,
             "\ngrid_p=[", coords_proj.fmin_pos(), ",", coords_proj.fmax(), "]",
             "\nf_pf=pt", self.vol_to_proj(f_vi.map_scalar[dtype]())[slice=w],
             "\nf_pf_corner=pt", self.vol_to_proj(f_vf_corner)[slice=w],
@@ -1728,12 +1730,12 @@ struct _PIntersections[dtype: DType, simd_width: Int](
     #       could move outside
     var seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]]
     var points_pf: _PlaneMap[3,Vec[2,SIMD[dtype,simd_width]]]
-    var d3_dot_bounds: _PlaneMap[3,Tuple[SIMD[dtype,simd_width],SIMD[dtype,simd_width]]]
     var q_xmy_pf: _PlaneMap[3,SIMD[dtype,simd_width]]
 
     comptime Group = _ProjectionGroup[dtype,simd_width,rounding=_]
     comptime num_neighborhoods_in_segment = _num_neighborhoods_in_segment[simd_width]()
     comptime segment_sizes = Vec[3,Int](x=Self.num_neighborhoods_in_segment, y=1, z=1)
+    comptime Planes = _Planes[dtype,simd_width,_,_,_]
 
     fn __init__(out self):
 
@@ -1743,7 +1745,6 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
         self.seg_bounds_vf = materialize[(zero3, zero3)]()
         self.points_pf = _PlaneMap[3](fill=materialize[zero2]())
-        self.d3_dot_bounds = _PlaneMap[3](fill=(zero, zero))
         self.q_xmy_pf = _PlaneMap[3](fill=zero)
 
     fn compute(
@@ -1764,16 +1765,6 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         self.points_pf[pxy] = pxy.intersect_min_p(self.seg_bounds_vf)
         self.points_pf[pyz] = pyz.intersect_min_p(self.seg_bounds_vf)
         self.points_pf[pzx] = pzx.intersect_min_p(self.seg_bounds_vf)
-
-        # compute the third-dimension dot product bounds
-        @parameter
-        for d in range(3):
-            var n = group.normal_p[d]()
-            var n_dot_n = n.inner_product(n)
-            self.d3_dot_bounds.at[d]() = (
-                n_dot_n*self.seg_bounds_vf[0][d],
-                n_dot_n*self.seg_bounds_vf[1][d]
-            )
 
         # compute y-scanline intersection factors, in projection-space
         # NOTE: other planes is the one where p1 is in the p2 position
@@ -1799,12 +1790,6 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         # advance only the intersection points that are affected by y_v
         self.points_pf[pxy] += pxy.sy()
         self.points_pf[pyz] += pyz.sy()
-
-        # advance the third-dimension dot product bounds
-        self.d3_dot_bounds.at[1]()[0] = self.d3_dot_bounds.at[1]()[1]
-        var ny = group.normal_p[1]()
-        self.d3_dot_bounds.at[1]()[1] += ny.inner_product(ny)
-        # TODO: try caching ny.ny ?
 
         # re-compute y-scanline intersection factors, in projection space
         # NOTE: can't do delta updates here, since q could be either of two intersection points,
@@ -1835,16 +1820,16 @@ struct _PIntersections[dtype: DType, simd_width: Int](
     ](
         self,
         group: Self.Group[rounding=rounding],
-        planes: _Planes[dtype,simd_width,_,_,p3],
+        planes: Self.Planes[_,_,p3],
         f_pf: Vec[2,SIMD[dtype,simd_width]],
         out in_range: SIMDBool[simd_width]
     ):
         # determine if the point lies inside the segment
         # by checking dot-products with the third plane normal
         var f_dot_n = f_pf.inner_product(group.normal_p[p3.d]().project[2]())
-        var dot_min = round[rounding]( f_dot_n - self.d3_dot_bounds[planes][0] )
-        var dot_max = round[rounding]( f_dot_n - self.d3_dot_bounds[planes][1] )
-        in_range = dot_min.ge(0) & dot_max.le(0)
+        var f_dot_n_rounded = round[rounding](f_dot_n)
+        in_range = f_dot_n_rounded.ge(self.seg_bounds_vf[0][p3.d])
+            & f_dot_n_rounded.le(self.seg_bounds_vf[1][p3.d])
 
         @parameter
         if debug:
@@ -1855,7 +1840,8 @@ struct _PIntersections[dtype: DType, simd_width: Int](
                 dbg.log(String("in_range()",
                     "  planes=", planes,
                     "  f_pf=", f_pf[slice=w],
-                    "  dots=", dot_min[w], ",", dot_max[w],
+                    "  dot=", f_dot_n[w],
+                    "  bounds=[", self.seg_bounds_vf[0][p3.d][w], ",", self.seg_bounds_vf[1][p3.d][w], "]",
                     "  in_range=", in_range[w]
                 ))
 
@@ -1868,12 +1854,25 @@ struct _PIntersections[dtype: DType, simd_width: Int](
     ](
         self,
         group: Self.Group[rounding=rounding],
-        planes: _Planes[dtype,simd_width,_,_,p3],
+        planes: Self.Planes[_,_,p3],
         out result: _Intersection[2,dtype,simd_width]
     ):
         var f_pf = self.points_pf[planes] + planes.u*uv.u + planes.v*uv.v
         var in_range = self.in_range[debug=debug,debugger=debugger](group, planes, f_pf)
         result = _Intersection(in_range, f_pf^)
+
+        @parameter
+        if debug:
+            ref dbg = debugger()[]
+            var _w = dbg.projection_offset(group)
+            if _w is not None:
+                var w = _w.value()
+                dbg.log(String("intersect()",
+                    "  uv=", uv,
+                    "  planes=", planes,
+                    "  f_pf=", result.point[slice=w],
+                    "  in_range=", result.in_range[w]
+                ))
 
     fn bound_f_pf[
         *,
@@ -1910,47 +1909,34 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
     @always_inline
     fn ranges_x[
-        x_halfspace: Int, p2: _Plane, p3: _Plane, rounding: Int = 0,
+        p2: _Plane, p3: _Plane, rounding: Int = 0,
         *,
         debug: Bool = False,
         debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group[rounding=rounding],
-        f_pf: Vec[2,SIMD[dtype,simd_width]],
+        planes: Self.Planes[_,p2,p3],
+        x_pf: SIMD[dtype,simd_width],
+        dot_bounds: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
         out result: Tuple[SIMDBool[simd_width],SIMDBool[simd_width]]
     ):
-        var d3_dot_bounds = (
-            Vec[2](
-                x=self.d3_dot_bounds.at[p2.d]()[0],
-                y=self.d3_dot_bounds.at[p3.d]()[0]
-            ),
-            Vec[2](
-                x=self.d3_dot_bounds.at[p2.d]()[1],
-                y=self.d3_dot_bounds.at[p3.d]()[1]
-            )
-        )
-        @parameter
-        if x_halfspace == -1:
-            var swap = -d3_dot_bounds[0]
-            d3_dot_bounds[0] = -d3_dot_bounds[1]
-            d3_dot_bounds[1] = swap^
-        
+        var dot_min = planes.project23(dot_bounds[0])
+        var dot_max = planes.project23(dot_bounds[1])
+
         # determine if the point lies inside the segment
         # by checking dot-products with the second and third plane normals
-        var f_dot_n = f_pf.two_inner_products(
-            group.normal_p[p2.d]().project[2](),
-            group.normal_p[p3.d]().project[2]()
-        )
-        # TODO: y is constant, right? could be lifted out
-        var dot_min = (f_dot_n - d3_dot_bounds[0]).round[rounding]()
-        var dot_max = (f_dot_n - d3_dot_bounds[1]).round[rounding]()
-        var zero = Vec[2](fill=SIMD[dtype,simd_width](0))
-        var in_range = dot_min.ge_all(zero) & dot_max.le_all(zero)
+        var dot_x = Vec[2](
+            x=group.normal_p[p2.d]().x(),
+            y=group.normal_p[p3.d]().x()
+        )*x_pf
+        var dot_x_rounded = dot_x.round[rounding]()
+        var in_range = dot_x_rounded.ge_all(dot_min)
+            & dot_x_rounded.le_all(dot_max)
 
         # a point is exclusive iff it lies exactly on the upper bound,
         # so the point is inclusive if it doesn't
-        var inclusive = dot_max.ne_all_simd(zero)
+        var inclusive = dot_x_rounded.ne_all_simd(dot_max)
 
         result = (in_range, inclusive)
 
@@ -1962,8 +1948,9 @@ struct _PIntersections[dtype: DType, simd_width: Int](
                 var w = _w.value()
                 dbg.log(String("ranges_x()",
                     "  planes=", p2.name, p3.name,
-                    "  f_pf=", f_pf[slice=w],
-                    "  dots=", dot_min[slice=w], ",", dot_max[slice=w],
+                    "  x_pf=", x_pf[w],
+                    "  dot_x=", dot_x[slice=w],
+                    "  range=[", dot_bounds[0][slice=w], ",", dot_bounds[1][slice=w], "]",
                     "  in_range=", in_range[w]
                 ))
 
@@ -1977,8 +1964,9 @@ struct _PIntersections[dtype: DType, simd_width: Int](
     ](
         self,
         group: Self.Group[rounding=rounding],
-        planes: _Planes[dtype,simd_width,p1,p2,p3],
+        planes: Self.Planes[p1,p2,p3],
         y_pf: SIMD[dtype,simd_width],
+        dot_bounds: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
         out result: Tuple[SIMDBool[simd_width],SIMDBool[simd_width],SIMD[dtype,simd_width]]
     ):
         var y_pf_hs = y_pf.copy()
@@ -1992,8 +1980,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         if x_halfspace == -1:
             x_pf *= -1
 
-        var f_pf = Vec[2](x=x_pf, y=y_pf)
-        (in_range, inclusive) = self.ranges_x[x_halfspace,p2,p3,debug=debug,debugger=debugger](group, f_pf)
+        (in_range, inclusive) = self.ranges_x[debug=debug,debugger=debugger](group, planes, x_pf, dot_bounds)
 
         @parameter
         if debug:
@@ -2014,6 +2001,24 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
         result = (in_range, inclusive, x_pf)
 
+    fn dot_bounds_x[x_halfspace: Int, rounding: Int](
+        self,
+        group: Self.Group[rounding=rounding],
+        y_pf: SIMD[dtype,simd_width],
+        out dot_bounds_x: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]]
+    ):
+        # compute bounds on the dot product of the x coords with the plane normals,
+        # for in-range testing
+        var dot = Vec[3](
+            x=group.normal_p[0]().y(),
+            y=group.normal_p[1]().y(),
+            z=group.normal_p[2]().y()
+        )*y_pf
+        var dot_rounded = dot.round[rounding]()
+        dot_bounds_x = self.get_seg_bounds_vf[x_halfspace]()
+        dot_bounds_x[0] -= dot_rounded
+        dot_bounds_x[1] -= dot_rounded
+
     fn bound_fx_pf[
         x_halfspace: Int,
         *,
@@ -2026,6 +2031,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         out bound_fx_pf: _PBound[1,dtype,simd_width]
     ):
         var y_pf = SIMD[dtype,simd_width](y_pi)
+        var dot_bounds_x = self.dot_bounds_x[x_halfspace](group, y_pf)
 
         ref pxy = group.planes_xy
         ref pyz = group.planes_yz
@@ -2035,9 +2041,9 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
         @parameter
         for i in [0,1]:
-            bound_fx_pf.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pxy, y_pf))
-            bound_fx_pf.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pyz, y_pf))
-            bound_fx_pf.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pzx, y_pf))
+            bound_fx_pf.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pxy, y_pf, dot_bounds_x))
+            bound_fx_pf.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pyz, y_pf, dot_bounds_x))
+            bound_fx_pf.update(self.intersect_x[x_halfspace,i,debug=debug,debugger=debugger](group, pzx, y_pf, dot_bounds_x))
 
         @parameter
         if debug:
