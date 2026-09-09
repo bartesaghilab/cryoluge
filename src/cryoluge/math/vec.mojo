@@ -959,6 +959,10 @@ struct Vec[
     @always_inline
     fn len[utype: UnitType, dtype: DType](self: Vec[dim,Unit[utype,dtype]], out result: Unit[utype,dtype]):
         result = self.len2().sqrt()
+
+    @always_inline
+    fn normalized[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = self/self.len()
     
     @always_inline
     fn sinc[dtype: DType](self: Vec[dim,Scalar[dtype]], out result: Vec[dim,Scalar[dtype]]):
@@ -1015,6 +1019,10 @@ struct Vec[
         fn func(i: Unit[utype,dtype]) -> Unit[utype,dtype]:
             return i.ceil()
         result = self.map[mapper=func]()
+
+    @always_inline
+    fn parallel_project[dtype: DType, w: Int](self: Vec[dim,SIMD[dtype,w]], onto: Vec[dim,SIMD[dtype,w]], out result: Vec[dim,SIMD[dtype,w]]):
+        result = onto*self.inner_product(onto)/onto.inner_product(onto)
 
     # comparisons
 
