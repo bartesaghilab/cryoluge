@@ -4,6 +4,7 @@ from sys.info import size_of
 from complex import ComplexFloat32
 from memory import bitcast, memcpy
 
+from cryoluge.lang import debug_assert_with_stack
 from cryoluge.math import Vec, unrecognized_dimension, expect_at_least_rank
 from cryoluge.math.error import err, err_rel, err_abs, is_err_small, ErrFn
 from cryoluge.io import FileReader, Endian, ByteBuffer
@@ -79,7 +80,7 @@ struct DimensionalBuffer[
         for d in range(dim):
             var coord = i[d]
             var size = self._sizes[d]
-            debug_assert(
+            debug_assert_with_stack(
                 coord >= 0 and coord < size,
                 d_names[d], "=", coord, " out of range [0,", size, ")"
             )
