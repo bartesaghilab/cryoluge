@@ -1477,7 +1477,13 @@ struct VolumeNeighborhoods[
             out bounds: _PBound[1,dtype,1]
         ):
             bounds = _PBound[1,dtype,1]()
-            if not isinf(delta_xp_yp) and not isnan(delta_xp_yp):
+            if isinf(delta_xp_yp) or isnan(delta_xp_yp):
+                # the line is horizontal, so everything is in-range
+                bounds.mask[0] = True
+                bounds.f.min[0] = -inf[dtype]()
+                bounds.f.max[0] = inf[dtype]()
+            else:
+                # otherwise, do the intersection tests
                 var dx_pf = delta_xp_yp*(y_pf - y_origin_f)
                 _ = bounds.update((True, x_min_f + dx_pf))
                 _ = bounds.update((True, x_max_f + dx_pf))
@@ -1567,6 +1573,11 @@ struct VolumeNeighborhoods[
 
                     if not x_intersection.mask[w] or not x_intersection[slice=w].intersects(x_line):
                         break
+                    # TODO: NEXTTIME: this is stopping us from looking at the next scanline!!
+                    #                 the starting scanline falls out of range on the second f3 step
+                    #                 but we still need to start the second scanline,
+                    #                 so we need to find a way to continue to the next scanline anyway,
+                    #                 or somehow start on the next one without checking the first one
 
                     if y_bounds_i[y_dir_index] == no_bound or is_outside(y_pi, y_bounds_i[y_dir_index]):
                         y_bounds_i[y_dir_index] = y_pi
@@ -1652,17 +1663,17 @@ struct VolumeNeighborhoods[
                     var y_pf = Scalar[dtype](y_pi)
 
                     # calculate the bounds on x_p induced by y_v for this scanline
-                    # TODO: what if the bounds are inf?
                     var x_line_f = x_line_bounds(y_origin_f, x_min_f, x_max_f, delta_xp_yp, y_pf)
-                    var x_line_i = (0, 0)
-                    if delta_xp_3v > 0:
-                        x_line_i[0] = Int(ceil(round[rounding](x_line_f.f.min[0])))
-                        x_line_i[1] = Int(ceil(round[rounding](x_line_f.f.max[0]) - 1))
-                        # the upper y_v boundary (+x) is exclusive
-                    else:
-                        x_line_i[0] = Int(ceil(round[rounding](x_line_f.f.min[0]) - 1))
-                        # the upper y_v boundary (-x) is exclusive
-                        x_line_i[1] = Int(ceil(round[rounding](x_line_f.f.max[0])))
+                    var x_line_i = (Int.MIN, Int.MAX)
+                    if not isinf(x_line_f.f.min[0]) and isinf(x_line_f.f.max[0]):
+                        if delta_xp_3v > 0:
+                            x_line_i[0] = Int(ceil(round[rounding](x_line_f.f.min[0])))
+                            x_line_i[1] = Int(ceil(round[rounding](x_line_f.f.max[0]) - 1))
+                            # the upper y_v boundary (+x) is exclusive
+                        else:
+                            x_line_i[0] = Int(ceil(round[rounding](x_line_f.f.min[0]) - 1))
+                            # the upper y_v boundary (-x) is exclusive
+                            x_line_i[1] = Int(ceil(round[rounding](x_line_f.f.max[0])))
 
                     # get the intersection bound for this scanline
                     # TODO: what if the mask is False?
@@ -1720,7 +1731,8 @@ struct VolumeNeighborhoods[
                         if debug:
                             ref dbg = debugger()[]
                             if dbg.is_projection_segments_pos[x_halfspace,simd_width,p3](group, w, f_vi_pos):
-                                dbg.log(String("# sf_vf=", sf_vf,
+                                dbg.log(String("# sf_pi=", sf_pi,
+                                    "  sf_vf=", sf_vf,
                                     "  seg=[", seg_bounds_vf[0][slice=w], ",", seg_bounds_vf[1][slice=w], "]",
                                     "  in_bounds=", in_bounds
                                 ))

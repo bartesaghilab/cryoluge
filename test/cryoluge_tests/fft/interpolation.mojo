@@ -631,7 +631,8 @@ struct TestConditions:
         return [
             # TEMP
             1,
-            # 2,
+            2,
+            # TODO: NEXTTIME: fix bugs with multiple projections
             # 16,  # max simd_width
             # 22  # a little bit more
         ]
@@ -656,7 +657,6 @@ struct TestConditions:
     fn rots() -> List[Vec[3,Int]]:
         return [
             # TEMP
-            # TODO: NEXTTIME: get other rotations working!!
             # Vec[3](fill=0),  # no rotation, only +x halfspace
             # Vec[3](x=5, y=7, z=9),  # small rotation
             Vec[3](x=30, y=40, z=50),  # large rotation
