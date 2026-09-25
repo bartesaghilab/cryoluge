@@ -38,26 +38,30 @@ struct FFTImage[
     fn coords(self) -> FFTCoords[dim]:
         return FFTCoords(self.sizes_real)
 
-    fn crop(self, *, mut to: Self):
+    fn crop(self, *, mut to: Self, out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)):
         ref dst = to
+        ref src = self
 
-        # make sure the destination image is smaller (or the same size) as this one
-        @parameter
-        for d in range(dim):
-            debug_assert(
-                dst.sizes_real[d] <= self.sizes_real[d],
-                "Crop destination real sizes ", dst.sizes_real,
-                " must be smaller (or same size) as this source real sizes ", self.sizes_real
-            )
+        var coords_dst = dst.coords()
+        var coords_src = src.coords()
 
         # sample into the dst image
         @parameter
-        fn sample(i: Self.Vec[Int]):
-            dst.complex[i] = self.complex[self.coords().f2i(dst.coords().i2f(i))]
+        fn sample(i_dst: Self.Vec[Int]):
+            var i_src = coords_src.maybe_f2i(coords_dst.i2f(i_dst))
+            if i_src is not None:
+                dst.complex[i_dst] = src.complex[i_src.value()]
+            else:
+                dst.complex[i_dst] = out_of_range
 
         dst.complex.iterate[sample]()
 
-        _ = dst  # TEMP: need to extend lifetime of ref to avoid compiler bug
+        # TEMP: need to extend lifetimes to avoid compiler bug
+        _ = dst
+        _ = src
+        _ = coords_dst
+        _ = coords_src
+        _ = out_of_range
 
     fn find(
         self,
