@@ -1,6 +1,6 @@
 
 
-fn powell[
+def powell[
     info: ObjectiveInfo,
     LS: LineSearch,
     //,
@@ -50,7 +50,7 @@ fn powell[
             var fx_before_dir = fx_here
 
             @parameter
-            fn line_d(x: Coord[info], out fx: Value[info]):
+            def line_d(x: Coord[info], out fx: Value[info]):
                 fx = objective(x_here + directions[d]*x)
 
             # do line search along direction d
@@ -105,7 +105,7 @@ fn powell[
         if fx_extrapolated < fx_before_dirs:
 
             # and if the new direction has any potential for further minimization ...
-            # i.e.: 2(f0 - 2fN + fe)( (f0 - fN) - df )^2 < df(f0 - fe)^2
+            # i.e.: 2(f0 - 2fN + fe)( (f0 - def) - df )^2 < df(f0 - fe)^2
             var left = (fx_before_dirs - fx_here*2 + fx_extrapolated)
                 *(fx_before_dirs - fx_here - best_improvement)**2
                 *2
@@ -113,7 +113,7 @@ fn powell[
             if left < right:
 
                 @parameter
-                fn line_iter(x: Coord[info], out fx: Value[info]):
+                def line_iter(x: Coord[info], out fx: Value[info]):
                     fx = objective(x_here + iter_dir*x)
 
                 # do line search along the iteration direction
@@ -138,7 +138,7 @@ fn powell[
     )
 
 
-fn _line_bounds[info: ObjectiveInfo](
+def _line_bounds[info: ObjectiveInfo](
     x: Coords[info],
     dir: Coords[info],  # should be normalized
     x_min: Coords[info],
@@ -187,7 +187,7 @@ struct PowellMinimizer[
     var value_threshold: Scalar[dtype]
     var line_search: LS
 
-    fn minimize[
+    def minimize[
         info: ObjectiveInfo,
         //,
         objective: Objective[info]

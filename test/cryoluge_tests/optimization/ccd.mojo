@@ -23,7 +23,7 @@ def test_quadratic():
         dim = 1
     )
     @parameter
-    fn f(x: Coords[info], out fx: Value[info]):
+    def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 5)**2 + 42 )
 
     var result = ccd[f](
@@ -51,7 +51,7 @@ def test_biquadratic():
         dim = 2
     )
     @parameter
-    fn f(x: Coords[info], out fx: Value[info]):
+    def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 5)**2 + (x[1] + 7)**2 + 42 )
 
     var result = ccd[f](
@@ -80,7 +80,7 @@ def test_minimizer():
         dim = 2
     )
     @parameter
-    fn f(x: Coords[info], out fx: Value[info]):
+    def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 5)**2 + (x[1] + 7)**2 + 42 )
 
     var result = CCDMinimizer[dtype](

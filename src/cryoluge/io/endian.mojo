@@ -6,7 +6,7 @@ from os import abort
 struct Endian(
     ImplicitlyCopyable,
     Movable,
-    EqualityComparable,
+    Equatable,
     Writable,
     Stringable
 ):
@@ -16,7 +16,7 @@ struct Endian(
     comptime Little=Endian(1)
 
     @staticmethod
-    fn native() -> Self:
+    def native() -> Self:
         @parameter
         if is_big_endian():
             return Self.Big
@@ -26,13 +26,13 @@ struct Endian(
             constrained[False, "Target architecture is neither big nor little endian"]()
             return abort[Self]()
 
-    fn __init__(out self, value: Int):
+    def __init__(out self, value: Int):
         self.value = value
 
-    fn __eq__(self, rhs: Endian) -> Bool:
+    def __eq__(self, rhs: Endian) -> Bool:
         return self.value == rhs.value
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         if self.value == Self.Big.value:
             writer.write("Big")
         elif self.value == Self.Little.value:
@@ -40,11 +40,11 @@ struct Endian(
         else:
             writer.write("(unknown)")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
-fn require_endian[endian: Endian]():
+def require_endian[endian: Endian]():
     # for, essentially, memcpy of file data into RAM to be correct,
     # the endian-ness of the file should match the endian-ness of the target architecture
     constrained[

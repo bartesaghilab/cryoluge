@@ -8,14 +8,14 @@ comptime funcs = __functions_in_module()
 
 
 @fieldwise_init
-struct Thing(Movable, EqualityComparable, Stringable):
+struct Thing(Movable, Equatable, Stringable):
     # NOTE: *NOT* Copyable or ImplicitlyCopyable
     var i: Int
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         return self.i == other.i
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String('Thing[', self.i, ']')
 
 
@@ -122,7 +122,7 @@ def test_first():
     list.append(Thing(7))
     list.append(Thing(8))
 
-    fn is_n[n: Int](t: Thing) -> Bool:
+    def is_n[n: Int](t: Thing) -> Bool:
         return t.i == n
     assert_equal(list.first[is_n[5]]().value(), 0)
     assert_equal(list.first[is_n[6]]().value(), 1)

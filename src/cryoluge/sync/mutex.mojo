@@ -18,10 +18,10 @@ struct Mutex[
 
     alias _Ptr = UnsafePointer[Self._Val,MutOrigin.external]
 
-    fn __init__(out self: Mutex[NoneType]):
+    def __init__(out self: Mutex[NoneType]):
         self = Mutex[NoneType](None)
 
-    fn __init__(out self, var item: T):
+    def __init__(out self, var item: T):
 
         # init the atomic value to unlocked
         self._ptr = alloc[Self._Val](1)
@@ -32,7 +32,7 @@ struct Mutex[
     # TODO: can we relax any of the consistencies to get better optimization?
     # TODO: implement thread parking and signaling instead of doing spin,sleep waits?
 
-    fn lock[wait_ms: Int = 0](
+    def lock[wait_ms: Int = 0](
         self,
         out guard: MutexGuard[T,MutOrigin.cast_from[origin_of(self._item)]]
     ):
@@ -59,10 +59,10 @@ struct Mutex[
                 if wait_ms != 0:
                     sleep(sec=Float64(wait_ms)/Float64(1000))
 
-    fn __del__(deinit self):
+    def __del__(deinit self):
         self._ptr.free()
 
-    fn unwrap(deinit self, out item: T):
+    def unwrap(deinit self, out item: T):
         item = self._item^
 
 
@@ -73,7 +73,7 @@ struct MutexGuard[
     var _ptr: Mutex._Ptr
     var _item: Pointer[T,item_origin]
 
-    fn __init__(
+    def __init__(
         out self,
         ptr: Mutex._Ptr,
         ref [item_origin] item: T
@@ -81,7 +81,7 @@ struct MutexGuard[
         self._ptr = ptr
         self._item = Pointer(to=item)
 
-    fn __del__(deinit self):
+    def __del__(deinit self):
         # set the atomic to unlocked
         Atomic.store[
             ordering = Consistency.SEQUENTIAL
@@ -93,12 +93,12 @@ struct MutexGuard[
     # NOTE: this doesn't work, possibly due to a compiler bug?
     #       the returned reference is always immutable
     #       despite both origins being explicity mutable =(
-    # fn __enter__(mut self) -> ref [item_origin] T:
+    # def __enter__(mut self) -> ref [item_origin] T:
     #     return self._item[]
 
-    fn __enter__(self) -> Pointer[T,item_origin]:
+    def __enter__(self) -> Pointer[T,item_origin]:
         return self._item
 
-    fn __exit__(self):
+    def __exit__(self):
         # nothing to do
         pass

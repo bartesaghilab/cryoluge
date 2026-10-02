@@ -1,6 +1,6 @@
 
 
-fn rebind_scalar[
+def rebind_scalar[
     src_dtype: DType, //,
     dst_dtype: DType
 ](src: Scalar[src_dtype]) -> Scalar[dst_dtype]:

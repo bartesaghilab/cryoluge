@@ -16,14 +16,14 @@ struct BlockedReader[
     var _block_reader_indices: Dict[Block.Key, Int]
     var _block_readers: MovableList[CistemReader[R, origin]]
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] reader: R
     ) raises:
         self = Self(reader, blocks=[], parameters=CistemParameters.all())
 
     # TODO: can we use Iterable trait here?
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] reader: R,
         *,
@@ -32,7 +32,7 @@ struct BlockedReader[
     ) raises:
         self = Self(reader, KeyableSet[Block](blocks), KeyableSet[Parameter](parameters))
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] reader: R,
         var blocks: KeyableSet[Block],
@@ -73,10 +73,10 @@ struct BlockedReader[
             self._block_reader_indices[block.id] = len(self._block_readers)
             self._block_readers.append(block_reader^)
 
-    fn blocks(ref self) -> ref [origin_of(self._blocks_present)] List[Block]:
+    def blocks(ref self) -> ref [origin_of(self._blocks_present)] List[Block]:
         return self._blocks_present
 
-    fn seek(mut self, block: Block) raises -> ref [self._block_readers] CistemReader[R, origin]:
+    def seek(mut self, block: Block) raises -> ref [self._block_readers] CistemReader[R, origin]:
 
         # lookup the block
         var maybe_i = self._block_reader_indices.get(block.id)

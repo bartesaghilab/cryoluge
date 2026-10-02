@@ -23,7 +23,7 @@ def test_quadratic():
         dim = 1
     )
     @parameter
-    fn f(x: Coord[info], out fx: Value[info]):
+    def f(x: Coord[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x - 5)**2 + 42 )
 
     var result = golden_section[f](
@@ -45,7 +45,7 @@ def test_line_search():
         dim = 1
     )
     @parameter
-    fn f(x: Coord[info], out fx: Value[info]):
+    def f(x: Coord[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x - 5)**2 + 42 )
 
     var result = GoldenSectionLineSearch[dtype](

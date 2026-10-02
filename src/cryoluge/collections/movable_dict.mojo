@@ -5,7 +5,7 @@ from collections.dict import _DictKeyIter
 
 
 struct MovableDict[
-    K: Copyable & Movable & Hashable & EqualityComparable,
+    K: Copyable & Movable & Hashable & Equatable,
     V: Movable,
     H: Hasher = default_hasher
 ](Movable, Sized):
@@ -19,10 +19,10 @@ struct MovableDict[
     comptime initial_capacity = 8
     comptime ValuePtr = UnsafePointer[V, MutOrigin.external]
 
-    fn __init__(out self):
+    def __init__(out self):
         self = Self(capacity=Self.initial_capacity)
     
-    fn __init__(out self, *, capacity: Int):
+    def __init__(out self, *, capacity: Int):
 
         # clamp the capacity
         var cap = capacity
@@ -34,7 +34,7 @@ struct MovableDict[
 
         self._dict = Dict[K,Self.ValuePtr,H](power_of_two_initial_capacity=cap)
 
-    fn __init__(out self, *, mut take_from: Self):
+    def __init__(out self, *, mut take_from: Self):
         self = Self.__init__(capacity=len(take_from))
         for key in take_from.key_list():
             try:
@@ -42,11 +42,11 @@ struct MovableDict[
             except KeyError:
                 pass
 
-    fn __getitem__(ref self, key: K) raises -> ref [self._dict.__getitem__(key)] V:
+    def __getitem__(ref self, key: K) raises -> ref [self._dict.__getitem__(key)] V:
         var p = self._dict[key]
         return p[]
 
-    fn get[origin: Origin](ref [origin] self, key: K) -> Optional[Pointer[V, origin]]:
+    def get[origin: Origin](ref [origin] self, key: K) -> Optional[Pointer[V, origin]]:
         try:
             ref v = self._dict[key]
             var p = v
@@ -56,7 +56,7 @@ struct MovableDict[
         except KeyError:
             return None
 
-    fn __setitem__(mut self, var key: K, var val: V):
+    def __setitem__(mut self, var key: K, var val: V):
 
         # move the value into a pointer
         var p = alloc[V](1)
@@ -65,17 +65,17 @@ struct MovableDict[
         # then move the pointer into the dict
         self._dict[key^] = p
 
-    fn set_get(mut self, var key: K, var elem: V) -> ref [self] V:
+    def set_get(mut self, var key: K, var elem: V) -> ref [self] V:
         self[key.copy()] = elem^
         return self.get(key^).value()[]
 
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         return len(self._dict)
 
-    fn __contains__(self, key: K) -> Bool:
+    def __contains__(self, key: K) -> Bool:
         return key in self._dict
 
-    fn pop(mut self, key: K) -> MovableOptional[V]:
+    def pop(mut self, key: K) -> MovableOptional[V]:
 
         # get the stored pointer, if any
         try:
@@ -86,7 +86,7 @@ struct MovableDict[
         # take the value out of the pointer
         return p.take_pointee()
 
-    fn get_or_insert[func: fn () capturing -> V](
+    def get_or_insert[func: def () capturing -> V](
         mut self,
         key: K
     ) -> ref [self._dict.__getitem__(key)] V:
@@ -94,10 +94,10 @@ struct MovableDict[
             self[key.copy()] = func()
         return self._dict.get(key).value()[]
 
-    fn keys(self) -> _DictKeyIter[K,Self.ValuePtr,H,origin_of(self._dict)]:
+    def keys(self) -> _DictKeyIter[K,Self.ValuePtr,H,origin_of(self._dict)]:
         return self._dict.keys()
 
-    fn key_list(self) -> List[K]:
+    def key_list(self) -> List[K]:
         """
         Returns all the keys in an owned list.
         Useful for when you want to destructively iterate over the dict.

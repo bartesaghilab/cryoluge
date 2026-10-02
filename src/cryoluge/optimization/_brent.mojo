@@ -1,6 +1,6 @@
 
 
-fn brent[
+def brent[
     info: ObjectiveInfo,
     //,
     objective_line: ObjectiveLine[info]
@@ -124,7 +124,7 @@ fn brent[
     )
 
 
-fn _parabolic_step[info: ObjectiveInfo](
+def _parabolic_step[info: ObjectiveInfo](
     *,
     x0: Coord[info],
     x1: Coord[info],
@@ -145,7 +145,7 @@ fn _parabolic_step[info: ObjectiveInfo](
     ratio = (num, denom)
 
 
-fn _golden_section_step[info: ObjectiveInfo](
+def _golden_section_step[info: ObjectiveInfo](
     *,
     x_mid: Coord[info],
     i_min: Coord[info],
@@ -173,7 +173,7 @@ struct BrentLineSearch[
     var max_iterations: Int
     var min_interval_width: Scalar[dtype]
 
-    fn minimize[
+    def minimize[
         info: ObjectiveInfo,
         //,
         line: ObjectiveLine[info]

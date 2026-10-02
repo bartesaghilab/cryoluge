@@ -13,7 +13,7 @@ struct Thing(Copyable, Movable, Keyable):
 
     comptime Key = Int
 
-    fn key(self) -> Self.Key:
+    def key(self) -> Self.Key:
         return self.i
 
 

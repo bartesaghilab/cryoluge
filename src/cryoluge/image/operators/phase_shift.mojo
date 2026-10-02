@@ -12,7 +12,7 @@ struct PhaseShiftOperator[dtype: DType, dim: Int](
 ):
     var _shifts: Vec[dim,Rad[dtype]]
 
-    fn __init__(
+    def __init__(
         out self,
         sizes_real: Vec[dim,Int],
         shifts: Vec[dim,Px[dtype]]
@@ -21,8 +21,8 @@ struct PhaseShiftOperator[dtype: DType, dim: Int](
         self._shifts = shifts.map_value()*2*pi[dtype].value/sizes_real.map_scalar[dtype]()
             .map_unit[Rad.utype]()
 
-    @always_inline
-    fn get[width: Int](
+    @inline(.always)
+    def get[width: Int](
         self,
         *,
         f: Vec[dim,SIMD[dtype,width]],
@@ -34,8 +34,8 @@ struct PhaseShiftOperator[dtype: DType, dim: Int](
             phases += f[d]*self._shifts[d].value
         result = ComplexSIMD[dtype,width](re=cos(phases), im=-sin(phases))
 
-    @always_inline
-    fn eval[width: Int](
+    @inline(.always)
+    def eval[width: Int](
         self,
         *,
         f: Vec[dim,SIMD[dtype,width]],
@@ -44,8 +44,8 @@ struct PhaseShiftOperator[dtype: DType, dim: Int](
     ):
         result = v*self.get(f=f)
 
-    @always_inline
-    fn eval(
+    @inline(.always)
+    def eval(
         self,
         *,
         f: Vec[dim,Int],
@@ -54,14 +54,14 @@ struct PhaseShiftOperator[dtype: DType, dim: Int](
     ):
         result = self.eval(f=f.map_scalar[dtype](), v=v)
 
-    fn apply(
+    def apply(
         self,
         mut img: FFTImage[dim,dtype]
     ):
         var coords = img.coords()
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var f = coords.i2f(i)
             img.complex[i=i] = self.eval(f=f, v=img.complex[i=i])
 

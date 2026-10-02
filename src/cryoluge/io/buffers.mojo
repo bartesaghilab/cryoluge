@@ -7,28 +7,28 @@ struct ByteBuffer(Copyable, Movable):
     var _size: Int
     var _alignment: Int
 
-    fn __init__(out self, size: Int, *, alignment: Optional[Int] = None):
+    def __init__(out self, size: Int, *, alignment: Optional[Int] = None):
         debug_assert(size >= 0, "Size can't be negative: ", size)
         self._size = size
         self._alignment = alignment.or_else(1)
         self._p = alloc[Byte](size, alignment=self._alignment)
 
-    fn __del__(deinit self):
+    def __del__(deinit self):
         self._p.free()
 
-    fn __copyinit__(out self, other: Self):
+    def __copyinit__(out self, other: Self):
         self._size = other._size
         self._alignment = other._alignment
         self._p = alloc[Byte](self._size, alignment=self._alignment)
         memcpy[Byte](src=other._p, dest=self._p, count=self._size)
 
-    fn size(self) -> Int:
+    def size(self) -> Int:
         return self._size
 
-    fn alignment(self) -> Int:
+    def alignment(self) -> Int:
         return self._alignment
 
-    fn span[origin: Origin](ref [origin] self,
+    def span[origin: Origin](ref [origin] self,
         *,
         start: Int = 0,
         length: Optional[Int] = None

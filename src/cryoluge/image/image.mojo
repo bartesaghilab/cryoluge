@@ -15,76 +15,76 @@ struct Image[
     comptime PixelVec = SIMD[dtype,_]
     comptime pixel_vec_max_width = simd_width_of[dtype]()
 
-    fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
+    def __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
 
-    fn __init__(out self, *, sx: Int, alignment: Optional[Int] = None):
+    def __init__(out self, *, sx: Int, alignment: Optional[Int] = None):
         self = Self(Self.Vec(x=sx), alignment=alignment)
 
-    fn __init__(out self, *, sx: Int, sy: Int, alignment: Optional[Int] = None):
+    def __init__(out self, *, sx: Int, sy: Int, alignment: Optional[Int] = None):
         self = Self(Self.Vec(x=sx, y=sy), alignment=alignment)
 
-    fn __init__(out self, *, sx: Int, sy: Int, sz: Int, alignment: Optional[Int] = None):
+    def __init__(out self, *, sx: Int, sy: Int, sz: Int, alignment: Optional[Int] = None):
         self = Self(Self.Vec(x=sx, y=sy, z=sz), alignment=alignment)
 
-    fn rank(self) -> Int:
+    def rank(self) -> Int:
         return self._buf.rank()
 
-    fn num_pixels(self) -> Int:
+    def num_pixels(self) -> Int:
         return self._buf.num_elements()
 
-    fn sizes(self) -> ref [origin_of(self._buf._sizes)] Self.Vec[Int]:
+    def sizes(self) -> ref [origin_of(self._buf._sizes)] Self.Vec[Int]:
         return self._buf.sizes()
 
-    fn span_bytes(ref self) -> Span[Byte, origin_of(self._buf._buf)]:
+    def span_bytes(ref self) -> Span[Byte, origin_of(self._buf._buf)]:
         return self._buf.span_bytes()
 
-    fn span(ref self, *, start: Int = 0) -> Span[Self.PixelType, origin_of(self._buf._buf)]:
+    def span(ref self, *, start: Int = 0) -> Span[Self.PixelType, origin_of(self._buf._buf)]:
         return self._buf.span(start=start)
 
-    fn alignment(self) -> Int:
+    def alignment(self) -> Int:
         return self._buf.alignment()
 
-    fn __getitem__(self, *, i: Int, out v: Self.PixelType):
+    def __getitem__(self, *, i: Int, out v: Self.PixelType):
         v = self._buf[i=i]
 
-    fn __getitem__(self, i: Self.Vec[Int], out v: Self.PixelType):
+    def __getitem__(self, i: Self.Vec[Int], out v: Self.PixelType):
         v = self._buf[i]
 
-    fn __getitem__(self, *, x: Int, out v: Self.PixelType):
+    def __getitem__(self, *, x: Int, out v: Self.PixelType):
         v = self._buf[x=x]
 
-    fn __getitem__(self, *, x: Int, y: Int, out v: Self.PixelType):
+    def __getitem__(self, *, x: Int, y: Int, out v: Self.PixelType):
         v = self._buf[x=x, y=y]
 
-    fn __getitem__(self, *, x: Int, y: Int, z: Int, out v: Self.PixelType):
+    def __getitem__(self, *, x: Int, y: Int, z: Int, out v: Self.PixelType):
         v = self._buf[x=x, y=y, z=z]
 
-    fn __setitem__(mut self, *, i: Int, v: Self.PixelType):
+    def __setitem__(mut self, *, i: Int, v: Self.PixelType):
         self._buf[i=i] = v
 
-    fn __setitem__(mut self, i: Self.Vec[Int], v: Self.PixelType):
+    def __setitem__(mut self, i: Self.Vec[Int], v: Self.PixelType):
         self._buf[i] = v
 
-    fn __setitem__(mut self, *, x: Int, v: Self.PixelType):
+    def __setitem__(mut self, *, x: Int, v: Self.PixelType):
         self._buf[x=x] = v
 
-    fn __setitem__(mut self, *, x: Int, y: Int, v: Self.PixelType):
+    def __setitem__(mut self, *, x: Int, y: Int, v: Self.PixelType):
         self._buf[x=x, y=y] = v
 
-    fn __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
+    def __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
 
-    fn get(self, i: Self.Vec[Int]) -> Optional[Self.PixelType]:
+    def get(self, i: Self.Vec[Int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
 
-    fn iterate[
-        func: fn (i: Self.Vec[Int]) capturing
+    def iterate[
+        func: def (i: Self.Vec[Int]) capturing
     ](self):
         self._buf.iterate[func]()
 
     # TEMP: for comparing to images in other programs
-    fn assert_info[samples: Int](
+    def assert_info[samples: Int](
         self: Image[dim,DType.float32],
         msg: String,
         sizes: Self.Vec[Int],
@@ -98,7 +98,7 @@ struct Image[
         self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose, eps=eps)
 
     # TEMP
-    fn assert_data[err_fn: ErrFn[dtype] = err_rel[dtype]](
+    def assert_data[err_fn: ErrFn[dtype] = err_rel[dtype]](
         mut self,
         msg: String,
         path: String,
@@ -109,82 +109,82 @@ struct Image[
     ) raises:
         self._buf.assert_data[dtype,err_fn](msg, path, verbose=verbose, eps=eps, overwrite=overwrite)
 
-    fn _check_vector_offset[width: Int](self, offset: Int):
+    def _check_vector_offset[width: Int](self, offset: Int):
         var bound = self.num_pixels() - width
         debug_assert(
             offset <= bound,
             "offset ", offset, " out of range [0,", bound, "]"
         )
 
-    fn load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
+    def load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
         self._check_vector_offset[width](offset)
         v = self.span(start=offset)
             .unsafe_ptr()
             .load[width=width]()
 
     # TEMP
-    fn load[width: Int](self, *, i: Vec[dim,Int], out v: Self.PixelVec[width]):
+    def load[width: Int](self, *, i: Vec[dim,Int], out v: Self.PixelVec[width]):
         var offset = self._buf._offset(i)
         v = self.span(start=offset)
             .unsafe_ptr()
             .load[width=width]()
 
-    fn store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
+    def store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
         self._check_vector_offset[width](offset)
         self.span(start=offset)
             .unsafe_ptr()
             .store[width=width](v)
         
-    fn pixels_read[
-        func: fn[width: Int](Self.PixelVec[width]) capturing,
+    def pixels_read[
+        func: def[width: Int](Self.PixelVec[width]) capturing,
         width: Int = Self.pixel_vec_max_width
     ](ref self):
 
         @parameter
-        fn loader[width: Int](offset: Int):
+        def loader[width: Int](offset: Int):
             var v = self.load[width](offset)
             func[width](v)
 
         vectorize[loader, width](self.num_pixels())
 
-    fn pixels_write[
-        func: fn[width: Int](out p: Self.PixelVec[width]) capturing,
+    def pixels_write[
+        func: def[width: Int](out p: Self.PixelVec[width]) capturing,
         width: Int = Self.pixel_vec_max_width
     ](mut self):
 
         @parameter
-        fn loader[width: Int](offset: Int):
+        def loader[width: Int](offset: Int):
             var v = func[width]()
             self.store[width](offset, v)
 
         vectorize[loader, width](self.num_pixels())
 
-    fn pixels_read_write[
-        func: fn[width: Int](mut p: Self.PixelVec[width]) capturing,
+    def pixels_read_write[
+        func: def[width: Int](mut p: Self.PixelVec[width]) capturing,
         width: Int = Self.pixel_vec_max_width
     ](mut self):
 
         @parameter
-        fn loader[width: Int](offset: Int):
+        def loader[width: Int](offset: Int):
             var v = self.load[width](offset)
             func[width](v)
             self.store[width](offset, v)
 
         vectorize[loader, width](self.num_pixels())
 
-    fn fill(mut self, v: Self.PixelType):
+    def fill(mut self, v: Self.PixelType):
 
-        @always_inline
+        @inline(.always)
         @parameter
-        fn func[width: Int](out p: Self.PixelVec[width]):
+        def func[width: Int](out p: Self.PixelVec[width]):
             p = v
 
         self.pixels_write[func]()
     
-    fn copy(self, *, center: Self.Vec[Int], padding: Self.PixelType, mut to: Self):
+    def copy(self, *, center: Self.Vec[Int], padding: Self.PixelType, mut to: Self):
 
         @parameter
-        fn func(i: Self.Vec[Int]):
+        def func(i: Self.Vec[Int]):
             var to_center = to.sizes()//2
             # NOTE: don't try to compute `to_center` outside the loop: it causes a compiler bug!!
             to[i] = self.get(i + center - to_center).or_else(padding)
@@ -193,11 +193,11 @@ struct Image[
 
     # TODO: move these function to struct extension functions? when that gets released?
 
-    fn mean(self) -> Scalar[dtype]:
+    def mean(self) -> Scalar[dtype]:
         """Returns the mean of the entire image."""
         return self.mean(mask = AllMask())
 
-    fn mean[
+    def mean[
         M: MaskReal, //
     ](
         self,
@@ -212,7 +212,7 @@ struct Image[
         # TODO: any chance we can vectorize this?
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 sum += Float64(self[i])
@@ -225,11 +225,11 @@ struct Image[
 
         return Scalar[dtype](sum/Float64(num_pixels_matched))
 
-    fn mean_variance(self) -> Tuple[Scalar[dtype], Scalar[dtype]]:
+    def mean_variance(self) -> Tuple[Scalar[dtype], Scalar[dtype]]:
         """Returns the mean and variance of the entire image."""
         return self.mean_variance(mask = AllMask())
 
-    fn mean_variance[
+    def mean_variance[
         M: MaskReal, //
     ](
         self,
@@ -245,7 +245,7 @@ struct Image[
         # TODO: any chance we can vectorize this?
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 var p = Float64(self[i])
@@ -264,10 +264,10 @@ struct Image[
         var variance = abs(Scalar[dtype]( sum_of_squares/n - (sum/n)**2 ))
         return (mean, variance)
 
-    fn range(self) -> Tuple[Scalar[dtype],Scalar[dtype]]:
+    def range(self) -> Tuple[Scalar[dtype],Scalar[dtype]]:
         return self.range(mask=AllMask())
 
-    fn range[
+    def range[
         M: MaskReal, //
     ](
         self,
@@ -280,7 +280,7 @@ struct Image[
 
         # TODO: vectorize?
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             if mask.includes(i, self.sizes()):
                 var p = self[i]
                 if p < min:
@@ -292,7 +292,7 @@ struct Image[
 
         return (min, max)
 
-    fn replace_outliers(
+    def replace_outliers(
         mut self,
         *,
         mean: Scalar[dtype],
@@ -307,7 +307,7 @@ struct Image[
         var min = mean - gt_sigmas*stddev
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var p = self[i]
             if p > max or p < min:
                 self[i] = replace_with

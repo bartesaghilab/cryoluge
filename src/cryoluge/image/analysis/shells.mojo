@@ -30,7 +30,7 @@ struct FourierShells[dim: Int](
     var count_at_unity: Int
     """The number of shells in the frequency range [0,1]."""
 
-    fn __init__(out self, *, size_real: Int):
+    def __init__(out self, *, size_real: Int):
         """Creates a number of Fourier shells equal to the Fourier half-width in pixels, including the center."""
         var sizes = Vec[1](x=size_real)
         var coords = FFTCoords(sizes)
@@ -38,11 +38,11 @@ struct FourierShells[dim: Int](
             count = coords.sizes_fourier().x()
         )
 
-    fn __init__(out self, *, count: Int):
+    def __init__(out self, *, count: Int):
         self.count = count
         self.count_at_unity = 2*(count - 1)
 
-    fn shelli[dtype: DType](
+    def shelli[dtype: DType](
         self,
         *,
         freq_norm: Scalar[dtype],
@@ -51,7 +51,7 @@ struct FourierShells[dim: Int](
         """Returns the index of the Fourier shell at the given normalized frequency."""
         shelli = Int(freq_norm*self.count_at_unity)
     
-    fn shelli[dtype: DType](
+    def shelli[dtype: DType](
         self,
         *,
         freq_norm2: Scalar[dtype],
@@ -60,7 +60,7 @@ struct FourierShells[dim: Int](
         """Returns the index of the Fourier shell at the given squared normalized frequency."""
         shelli = self.shelli(freq_norm=sqrt(freq_norm2))
 
-    fn freq_norm_lo[dtype: DType](
+    def freq_norm_lo[dtype: DType](
         self,
         shelli: Int,
         out freq: Scalar[dtype]
@@ -68,7 +68,7 @@ struct FourierShells[dim: Int](
         """Returns the low normalized frequency boundary of the given shell."""
         freq = Scalar[dtype](shelli)/self.count_at_unity
 
-    fn freq_norm_hi[dtype: DType](
+    def freq_norm_hi[dtype: DType](
         self,
         shelli: Int,
         out freq: Scalar[dtype]
@@ -76,19 +76,19 @@ struct FourierShells[dim: Int](
         """Returns the high normalized frequency boundary of the given shell."""
         freq = self.freq_norm_lo[dtype](shelli + 1)
 
-    fn freq_norm_max[dtype: DType](self, out freq_norm_max: Scalar[dtype]):
+    def freq_norm_max[dtype: DType](self, out freq_norm_max: Scalar[dtype]):
         """Returns the normalized frequency at the corner of Fourier space farthest from the center."""
         freq_norm_max = sqrt(Scalar[dtype](dim))/2
     
-    fn shelli_max(self, out shelli_max: Int):
+    def shelli_max(self, out shelli_max: Int):
         """Returns the index of the Fourier shell at the corner of Fourier space farthest from the center."""
         shelli_max = self.shelli(freq_norm=self.freq_norm_max[DType.float32]())
 
-    fn shelli_last(self, out shelli_last: Int):
+    def shelli_last(self, out shelli_last: Int):
         """Returns the index of the last Fourier shell that completely fits within the Fourier area or volume."""
         shelli_last = self.count - 1
 
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         """
         Returns the number of Fourier shells that can fit, at least partially, in the Fourier space.
         ie, includes shells reaching into the corners of the space.

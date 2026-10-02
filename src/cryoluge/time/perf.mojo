@@ -9,12 +9,12 @@ comptime NS = UInt
 """nanoseconds"""
 
 
-fn _ns_to_s(ns: NS, out s: Float32):
+def _ns_to_s(ns: NS, out s: Float32):
     s = Float32(ns)/Float32(1e9)
 
 
-@always_inline
-fn now(out t: NS):
+@inline(.always)
+def now(out t: NS):
     t = perf_counter_ns()
 
 
@@ -24,13 +24,13 @@ struct Timer(
 ):
     var _started: NS
 
-    @always_inline
+    @inline(.always)
     @staticmethod
-    fn __init__(out self):
+    def __init__(out self):
         self._started = now()
 
-    @always_inline
-    fn stop(self) -> Timed:
+    @inline(.always)
+    def stop(self) -> Timed:
         return Timed(now() - self._started)
 
 
@@ -42,17 +42,17 @@ struct Timed(
 ):
     var elapsed: NS
 
-    @always_inline
-    fn __init__(out self, elapsed: NS):
+    @inline(.always)
+    def __init__(out self, elapsed: NS):
         self.elapsed = elapsed
 
-    fn elapsed_s(self, out s: Float32):
+    def elapsed_s(self, out s: Float32):
         s = _ns_to_s(self.elapsed)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write("Timer[elapsed=", self.elapsed_s(), " s]")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -66,10 +66,10 @@ struct Benchmark(
     var runs: Int
     var timed: Timed
 
-    @always_inline
+    @inline(.always)
     @staticmethod
-    fn run[
-        func: fn () capturing
+    def run[
+        func: def () capturing
     ](*, warmup_runs: Int, runs: Int, out self: Self):
 
         # warmup
@@ -84,13 +84,13 @@ struct Benchmark(
 
         self = Self(runs, timed^)
 
-    fn runs_per_s(self, out v: Float32):
+    def runs_per_s(self, out v: Float32):
         v = Float32(self.runs)/self.timed.elapsed_s()
 
-    fn s_per_run(self, out v: Float32):
+    def s_per_run(self, out v: Float32):
         v = self.timed.elapsed_s()/Float32(self.runs)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write(
             "Benchmark["
             "runs=", self.runs,
@@ -100,7 +100,7 @@ struct Benchmark(
             "]"
         )
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -113,7 +113,7 @@ struct Profiler[*, enabled: Bool = True](
     var _lookup: Dict[String,Int]
     var unit: StaticString
 
-    fn __init__(out self, *, unit: StaticString = 's'):
+    def __init__(out self, *, unit: StaticString = 's'):
         self._counters = MovableList[ProfilerCounter[enabled=enabled]](capacity=64)
         # NOTE: use a somewhat large initial capacity for the list,
         #       otherwise, creating new counters can invalidate outstanding counter references
@@ -124,7 +124,7 @@ struct Profiler[*, enabled: Bool = True](
         self._lookup = {}
         self.unit = unit
 
-    fn counter(mut self, name: String) -> ref [self._counters[0]] ProfilerCounter[enabled=enabled]:
+    def counter(mut self, name: String) -> ref [self._counters[0]] ProfilerCounter[enabled=enabled]:
         var i = self._lookup.get(name)
         if i is None:
             i = len(self._counters)
@@ -132,23 +132,23 @@ struct Profiler[*, enabled: Bool = True](
             self._lookup[name] = i.value()
         return self._counters[i.value()]
 
-    fn start(mut self, name: String):
+    def start(mut self, name: String):
         @parameter
         if enabled:
             self.counter(name).start()
 
-    fn stop[*, verbose: Bool = False](mut self, name: String):
+    def stop[*, verbose: Bool = False](mut self, name: String):
         @parameter
         if enabled:
             self.counter(name).stop[verbose=verbose]()
         
-    fn switch[*, verbose: Bool = False](mut self, stop: String, start: String):
+    def switch[*, verbose: Bool = False](mut self, stop: String, start: String):
         @parameter
         if enabled:
             self.stop[verbose=verbose](stop)
             self.start(start)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         @parameter
         if enabled:
             writer.write("Profiler[")
@@ -159,10 +159,10 @@ struct Profiler[*, enabled: Bool = True](
                 writer.write(counter.name, "=", _render_elapsed(counter.elapsed_s(), self.unit))
             writer.write("]")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
     
-    fn print(self):
+    def print(self):
         @parameter
         if enabled:
             print(self)
@@ -178,20 +178,20 @@ struct ProfilerCounter[*, enabled: Bool = True](
     var _elapsed: NS
     var _start: Optional[NS]
 
-    fn __init__(out self, name: String, unit: StaticString):
+    def __init__(out self, name: String, unit: StaticString):
         self.name = name
         self.unit = unit
         self._elapsed = 0
         self._start = None
 
-    @always_inline
-    fn start(mut self):
+    @inline(.always)
+    def start(mut self):
         @parameter
         if enabled:
             self._start = now()
 
-    @always_inline
-    fn stop[*, verbose: Bool = False](mut self):
+    @inline(.always)
+    def stop[*, verbose: Bool = False](mut self):
         @parameter
         if enabled:
             var elapsed = now() - self._start.value()
@@ -204,21 +204,21 @@ struct ProfilerCounter[*, enabled: Bool = True](
                     "  total=", _render_elapsed(self.elapsed_s(), self.unit),
                 "]", sep="")
     
-    fn elapsed_s(self, out s: Float32):
+    def elapsed_s(self, out s: Float32):
         s = _ns_to_s(self._elapsed)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         @parameter
         if enabled:
             writer.write("ProfilerCounter[",
                 self.name, "=", _render_elapsed(self.elapsed_s(), self.unit),
             "]")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
-fn _render_elapsed(elapsed_s: Float32, unit: StaticString) -> String:
+def _render_elapsed(elapsed_s: Float32, unit: StaticString) -> String:
     if unit == 'us':
         return String(elapsed_s*1000*1000, " us")
     elif unit == 'ms':

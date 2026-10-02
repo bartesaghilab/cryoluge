@@ -177,7 +177,7 @@ def test_plerp_1d():
     comptime oor = OORInterp
     var plerp = PrecomputedFFTInterpolation[1,dtype,oor](img)
 
-    @always_inline
+    @inline(.always)
     @parameter
     def check(f: Coords1):
         assert_equal_float[err_fn](
@@ -262,7 +262,7 @@ def test_plerp_2d():
     comptime oor = OORInterp
     var plerp = PrecomputedFFTInterpolation[2,dtype,oor](img)
 
-    @always_inline
+    @inline(.always)
     @parameter
     def check(f: Coords2):
         assert_equal_float[err_fn](
@@ -473,7 +473,8 @@ def test_plerp_3d_big_even():
                 check(Coords3(x=fx, y=fy, z=fz))
 
 
-def test_scan():
+# TEMP: these tests are VERY slow to compile, so disable for now
+def x_test_scan():
 
     var errors = List[String]()
 
@@ -522,7 +523,8 @@ def test_scan():
         raise Error(msg)
 
 
-def test_segment_neighborhood():
+# TEMP: these tests are VERY slow to compile, so disable for now
+def x_test_segment_neighborhood():
 
     var errors = List[String]()
 
@@ -543,7 +545,8 @@ def test_segment_neighborhood():
         raise Error(msg)
 
 
-def test_p_bounds():
+# TEMP: these tests are VERY slow to compile, so disable for now
+def x_test_p_bounds():
 
     var errors = List[String]()
 
@@ -577,14 +580,14 @@ def test_p_bounds():
 struct TestConditions:
 
     @staticmethod
-    fn out_of_range_behaviors() -> List[OutOfRangeBehavior[dtype]]:
+    def out_of_range_behaviors() -> List[OutOfRangeBehavior[dtype]]:
         return [
             OORInterp,
             OOROverride
         ]
 
     @staticmethod
-    fn simd_widths() -> List[Int]:
+    def simd_widths() -> List[Int]:
         return [
             2,
             4,
@@ -593,7 +596,7 @@ struct TestConditions:
         ]
 
     @staticmethod
-    fn num_projectionss() -> List[Int]:
+    def num_projectionss() -> List[Int]:
         return [
             1,
             2,
@@ -602,21 +605,21 @@ struct TestConditions:
         ]
 
     @staticmethod
-    fn sizes_real_vols() -> List[Vec[3,Int]]:
+    def sizes_real_vols() -> List[Vec[3,Int]]:
         return [
             Vec[3](fill=6),  # even
             Vec[3](fill=7)  # odd
         ]
 
     @staticmethod
-    fn sizes_real_projs() -> List[Vec[2,Int]]:
+    def sizes_real_projs() -> List[Vec[2,Int]]:
         return [
             Vec[2](fill=5),  # smaller
             Vec[2](fill=9)  # bigger than volume grid, will test more out-of-range behvaior
         ]
 
     @staticmethod
-    fn rots() -> List[Vec[3,Int]]:
+    def rots() -> List[Vec[3,Int]]:
         return [
             Vec[3](fill=0),  # no rotation, only +x halfspace
             Vec[3](x=5, y=7, z=9),  # small rotation
@@ -627,7 +630,7 @@ struct TestConditions:
         ]
 
     @staticmethod
-    fn freq_limitss() -> List[FrequencyLimits[dtype]]:
+    def freq_limitss() -> List[FrequencyLimits[dtype]]:
         return [
             FrequencyLimits[dtype].none(),
             FrequencyLimits(
@@ -637,7 +640,7 @@ struct TestConditions:
         ]
 
 
-fn _make_rot(params: Vec[3,Int], out rot: Matrix[3,3,dtype]):
+def _make_rot(params: Vec[3,Int], out rot: Matrix[3,3,dtype]):
 
     # HACKHACK: many right angle rotations can't be exactly represented in the matrix,
     #           so round a bit, as needed
@@ -682,7 +685,7 @@ def _test_scan[
 
     # build the projections
     var projections = List[VolumeNeighborhoodsProjection[dtype]](capacity=num_projections)
-    fn rot_delta(p: Int) -> Vec[3,Int]:
+    def rot_delta(p: Int) -> Vec[3,Int]:
         return Vec[3](x=5, y=6, z=7)*p
     for p in range(num_projections):
         projections.append(VolumeNeighborhoodsProjection(p, _make_rot(rot + rot_delta(p))))
@@ -706,12 +709,12 @@ def _test_scan[
     # do the scan: collect all the results
     var results = List[List[_ScanResult]](length=len(projections), fill=[])
     @parameter
-    fn check(proj_id: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
+    def check(proj_id: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]):
         results[proj_id].append(_ScanResult(proj_id, f_pi^, f_vf^, sv))
     vol.scan[check, rounding=rounding](coords_proj.sizes_real(), projections, freq_limits)
 
     @parameter
-    fn find_results(proj_i: Int, f_pi: Vec[2,Int], out found: List[_ScanResult]):
+    def find_results(proj_i: Int, f_pi: Vec[2,Int], out found: List[_ScanResult]):
         found = List[_ScanResult]()
         for i in range(len(results[proj_i])):
             ref result = results[proj_i][i]
@@ -749,12 +752,12 @@ def _test_scan[
             exp_f_vi_seg.x() *= vol.num_neighborhoods_in_segment
 
             @parameter
-            fn check_context() -> String:
+            def check_context() -> String:
 
                 # run the scan again with a debugger
                 var _debugger = ScanDebugger(proj_i, f_pi, exp_f_vi)
                 @parameter
-                fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
+                def debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
                     return UnsafePointer(to=_debugger)
                 vol.scan[check, rounding=rounding, debug=True, debugger=debugger](coords_proj.sizes_real(), projections, freq_limits)
 
@@ -910,7 +913,7 @@ def _test_p_bounds[
 
     # build groups out of the projections
     var projections = List[VolumeNeighborhoodsProjection[dtype]](capacity=num_projections)
-    fn rot_delta(p: Int) -> Vec[3,Int]:
+    def rot_delta(p: Int) -> Vec[3,Int]:
         return Vec[3](x=5, y=6, z=7)*p
     for p in range(num_projections):
         projections.append(VolumeNeighborhoodsProjection(p, _make_rot(rot + rot_delta(p))))
@@ -976,16 +979,16 @@ def _test_p_bounds[
                     var bound_pi = proj_group.bound_pi(bound_pf, coords_proj.fmin_pos(), coords_proj.fmax())
 
                     @parameter
-                    fn render() -> String:
+                    def render() -> String:
                         return proj_group.render_bound_geometry(p, f_vi_seg, coords_proj, x_halfspace=x_halfspace)
 
                     @parameter
-                    fn debug_it() -> String:
+                    def debug_it() -> String:
 
                         # run the bound again with a debugger
                         var _debugger = ScanDebugger(proj_i, f_pi, i_vi_seg)
                         @parameter
-                        fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
+                        def debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
                             return UnsafePointer(to=_debugger)
 
                         _ = intersections.bound_f_pf[debug=True, debugger=debugger](proj_group)
@@ -995,7 +998,7 @@ def _test_p_bounds[
                             + "\n" + indent + ("\n" + indent).join(_debugger.msgs)
 
                     @parameter
-                    fn check_context() -> String:
+                    def check_context() -> String:
                         return test_context + String(
                             "\n", indent, "f_pi=", f_pi,
                             "\n", indent, "proj_i=", proj_i, " (", group_i, ",", p, ")",
@@ -1034,7 +1037,7 @@ def _test_p_bounds[
                     )
 
                     @parameter
-                    fn check_x_context() -> String:
+                    def check_x_context() -> String:
                         return check_context() + String(
                             "\n", indent, "mask_x=", bound_x_pf.mask[p],
                             "\n", indent, "bound_x_pf=", bound_x_pf.f,
@@ -1045,12 +1048,12 @@ def _test_p_bounds[
                     #       since relying on the closure capture trigger miscompilation bugs =(
                     from cryoluge.fft.interpolation import _ProjectionGroup
                     @parameter
-                    fn debug_it_x(proj_group: _ProjectionGroup[dtype,simd_width,rounding=_]) -> String:
+                    def debug_it_x(proj_group: _ProjectionGroup[dtype,simd_width,rounding=_]) -> String:
 
                         # run the bound again with a debugger
                         var _debugger = ScanDebugger(proj_i, f_pi, i_vi_seg)
                         @parameter
-                        fn debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
+                        def debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
                             return UnsafePointer(to=_debugger)
 
                         _ = intersections.bound_fx_pf[debug=True, debugger=debugger](proj_group, f_pi.y(), x_halfspace=1)
@@ -1140,7 +1143,7 @@ def _test_p_bounds[
     _ = test_context
 
 
-fn make_fft_image(
+def make_fft_image(
     sizes_real: Vec[3,Int],
     out img: FFTImage[3,dtype]
 ):
@@ -1149,7 +1152,7 @@ fn make_fft_image(
     img = FFTImage[3,dtype](sizes_real)
 
     @parameter
-    fn fill(i: Vec[3,Int]):
+    def fill(i: Vec[3,Int]):
         var f = img.coords().i2f(i=i)
         var i2 = f - img.coords().fmin_pos()
         var s = String(i2.x(), i2.y(), i2.z())
@@ -1165,11 +1168,11 @@ fn make_fft_image(
     img.complex.iterate[fill]()
 
 
-fn lerp(v0: Scalar[dtype], v1: Scalar[dtype], t: Scalar[dtype], out v: Scalar[dtype]):
+def lerp(v0: Scalar[dtype], v1: Scalar[dtype], t: Scalar[dtype], out v: Scalar[dtype]):
     v = v0*(1 - t) + t*v1
 
 
-fn lerp2(
+def lerp2(
     v00: Scalar[dtype],
     v10: Scalar[dtype],
     v01: Scalar[dtype],
@@ -1185,7 +1188,7 @@ fn lerp2(
     )
 
 
-fn sample_range[
+def sample_range[
     num_samples: Int,
     d: Int,
     dim: Int

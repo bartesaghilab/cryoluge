@@ -25,43 +25,43 @@ struct Reader[
     var _reader: Pointer[R, origin]
     var _inner: _Inner
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] reader: R
     ) raises:
         self._reader = Pointer(to=reader)
         self._inner = _Inner(self._reader[])
 
-    fn mode(self) raises -> Mode:
+    def mode(self) raises -> Mode:
         return self._inner.mode()
 
-    fn size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
+    def size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
         return self._inner.size()
 
-    fn size_3(self) raises -> Vec[3,Int]:
+    def size_3(self) raises -> Vec[3,Int]:
         return self._inner.size_3()
 
-    fn size_2(self) raises -> Vec[2,Int]:
+    def size_2(self) raises -> Vec[2,Int]:
         return self._inner.size_2()
 
-    fn read_3d[dtype: DType](self, mut img: Image[3,dtype]) raises:
+    def read_3d[dtype: DType](self, mut img: Image[3,dtype]) raises:
         return self._inner.read_3d(self._reader[], img)
 
-    fn read_3d_int8(self, mut img: Image[3,DType.int8]) raises:
+    def read_3d_int8(self, mut img: Image[3,DType.int8]) raises:
         self.read_3d[DType.int8](img)
 
-    fn read_3d_float32(self, mut img: Image[3,DType.float32]) raises:
+    def read_3d_float32(self, mut img: Image[3,DType.float32]) raises:
         self.read_3d[DType.float32](img)
 
     # TODO: other supported dtypes
 
-    fn read_2d[dtype: DType](self, mut img: Image[2,dtype], *, z: UInt32) raises:
+    def read_2d[dtype: DType](self, mut img: Image[2,dtype], *, z: UInt32) raises:
         return self._inner.read_2d(self._reader[], img, z=z)
 
-    fn read_2d_int8(self, mut img: Image[2,DType.int8], *, z: UInt32=0) raises:
+    def read_2d_int8(self, mut img: Image[2,DType.int8], *, z: UInt32=0) raises:
         self.read_2d[DType.int8](img, z=z)
 
-    fn read_2d_float32(self, mut img: Image[2,DType.float32], *, z: UInt32=0) raises:
+    def read_2d_float32(self, mut img: Image[2,DType.float32], *, z: UInt32=0) raises:
         self.read_2d[DType.float32](img, z=z)
 
     # TODO: other supported dtypes
@@ -73,7 +73,7 @@ struct OwnedReader[
     var _reader: R
     var _inner: _Inner
 
-    fn __init__(
+    def __init__(
         out self,
         var reader: R
     ) raises:
@@ -81,39 +81,39 @@ struct OwnedReader[
         self._inner = _Inner(self._reader)
 
     @staticmethod
-    fn open(path: String, out reader: OwnedReader[OwnedFileReader]) raises:
+    def open(path: String, out reader: OwnedReader[OwnedFileReader]) raises:
         reader = OwnedReader(OwnedFileReader(path))
 
-    fn mode(self) raises -> Mode:
+    def mode(self) raises -> Mode:
         return self._inner.mode()
 
-    fn size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
+    def size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
         return self._inner.size()
 
-    fn size_3(self) raises -> Vec[3,Int]:
+    def size_3(self) raises -> Vec[3,Int]:
         return self._inner.size_3()
 
-    fn size_2(self) raises -> Vec[2,Int]:
+    def size_2(self) raises -> Vec[2,Int]:
         return self._inner.size_2()
 
-    fn read_3d[dtype: DType](mut self, mut img: Image[3,dtype]) raises:
+    def read_3d[dtype: DType](mut self, mut img: Image[3,dtype]) raises:
         return self._inner.read_3d(self._reader, img)
 
-    fn read_3d_int8(mut self, mut img: Image[3,DType.int8]) raises:
+    def read_3d_int8(mut self, mut img: Image[3,DType.int8]) raises:
         self.read_3d[DType.int8](img)
 
-    fn read_3d_float32(mut self, mut img: Image[3,DType.float32]) raises:
+    def read_3d_float32(mut self, mut img: Image[3,DType.float32]) raises:
         self.read_3d[DType.float32](img)
 
     # TODO: other supported dtypes
 
-    fn read_2d[dtype: DType](mut self, mut img: Image[2,dtype], *, z: UInt32) raises:
+    def read_2d[dtype: DType](mut self, mut img: Image[2,dtype], *, z: UInt32) raises:
         return self._inner.read_2d(self._reader, img, z=z)
 
-    fn read_2d_int8(mut self, mut img: Image[2,DType.int8], *, z: UInt32=0) raises:
+    def read_2d_int8(mut self, mut img: Image[2,DType.int8], *, z: UInt32=0) raises:
         self.read_2d[DType.int8](img, z=z)
 
-    fn read_2d_float32(mut self, mut img: Image[2,DType.float32], *, z: UInt32=0) raises:
+    def read_2d_float32(mut self, mut img: Image[2,DType.float32], *, z: UInt32=0) raises:
         self.read_2d[DType.float32](img, z=z)
 
     # TODO: other supported dtypes
@@ -140,36 +140,36 @@ struct _Inner(Movable):
         if endian != _endian:
             raise Error("Reader supports only endian ", _endian, ", but file has endian ", endian)
 
-    fn mode(self) raises -> Mode:
+    def mode(self) raises -> Mode:
 
         # read the mode (at word 4)
         var r = BytesReader(self._header.span(), pos=_word_offset(4))
         var mode_value = r.read_u32[_endian]()
         return Mode.find(mode_value)
 
-    fn size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
+    def size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
         var r = BytesReader(self._header.span(), pos=_word_offset(1))
         var nx = r.read_u32[_endian]()
         var ny = r.read_u32[_endian]()
         var nz = r.read_u32[_endian]()
         return (nx, ny, nz)
 
-    fn size_3(self) raises -> Vec[3,Int]:
+    def size_3(self) raises -> Vec[3,Int]:
         var (sx, sy, sz) = self.size()
         return Vec[3](x=Int(sx), y=Int(sy), z=Int(sz))
 
-    fn size_2(self) raises -> Vec[2,Int]:
+    def size_2(self) raises -> Vec[2,Int]:
         var (sx, sy, _) = self.size()
         return Vec[2](x=Int(sx), y=Int(sy))
 
-    fn _check_dtype[dtype: DType](self) raises:
+    def _check_dtype[dtype: DType](self) raises:
         var mode = self.mode()
         if mode.dtype is None:
             raise Error(String("MRC file has mode ", mode, ", which is not supported by this function"))
         if mode.dtype.value() != dtype:
             raise Error(String("MRC file has mode ", mode, ", which expects DType ", mode.dtype.value(), ", but ", dtype, " was given instead"))
 
-    fn _seek_pixels[R: BinaryReader](self, mut reader: R) raises:
+    def _seek_pixels[R: BinaryReader](self, mut reader: R) raises:
 
         # read the extended header size (at word 24)
         var r = BytesReader(self._header.span(), pos=_word_offset(24))
@@ -178,7 +178,7 @@ struct _Inner(Movable):
         # seek to after the header and the extended header to get to the pixels
         reader.seek_to(_header_size + UInt64(extended_header_size))
 
-    fn read_3d[dtype: DType, R: BinaryReader](self, mut reader: R, mut img: Image[3,dtype]) raises:
+    def read_3d[dtype: DType, R: BinaryReader](self, mut reader: R, mut img: Image[3,dtype]) raises:
         self._check_dtype[dtype]()
         var size = self.size_3()
         if img.sizes() != size:
@@ -186,7 +186,7 @@ struct _Inner(Movable):
         self._seek_pixels(reader)
         reader.read_bytes_exact(img.span_bytes())
 
-    fn read_2d[dtype: DType, R: BinaryReader](self, mut reader: R, mut img: Image[2,dtype], *, z: UInt32) raises:
+    def read_2d[dtype: DType, R: BinaryReader](self, mut reader: R, mut img: Image[2,dtype], *, z: UInt32) raises:
         self._check_dtype[dtype]()
         var (_, _, sz) = self.size()
         var size = self.size_2()
@@ -202,10 +202,10 @@ struct _Inner(Movable):
         reader.read_bytes_exact(img.span_bytes())
 
 
-fn _word_offset(word_number: Int) -> Int:
+def _word_offset(word_number: Int) -> Int:
     # words are numbered starting at 1 (sigh) and have 4 bytes each
     return (word_number - 1)*4
 
 
-fn _unsupported_mode[mode: Mode]():
+def _unsupported_mode[mode: Mode]():
     constrained[False, String("Mode not supported: ", mode)]()

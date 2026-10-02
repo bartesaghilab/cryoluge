@@ -102,7 +102,7 @@ def test_normalize_positive():
     )
 
 
-@always_inline
+@inline(.always)
 def assert_equal_euler(
     obs: EulerAnglesZYZ[dtype],
     psi: Float32,

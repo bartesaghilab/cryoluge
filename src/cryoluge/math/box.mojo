@@ -17,7 +17,7 @@ struct AlignedBox[
     comptime Vec = Vec[dim,Scalar[dtype]]
 
     @staticmethod
-    fn unit_corners(out corners: List[Vec[dim,Scalar[dtype]]]):
+    def unit_corners(out corners: List[Vec[dim,Scalar[dtype]]]):
         """
         Return a list of vectors pointing to each corner of the unit box.
         """
@@ -32,21 +32,21 @@ struct AlignedBox[
                 corner[d] = 1
                 corners.append(corner^)
 
-    fn __init__(out self, *, origin: Self.Vec, sizes: Self.Vec):
+    def __init__(out self, *, origin: Self.Vec, sizes: Self.Vec):
         self.origin = origin.copy()
         self.sizes = sizes.copy()
 
-    fn __init__(out self, *, min: Self.Vec, max: Self.Vec):
+    def __init__(out self, *, min: Self.Vec, max: Self.Vec):
         """Max is exclusive."""
         self = Self(
             origin = min.copy(),
             sizes = max - min
         )
 
-    fn corner(self, dir: Vec[dim,Scalar[dtype]]) -> Self.Vec:
+    def corner(self, dir: Vec[dim,Scalar[dtype]]) -> Self.Vec:
         return self.origin + dir*self.sizes
 
-    fn max(self, out max: Self.Vec):
+    def max(self, out max: Self.Vec):
         max = self.origin + self.sizes
 
 
@@ -63,7 +63,7 @@ struct OrientedBox[
 
     comptime Vec = Vec[dim,Scalar[dtype]]
 
-    fn __init__(
+    def __init__(
         out self,
         *,
         origin: Self.Vec,
@@ -73,14 +73,14 @@ struct OrientedBox[
         self.aligned = AlignedBox(origin=origin, sizes=sizes)
         self.orientation = orientation.copy()
 
-    fn sizes(ref self) -> ref [origin_of(self.aligned.sizes)] Self.Vec:
+    def sizes(ref self) -> ref [origin_of(self.aligned.sizes)] Self.Vec:
         return self.aligned.sizes
 
-    fn corner(self, dir: Vec[dim,Scalar[dtype]]) -> Self.Vec:
+    def corner(self, dir: Vec[dim,Scalar[dtype]]) -> Self.Vec:
         var scaled_dir = dir*self.aligned.sizes
         return self.aligned.origin + self.orientation*scaled_dir
 
-    fn bounding_box(self) -> AlignedBox[dim,dtype]:
+    def bounding_box(self) -> AlignedBox[dim,dtype]:
 
         # start with the origin
         var min = self.aligned.origin.copy()

@@ -1,6 +1,6 @@
 
 
-fn ccd[
+def ccd[
     info: ObjectiveInfo,
     LS: LineSearch,
     //,
@@ -28,7 +28,7 @@ fn ccd[
         for d in range(info.dim):
 
             @parameter
-            fn line(x: Coord[info], out fx: Value[info]):
+            def line(x: Coord[info], out fx: Value[info]):
                 x_next[d] = x
                 fx = objective(x_next)
 
@@ -76,7 +76,7 @@ struct CCDMinimizer[
     var value_threshold: Scalar[dtype]
     var line_search: LS
 
-    fn minimize[
+    def minimize[
         info: ObjectiveInfo,
         //,
         objective: Objective[info]

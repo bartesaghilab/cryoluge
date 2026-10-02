@@ -13,7 +13,7 @@ struct ObjectiveInfo:
     var dtype_value: DType
     var dim: Int
 
-    fn d1(self, out info_1d: ObjectiveInfo):
+    def d1(self, out info_1d: ObjectiveInfo):
         info_1d = Self(self.dtype_coord, self.dtype_value, 1)
 
 
@@ -22,7 +22,7 @@ comptime Coords[info: ObjectiveInfo] = Vec[info.dim,Coord[info]]
 comptime Value[info: ObjectiveInfo] = Scalar[info.dtype_value]
 
 
-comptime Objective[info: ObjectiveInfo] = fn(
+comptime Objective[info: ObjectiveInfo] = def(
     x: Coords[info],
     out fx: Value[info]
 ) capturing
@@ -38,15 +38,15 @@ struct OptimizationResult[info: ObjectiveInfo](
     var x: Coords[info]
     var fx: Value[info]
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write('OptimizationResult[x=', self.x, ', fx=', self.fx, ']')
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
 trait Minimizer:
-    fn minimize[
+    def minimize[
         info: ObjectiveInfo,
         //,
         objective: Objective[info]
@@ -60,7 +60,7 @@ trait Minimizer:
     ): ...
 
 
-comptime ObjectiveLine[info: ObjectiveInfo] = fn(
+comptime ObjectiveLine[info: ObjectiveInfo] = def(
     x: Coord[info],
     out fx: Value[info]
 ) capturing
@@ -76,15 +76,15 @@ struct LineSearchResult[info: ObjectiveInfo](
     var x: Coord[info]
     var fx: Value[info]
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write('LineSearchResult[x=', self.x, ', fx=', self.fx, ']')
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
 trait LineSearch:
-    fn minimize[
+    def minimize[
         info: ObjectiveInfo,
         //,
         line: ObjectiveLine[info]

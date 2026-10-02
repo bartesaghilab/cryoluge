@@ -19,7 +19,7 @@ struct SSNR[dtype: DType](
     var _values: List[Scalar[dtype]]
     var _res_factor: Ang[dtype]
 
-    fn __init__[dim: Int](
+    def __init__[dim: Int](
         out self,
         shells: FourierShells[dim],
         pixel_size: Ang[dtype]
@@ -27,10 +27,10 @@ struct SSNR[dtype: DType](
         self._values = List[Scalar[dtype]](length=len(shells), fill=Scalar[dtype](0))
         self._res_factor = Ang[dtype](shells.count_at_unity)*pixel_size
     
-    fn resolution(self, shelli: Int) -> Ang[dtype]:
+    def resolution(self, shelli: Int) -> Ang[dtype]:
         return self._res_factor/Scalar[dtype](shelli)
 
-    fn read_from_statistics(
+    def read_from_statistics(
         mut self,
         stats: ResolutionStatistics[dtype]
     ) raises:
@@ -65,7 +65,7 @@ struct SSNR[dtype: DType](
             self._values[shelli] = 0
             shelli += 1
 
-    fn generate(
+    def generate(
         mut self,
         *,
         mass_kda: KDa[dtype]
@@ -84,8 +84,8 @@ struct SSNR[dtype: DType](
             var resolution = self.resolution(shelli).value
             self._values[shelli] = precalc_1*(800*exp(-3.5*diameter_a/resolution) + exp(-25.0/resolution))
 
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         return len(self._values)
 
-    fn __getitem__(self, shelli: Int) -> Scalar[dtype]:
+    def __getitem__(self, shelli: Int) -> Scalar[dtype]:
         return self._values[shelli]

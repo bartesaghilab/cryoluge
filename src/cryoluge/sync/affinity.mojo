@@ -14,11 +14,11 @@ struct Cpus(
 ):
     var cpus: List[Cpu]
 
-    fn __init__(out self):
+    def __init__(out self):
         self.cpus = List[Cpu]()
 
     @staticmethod
-    fn get_all(out self: Self) raises:
+    def get_all(out self: Self) raises:
 
         self = Cpus()
 
@@ -96,28 +96,28 @@ struct Cpus(
                         core_id = Int(parts[1])
 
     @staticmethod
-    fn get_allowed(out cpus: Cpus) raises:
+    def get_allowed(out cpus: Cpus) raises:
         cpus = Self.get_all()
         cpus.retain(virtual_core_ids = VirtualCore.read_allowed_ids())
 
     @staticmethod
-    fn get_affinity(out cpus: Cpus) raises:
+    def get_affinity(out cpus: Cpus) raises:
         cpus = Self.get_all()
         cpus.retain(virtual_core_ids = VirtualCoreSet.get_affinity().to_virtual_core_ids())
 
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         return len(self.cpus)
 
-    fn __getitem__(self, i: Int) -> ref [self.cpus] Cpu:
+    def __getitem__(self, i: Int) -> ref [self.cpus] Cpu:
         return self.cpus[i]
 
-    fn index_of(self, *, cpu_id: Int) -> Optional[Int]:
+    def index_of(self, *, cpu_id: Int) -> Optional[Int]:
         for i in range(len(self.cpus)):
             if self.cpus[i].cpu_id == cpu_id:
                 return i
         return None
     
-    fn retain(
+    def retain(
         mut self,
         *,
         virtual_core_ids: List[Int]
@@ -133,7 +133,7 @@ struct Cpus(
         for ci in reversed(disallowed_cpu_indices):
             _ = self.cpus.pop(ci)
 
-    fn physical_cores(
+    def physical_cores(
         self,
         out pcores: List[PhysicalCore]
     ):
@@ -142,7 +142,7 @@ struct Cpus(
             for pcore in cpu.physical_cores:
                 pcores.append(pcore.copy())
 
-    fn virtual_cores(
+    def virtual_cores(
         self,
         out vcores: List[VirtualCore],
         *,
@@ -156,17 +156,17 @@ struct Cpus(
                     if (vcore.is_even() and even) or (not vcore.is_even() and odd):
                         vcores.append(vcore)
 
-    fn virtual_core_ids(self, out vcores: List[Int]):
+    def virtual_core_ids(self, out vcores: List[Int]):
         vcores = List[Int]()
         for cpu in self.cpus:
             for pcore in cpu.physical_cores:
                 for vcore in pcore.virtual_cores:
                     vcores.append(vcore.virtual_id)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write('\n'.join(self.cpus))
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -180,7 +180,7 @@ struct Cpu(
     var cpu_id: Int
     var physical_cores: List[PhysicalCore]
 
-    fn retain(mut self, *, virtual_core_ids: List[Int]):
+    def retain(mut self, *, virtual_core_ids: List[Int]):
         
         var disallowed_pcore_indices = List[Int]()
         for pi in range(len(self.physical_cores)):
@@ -199,26 +199,26 @@ struct Cpu(
         for pi in reversed(disallowed_pcore_indices):
             _ = self.physical_cores.pop(pi)
         
-    fn index_of(self, *, physical_id: Int) -> Optional[Int]:
+    def index_of(self, *, physical_id: Int) -> Optional[Int]:
         for i in range(len(self.physical_cores)):
             ref pcore = self.physical_cores[i]
             if pcore.physical_id == physical_id:
                 return i
         return None
 
-    fn virtual_cores(self, out vcores: List[VirtualCore]):
+    def virtual_cores(self, out vcores: List[VirtualCore]):
         vcores = List[VirtualCore]()
         for pcore in self.physical_cores:
             for vcore in pcore.virtual_cores:
                 vcores.append(vcore)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write('Cpu[',
             'id=', self.cpu_id,
             ', physical_cores=[\n  ', ",\n  ".join(self.physical_cores), '\n]',
         ']')
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -233,21 +233,21 @@ struct PhysicalCore(
     var physical_id: Int
     var virtual_cores: List[VirtualCore]
 
-    fn index_of(self, *, virtual_id: Int) -> Optional[Int]:
+    def index_of(self, *, virtual_id: Int) -> Optional[Int]:
         for i in range(len(self.virtual_cores)):
             ref vcore = self.virtual_cores[i]
             if vcore.virtual_id == virtual_id:
                 return i
         return None
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write('PhysicalCore[',
             'cpu=', self.cpu_id,
             ', id=', self.physical_id,
             ', virtual_cores=[', ', '.join(self.virtual_cores), ']'
         ']')
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -257,14 +257,14 @@ struct VirtualCore(
     ImplicitlyCopyable,
     Writable,
     Stringable,
-    EqualityComparable
+    Equatable
 ):
     var cpu_id: Int
     var physical_id: Int
     var virtual_id: Int
 
     @staticmethod
-    fn read_allowed_ids(out virtual_ids: List[Int]) raises:
+    def read_allowed_ids(out virtual_ids: List[Int]) raises:
         """
         NOTE: sometimes more vcores are allowed than exist, due to mask sizes I guess.
         """
@@ -288,20 +288,20 @@ struct VirtualCore(
                             for i in range(start, stop + 1):
                                 virtual_ids.append(i)
 
-    fn is_even(self) -> Bool:
+    def is_even(self) -> Bool:
         return self.virtual_id % 2 == 0
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write('VirtualCore[',
             'cpu=', self.cpu_id,
             ', phy=', self.physical_id,
             ', vir=', self.virtual_id,
         ']')
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         return self.cpu_id == other.cpu_id
             and self.physical_id == other.physical_id
             and self.virtual_id == other.virtual_id
@@ -319,46 +319,46 @@ struct VirtualCoreSet(
     # mask size must be known at compile time, and be at least as large as the one the kernel uses
     comptime _bitset_size = size_of[InlineArray[Int64, BitSet[Self._num_logical_cores]._words_size]]()
 
-    fn __init__(out self):
+    def __init__(out self):
         self._mask = BitSet[Self._num_logical_cores]()
 
-    fn __init__(out self, vcores: List[VirtualCore]):
+    def __init__(out self, vcores: List[VirtualCore]):
         self = self.__init__()
         for vcore in vcores:
             self.add(vcore)
 
-    fn __init__(out self, vcore_ids: List[Int]):
+    def __init__(out self, vcore_ids: List[Int]):
         self = self.__init__()
         for id in vcore_ids:
             self.add(id)
 
-    fn to_virtual_core_ids(self, out vcore_ids: List[Int]):
+    def to_virtual_core_ids(self, out vcore_ids: List[Int]):
         vcore_ids = List[Int]()
         for i in range(Self._num_logical_cores):
             if self._mask.test(i):
                 vcore_ids.append(i)
 
-    fn __contains__(self, vcore: VirtualCore) -> Bool:
+    def __contains__(self, vcore: VirtualCore) -> Bool:
         return vcore.virtual_id in self
 
-    fn __contains__(self, vcore_id: Int) -> Bool:
+    def __contains__(self, vcore_id: Int) -> Bool:
         return self._mask.test(vcore_id)
 
-    fn add(mut self, vcore: VirtualCore):
+    def add(mut self, vcore: VirtualCore):
         self.add(vcore.virtual_id)
 
-    fn add(mut self, vcore_id: Int):
+    def add(mut self, vcore_id: Int):
         self._mask.set(vcore_id)
 
-    fn remove(mut self, vcore: VirtualCore):
+    def remove(mut self, vcore: VirtualCore):
         self.remove(vcore.virtual_id)
 
-    fn remove(mut self, vcore_id: Int):
+    def remove(mut self, vcore_id: Int):
         self._mask.clear(vcore_id)
 
     # https://www.man7.org/linux/man-pages/man2/sched_setaffinity.2.html
 
-    fn set_affinity(self) raises:
+    def set_affinity(self) raises:
         var ret = external_call[
             "sched_setaffinity",
             Int32
@@ -371,7 +371,7 @@ struct VirtualCoreSet(
             raise Error("Failed to set thread affinity: ", get_errno())
 
     @staticmethod
-    fn get_affinity(out self: Self) raises:
+    def get_affinity(out self: Self) raises:
         self = Self()
         var ret = external_call[
             "sched_getaffinity",
@@ -384,8 +384,8 @@ struct VirtualCoreSet(
         if ret == -1:
             raise Error("Failed to get thread affinity: ", get_errno())
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write('VirtualCoreSet[', ', '.join(self.to_virtual_core_ids()), ']')
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)

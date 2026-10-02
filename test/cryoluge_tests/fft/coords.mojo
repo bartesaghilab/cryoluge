@@ -387,7 +387,7 @@ def test_coords_full():
     # NOTE: 3D is pretty much the same as 2D
 
 
-@always_inline
+@inline(.always)
 def assert_i[dim: Int, //](
     obs: Optional[Vec[dim,Int]],
     exp: Optional[Vec[dim,Int]],

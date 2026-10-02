@@ -2,7 +2,7 @@
 from math import sqrt
 
 
-fn golden_section[
+def golden_section[
     info: ObjectiveInfo,
     //,
     objective_line: ObjectiveLine[info]
@@ -83,7 +83,7 @@ struct GoldenSectionLineSearch[
 ):
     var min_interval_width: Scalar[dtype]
 
-    fn minimize[
+    def minimize[
         info: ObjectiveInfo,
         //,
         line: ObjectiveLine[info]

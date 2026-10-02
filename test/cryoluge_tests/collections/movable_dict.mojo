@@ -51,11 +51,11 @@ struct Factory:
     var num: Int
     var count: Int
 
-    fn __init__(out self, num: Int):
+    def __init__(out self, num: Int):
         self.num = num
         self.count = 0
 
-    fn __call__(mut self) -> Thing:
+    def __call__(mut self) -> Thing:
         self.count += 1
         return Thing(self.num)
 
@@ -64,7 +64,7 @@ def test_get_or_insert():
     var dict = MovableDict[Int,Thing]()
     var count = 0
     @parameter
-    fn factory() -> Thing:
+    def factory() -> Thing:
         count += 1
         return Thing(42)
     assert_equal(count, 0)

@@ -40,7 +40,7 @@ def test_take():
 
 def test_or_else():
     @parameter
-    fn defaulter() -> Thing:
+    def defaulter() -> Thing:
         return Thing(42)
     var opt = MovableOptional[Thing](Thing(5))
     assert_equal(opt.or_else[defaulter]().i, 5)
@@ -51,7 +51,7 @@ def test_or_else():
 def test_map():
 
     @parameter
-    fn mapper(v: Thing) -> Int:
+    def mapper(v: Thing) -> Int:
         return v.i
     
     # NOTE: infer-only parameters in functions don't seem to work?

@@ -15,7 +15,7 @@ struct FrequencyLimits[dtype: DType](
     var freq_norm2_lo: Scalar[dtype]
     var freq_norm2_hi: Scalar[dtype]
 
-    fn __init__(
+    def __init__(
         out self,
         *,
         res_limit_lo: Ang[dtype],
@@ -32,14 +32,14 @@ struct FrequencyLimits[dtype: DType](
             self.freq_norm2_hi = clamp(pixel_size.value/res_limit_hi.value, max=0.5)**2
 
     @staticmethod
-    fn none(out self: Self):
+    def none(out self: Self):
         self = Self(
             freq_norm2_lo = Scalar[dtype](0),
             freq_norm2_hi = inf[dtype]()
         )
 
-    @always_inline
-    fn contains[
+    @inline(.always)
+    def contains[
         *,
         inclusive_lo: Bool = True,
         inclusive_hi: Bool = False,
@@ -63,8 +63,8 @@ struct FrequencyLimits[dtype: DType](
         else:
             contains = contains and freq_norm2 < self.freq_norm2_hi
 
-    @always_inline
-    fn contains[
+    @inline(.always)
+    def contains[
         simd_width: Int,
         *,
         inclusive_lo: Bool = True,
@@ -92,13 +92,13 @@ struct FrequencyLimits[dtype: DType](
         else:
             contains = contains & freq_norm2.lt(freq_norm2_hi)
 
-    fn shell_indices[dim: Int](self, shells: FourierShells[dim]) -> Tuple[Int,Int]:
+    def shell_indices[dim: Int](self, shells: FourierShells[dim]) -> Tuple[Int,Int]:
         """Returns shell index lower,upper(exclusive)."""
         var shelli_min = shells.shelli(freq_norm2=self.freq_norm2_lo)
         var shelli_max = shells.shelli(freq_norm2=self.freq_norm2_hi)
         return (shelli_min, shelli_max + 1)
 
-    fn intersect(
+    def intersect(
         mut self,
         *,
         freq_norm_lo: Optional[Scalar[dtype]] = None,
@@ -112,7 +112,7 @@ struct FrequencyLimits[dtype: DType](
         if freq_norm_hi is not None:
             self.freq_norm2_hi = min(self.freq_norm2_hi, freq_norm_hi.value()**2)
 
-    fn checker[dim: Int](self, sizes_real: Vec[dim,Int], out checker: FrequencyLimitsChecker[dim,dtype]):
+    def checker[dim: Int](self, sizes_real: Vec[dim,Int], out checker: FrequencyLimitsChecker[dim,dtype]):
         checker = FrequencyLimitsChecker(self, sizes_real)
 
 
@@ -123,7 +123,7 @@ struct FrequencyLimitsChecker[dim: Int, dtype: DType](
     var _limits: FrequencyLimits[dtype]
     var _sizes_norm2: Vec[dim,Scalar[dtype]]
 
-    fn __init__(
+    def __init__(
         out self,
         limits: FrequencyLimits[dtype],
         sizes_real: Vec[dim,Int]
@@ -131,8 +131,8 @@ struct FrequencyLimitsChecker[dim: Int, dtype: DType](
         self._limits = limits.copy()
         self._sizes_norm2 = FFTCoords(sizes_real).sizes_voxel_norm[dtype]()**2
 
-    @always_inline
-    fn contains[
+    @inline(.always)
+    def contains[
         *,
         inclusive_lo: Bool = True,
         inclusive_hi: Bool = False,
@@ -145,8 +145,8 @@ struct FrequencyLimitsChecker[dim: Int, dtype: DType](
         var freq_norm2 = self._sizes_norm2.inner_product(f**2)
         contains = self._limits.contains[inclusive_lo=inclusive_lo, inclusive_hi=inclusive_hi](freq_norm2=freq_norm2)
 
-    @always_inline
-    fn contains[
+    @inline(.always)
+    def contains[
         simd_width: Int,
         *,
         inclusive_lo: Bool = True,

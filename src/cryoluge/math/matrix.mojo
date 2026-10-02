@@ -13,24 +13,24 @@ struct Matrix[
     Movable,
     Writable,
     Stringable,
-    EqualityComparable
+    Equatable
 ):
     var _values: InlineArray[SIMD[dtype,simd_width], Self.num_elements]
     """Saved in row-major order."""
 
     comptime num_elements = rows*cols
 
-    fn __init__(out self, *, uninitialized: Bool):
+    def __init__(out self, *, uninitialized: Bool):
         self._values = InlineArray[SIMD[dtype,simd_width], Self.num_elements](uninitialized=uninitialized)
 
-    fn __init__(out self, *, fill: SIMD[dtype,simd_width]):
+    def __init__(out self, *, fill: SIMD[dtype,simd_width]):
         self._values = InlineArray[SIMD[dtype,simd_width], Self.num_elements](fill=fill)
 
-    fn __init__(out self, *, var row_major: InlineArray[SIMD[dtype,simd_width],Self.num_elements]):
+    def __init__(out self, *, var row_major: InlineArray[SIMD[dtype,simd_width],Self.num_elements]):
         self._values = row_major^
 
     @staticmethod
-    fn row_major(out self: Self, *row_major: SIMD[dtype,simd_width]):
+    def row_major(out self: Self, *row_major: SIMD[dtype,simd_width]):
 
         # check the size
         debug_assert(
@@ -44,7 +44,7 @@ struct Matrix[
         for i in range(Self.num_elements):
             self._values[i] = row_major[i]
 
-    fn _index(self, row: Int, col: Int) -> Int:
+    def _index(self, row: Int, col: Int) -> Int:
         debug_assert(
             row >= 0 and row < rows and col >= 0 and col < cols,
             "Indices (", row, ",", col, ") out of range [0,", rows, ")x[0,", cols, ")"
@@ -53,73 +53,73 @@ struct Matrix[
 
     # accessors
 
-    @always_inline
-    fn __getitem__(ref self, row: Int, col: Int) -> ref [self._values] SIMD[dtype,simd_width]:
+    @inline(.always)
+    def __getitem__(ref self, row: Int, col: Int) -> ref [self._values] SIMD[dtype,simd_width]:
         return self._values[self._index(row, col)]
 
-    @always_inline
-    fn __getitem__(ref self, *, slice: Int, out result: Matrix[rows,cols,dtype,1]):
+    @inline(.always)
+    def __getitem__(ref self, *, slice: Int, out result: Matrix[rows,cols,dtype,1]):
         result = Matrix[rows,cols,dtype,1](uninitialized=True)
         @parameter
         for i in range(rows*cols):
             result._values[i] = self._values[i][slice]
 
-    @always_inline
-    fn __setitem__(mut self, row: Int, col: Int, v: SIMD[dtype,simd_width]):
+    @inline(.always)
+    def __setitem__(mut self, row: Int, col: Int, v: SIMD[dtype,simd_width]):
         self._values[self._index(row, col)] = v
 
-    @always_inline
-    fn __setitem__(mut self, *, slice: Int, v: Matrix[rows,cols,dtype,1]):
+    @inline(.always)
+    def __setitem__(mut self, *, slice: Int, v: Matrix[rows,cols,dtype,1]):
         @parameter
         for i in range(rows*cols):
             self._values[i][slice] = v._values[i]
 
-    @always_inline
-    fn _vec[dim: Int](self, *, row: Int, out v: Vec[dim,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def _vec[dim: Int](self, *, row: Int, out v: Vec[dim,SIMD[dtype,simd_width]]):
         v = Vec[dim,SIMD[dtype,simd_width]](uninitialized=True)
         @parameter
         for c in range(cols):
             v[c] = self[row,c]
 
-    @always_inline
-    fn vec(self: Matrix[rows,1,dtype,simd_width], *, row: Int, out v: Vec[1,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def vec(self: Matrix[rows,1,dtype,simd_width], *, row: Int, out v: Vec[1,SIMD[dtype,simd_width]]):
         v = self._vec[1](row=row)
 
-    @always_inline
-    fn vec(self: Matrix[rows,2,dtype,simd_width], *, row: Int, out v: Vec[2,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def vec(self: Matrix[rows,2,dtype,simd_width], *, row: Int, out v: Vec[2,SIMD[dtype,simd_width]]):
         v = self._vec[2](row=row)
 
-    @always_inline
-    fn vec(self: Matrix[rows,3,dtype,simd_width], *, row: Int, out v: Vec[3,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def vec(self: Matrix[rows,3,dtype,simd_width], *, row: Int, out v: Vec[3,SIMD[dtype,simd_width]]):
         v = self._vec[3](row=row)
 
-    @always_inline
-    fn _vec[dim: Int](self, *, col: Int, out v: Vec[dim,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def _vec[dim: Int](self, *, col: Int, out v: Vec[dim,SIMD[dtype,simd_width]]):
         v = Vec[dim,SIMD[dtype,simd_width]](uninitialized=True)
         @parameter
         for r in range(rows):
             v[r] = self[r,col]
 
-    @always_inline
-    fn vec(self: Matrix[1,cols,dtype,simd_width], *, col: Int, out v: Vec[1,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def vec(self: Matrix[1,cols,dtype,simd_width], *, col: Int, out v: Vec[1,SIMD[dtype,simd_width]]):
         v = self._vec[1](col=col)
 
-    @always_inline
-    fn vec(self: Matrix[2,cols,dtype,simd_width], *, col: Int, out v: Vec[2,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def vec(self: Matrix[2,cols,dtype,simd_width], *, col: Int, out v: Vec[2,SIMD[dtype,simd_width]]):
         v = self._vec[2](col=col)
 
-    @always_inline
-    fn vec(self: Matrix[3,cols,dtype,simd_width], *, col: Int, out v: Vec[3,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def vec(self: Matrix[3,cols,dtype,simd_width], *, col: Int, out v: Vec[3,SIMD[dtype,simd_width]]):
         v = self._vec[3](col=col)
 
     # setters
 
     @staticmethod
-    fn identity(out self: Self):
+    def identity(out self: Self):
         self = Self(uninitialized=True)
         self.set_identity()
 
-    fn set_identity(mut self):
+    def set_identity(mut self):
         @parameter
         for r in range(rows):
             @parameter
@@ -130,18 +130,18 @@ struct Matrix[
                 else:
                     self[r,c] = 0
 
-    @always_inline
-    fn __init__(out self: Matrix[2,2,dtype,simd_width], *, rotate: Rad[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[2,2,dtype,simd_width], *, rotate: Rad[dtype]):
         self = Matrix[2,2,dtype,simd_width](uninitialized=True)
         self.set_rotate(rotate)
 
-    @always_inline
-    fn __init__(out self: Matrix[2,2,dtype,simd_width], *, rotate: Deg[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[2,2,dtype,simd_width], *, rotate: Deg[dtype]):
         self = Matrix[2,2,dtype,simd_width](uninitialized=True)
         self.set_rotate(rotate)
 
-    @always_inline
-    fn set_rotate(mut self: Matrix[2,2,dtype,simd_width], angle: Rad[dtype]):
+    @inline(.always)
+    def set_rotate(mut self: Matrix[2,2,dtype,simd_width], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
         self = Matrix[2,2,dtype,simd_width].row_major(
@@ -149,22 +149,22 @@ struct Matrix[
             s, c
         )
 
-    @always_inline
-    fn set_rotate(mut self: Matrix[2,2,dtype,simd_width], angle: Deg[dtype]):
+    @inline(.always)
+    def set_rotate(mut self: Matrix[2,2,dtype,simd_width], angle: Deg[dtype]):
         self.set_rotate(angle.to_rad())
     
-    @always_inline
-    fn __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_x: Rad[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_x: Rad[dtype]):
         self = Matrix[3,3,dtype,simd_width](uninitialized=True)
         self.set_rotate_x(rotate_x)
 
-    @always_inline
-    fn __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_x: Deg[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_x: Deg[dtype]):
         self = Matrix[3,3,dtype,simd_width](uninitialized=True)
         self.set_rotate_x(rotate_x)
 
-    @always_inline
-    fn set_rotate_x(mut self: Matrix[3,3,dtype,simd_width], angle: Rad[dtype]):
+    @inline(.always)
+    def set_rotate_x(mut self: Matrix[3,3,dtype,simd_width], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
         self = Matrix[3,3,dtype,simd_width].row_major(
@@ -173,22 +173,22 @@ struct Matrix[
             1, s, c
         )
 
-    @always_inline
-    fn set_rotate_x(mut self: Matrix[3,3,dtype,simd_width], angle: Deg[dtype]):
+    @inline(.always)
+    def set_rotate_x(mut self: Matrix[3,3,dtype,simd_width], angle: Deg[dtype]):
         self.set_rotate_x(angle.to_rad())
 
-    @always_inline
-    fn __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_y: Rad[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_y: Rad[dtype]):
         self = Matrix[3,3,dtype,simd_width](uninitialized=True)
         self.set_rotate_y(rotate_y)
 
-    @always_inline
-    fn __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_y: Deg[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_y: Deg[dtype]):
         self = Matrix[3,3,dtype,simd_width](uninitialized=True)
         self.set_rotate_y(rotate_y)
 
-    @always_inline
-    fn set_rotate_y(mut self: Matrix[3,3,dtype,simd_width], angle: Rad[dtype]):
+    @inline(.always)
+    def set_rotate_y(mut self: Matrix[3,3,dtype,simd_width], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
         self = Matrix[3,3,dtype,simd_width].row_major(
@@ -197,22 +197,22 @@ struct Matrix[
             -s, 0, c
         )
 
-    @always_inline
-    fn set_rotate_y(mut self: Matrix[3,3,dtype,simd_width], angle: Deg[dtype]):
+    @inline(.always)
+    def set_rotate_y(mut self: Matrix[3,3,dtype,simd_width], angle: Deg[dtype]):
         self.set_rotate_y(angle.to_rad())
 
-    @always_inline
-    fn __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_z: Rad[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_z: Rad[dtype]):
         self = Matrix[3,3,dtype,simd_width](uninitialized=True)
         self.set_rotate_z(rotate_z)
 
-    @always_inline
-    fn __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_z: Deg[dtype]):
+    @inline(.always)
+    def __init__(out self: Matrix[3,3,dtype,simd_width], *, rotate_z: Deg[dtype]):
         self = Matrix[3,3,dtype,simd_width](uninitialized=True)
         self.set_rotate_z(rotate_z)
 
-    @always_inline
-    fn set_rotate_z(mut self: Matrix[3,3,dtype,simd_width], angle: Rad[dtype]):
+    @inline(.always)
+    def set_rotate_z(mut self: Matrix[3,3,dtype,simd_width], angle: Rad[dtype]):
         var s = angle.sin()
         var c = angle.cos()
         self = Matrix[3,3,dtype,simd_width].row_major(
@@ -221,14 +221,14 @@ struct Matrix[
             0, 0, 1
         )
 
-    @always_inline
-    fn set_rotate_z(mut self: Matrix[3,3,dtype,simd_width], angle: Deg[dtype]):
+    @inline(.always)
+    def set_rotate_z(mut self: Matrix[3,3,dtype,simd_width], angle: Deg[dtype]):
         self.set_rotate_z(angle.to_rad())
 
     # modifiers
 
-    @always_inline
-    fn transpose(mut self):
+    @inline(.always)
+    def transpose(mut self):
 
         # just in case ...
         constrained[
@@ -246,8 +246,8 @@ struct Matrix[
                 self[r,c] = self[c,r]
                 self[c,r] = s
 
-    @always_inline
-    fn transposed(self, out result: Matrix[cols,rows,dtype,simd_width]):
+    @inline(.always)
+    def transposed(self, out result: Matrix[cols,rows,dtype,simd_width]):
         result = Matrix[cols,rows,dtype,simd_width](uninitialized=True)
         @parameter
         for r in range(rows):
@@ -257,8 +257,8 @@ struct Matrix[
 
     # operators
 
-    @always_inline
-    fn __mul__[other_cols: Int](
+    @inline(.always)
+    def __mul__[other_cols: Int](
         self,
         rhs: Matrix[cols,other_cols,dtype,simd_width],
         out product: Matrix[rows,other_cols,dtype,simd_width]
@@ -274,8 +274,8 @@ struct Matrix[
                     v += self[r,i]*rhs[i,c]
                 product[r,c] = v
 
-    @always_inline
-    fn __mul__[dim: Int, vec_simd_width: Int](
+    @inline(.always)
+    def __mul__[dim: Int, vec_simd_width: Int](
         self: Matrix[rows,cols,dtype,1],
         vec: Vec[dim,SIMD[dtype,vec_simd_width]],
         out result: Vec[dim,SIMD[dtype,vec_simd_width]]
@@ -294,8 +294,8 @@ struct Matrix[
                 v += self[d,i]*vec[i]
             result[d] = v
 
-    @always_inline
-    fn __mul__[dim: Int](
+    @inline(.always)
+    def __mul__[dim: Int](
         self: Self,
         vec: Vec[dim,SIMD[dtype,simd_width]],
         out result: Vec[dim,SIMD[dtype,simd_width]]
@@ -314,8 +314,8 @@ struct Matrix[
                 v += self[d,i]*vec[i]
             result[d] = v
 
-    @always_inline
-    fn __mul__(
+    @inline(.always)
+    def __mul__(
         self,
         f: Scalar[dtype],
         out result: Self
@@ -327,16 +327,16 @@ struct Matrix[
             for c in range(cols):
                 result[r,c] = self[r,c]*f
     
-    @always_inline
-    fn __mul__[dim: Int, utype: UnitType](
+    @inline(.always)
+    def __mul__[dim: Int, utype: UnitType](
         self: Matrix[rows,cols,dtype,1],
         vec: Vec[dim,Unit[utype,dtype]],
         out result: Vec[dim,Unit[utype,dtype]]
     ):
         result = (self*vec.map_value()).map_unit[utype]()
 
-    @always_inline
-    fn __eq__(self, other: Self) -> Bool:
+    @inline(.always)
+    def __eq__(self, other: Self) -> Bool:
         @parameter
         for i in range(Self.num_elements):
             if self._values[i] != other._values[i]:
@@ -345,8 +345,8 @@ struct Matrix[
 
     # other math
 
-    @always_inline
-    fn mul_transpose[dim: Int, vec_simd_width: Int](
+    @inline(.always)
+    def mul_transpose[dim: Int, vec_simd_width: Int](
         self: Matrix[rows,cols,dtype,1],
         vec: Vec[dim,SIMD[dtype,vec_simd_width]],
         out result: Vec[dim,SIMD[dtype,vec_simd_width]]
@@ -365,8 +365,8 @@ struct Matrix[
                 v += self[i,d]*vec[i]
             result[d] = v
 
-    @always_inline
-    fn mul_transpose[dim: Int](
+    @inline(.always)
+    def mul_transpose[dim: Int](
         self: Self,
         vec: Vec[dim,SIMD[dtype,simd_width]],
         out result: Vec[dim,SIMD[dtype,simd_width]]
@@ -385,15 +385,15 @@ struct Matrix[
                 v += self[i,d]*vec[i]
             result[d] = v
 
-    @always_inline
-    fn __round__(self, digits: Int, out result: Self):
+    @inline(.always)
+    def __round__(self, digits: Int, out result: Self):
         result = Matrix[rows,cols,dtype,simd_width](uninitialized=True)
         @parameter
         for i in range(Self.num_elements):
             result._values[i] = self._values[i].__round__(digits)
 
-    @always_inline
-    fn round[digits: Int](self, out result: Self):
+    @inline(.always)
+    def round[digits: Int](self, out result: Self):
         result = Matrix[rows,cols,dtype,simd_width](uninitialized=True)
         @parameter
         for i in range(Self.num_elements):
@@ -401,35 +401,35 @@ struct Matrix[
 
     # conversion
 
-    @always_inline
-    fn map[
+    @inline(.always)
+    def map[
         out_dtype: DType,
         //,
-        mapper: fn(SIMD[dtype,simd_width]) capturing -> SIMD[out_dtype,simd_width]
+        mapper: def(SIMD[dtype,simd_width]) capturing -> SIMD[out_dtype,simd_width]
     ](self, out mat: Matrix[rows,cols,out_dtype,simd_width]):
         mat = Matrix[rows,cols,out_dtype,simd_width](uninitialized=True)
         @parameter
         for i in range(Self.num_elements):
             mat._values[i] = mapper(self._values[i])
 
-    @always_inline
-    fn map_scalar[out_dtype: DType](self, out result: Matrix[rows,cols,out_dtype,simd_width]):
+    @inline(.always)
+    def map_scalar[out_dtype: DType](self, out result: Matrix[rows,cols,out_dtype,simd_width]):
         @parameter
-        fn func(v: SIMD[dtype,simd_width], out mapped: SIMD[out_dtype,simd_width]):
+        def func(v: SIMD[dtype,simd_width], out mapped: SIMD[out_dtype,simd_width]):
             mapped = SIMD[out_dtype,simd_width](v)
         result = self.map[mapper=func]()
     
-    @always_inline
-    fn map_float32(self: Matrix[rows,cols,DType.float32,simd_width], out result: Matrix[rows,cols,DType.float32,simd_width]):
+    @inline(.always)
+    def map_float32(self: Matrix[rows,cols,DType.float32,simd_width], out result: Matrix[rows,cols,DType.float32,simd_width]):
         result = self.map_scalar[DType.float32]()
 
-    @always_inline
-    fn map_float64(self: Matrix[rows,cols,DType.float64,simd_width], out result: Matrix[rows,cols,DType.float64,simd_width]):
+    @inline(.always)
+    def map_float64(self: Matrix[rows,cols,DType.float64,simd_width], out result: Matrix[rows,cols,DType.float64,simd_width]):
         result = self.map_scalar[DType.float64]()
 
     # display
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write("Matrix[", rows, ", ", cols, "]:")
         @parameter
         for r in range(rows):
@@ -438,5 +438,5 @@ struct Matrix[
             for c in range(cols):
                 writer.write("  ", self[r,c])
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)

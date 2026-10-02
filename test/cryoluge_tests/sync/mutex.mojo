@@ -15,10 +15,10 @@ comptime funcs = __functions_in_module()
 struct Counter(Movable):
     var count: Int
 
-    fn __init__(out self):
+    def __init__(out self):
         self.count = 0
 
-    fn delayed_increment(mut self):
+    def delayed_increment(mut self):
         var c = self.count
         sleep(0.01)
         self.count = c + 1
@@ -30,7 +30,7 @@ def test_mutex_spin():
     var mutex = Mutex()
 
     @parameter
-    fn func(_i: Int) capturing:
+    def func(_i: Int) capturing:
         with mutex.lock():
             counter.delayed_increment()
 
@@ -49,7 +49,7 @@ def test_mutex_wait():
     var mutex = Mutex()
 
     @parameter
-    fn func(_i: Int) capturing:
+    def func(_i: Int) capturing:
         with mutex.lock[wait_ms=10]():
             counter.delayed_increment()
 
@@ -68,7 +68,7 @@ def test_mutexed():
     var mutex = Mutex(counter^)
 
     @parameter
-    fn func(_i: Int) capturing:
+    def func(_i: Int) capturing:
         with mutex.lock() as counter:
             counter[].delayed_increment()
 

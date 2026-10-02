@@ -22,7 +22,7 @@ struct ExtraParameters_DELETEME:
     )
 
     @staticmethod
-    fn all() -> List[Parameter]:
+    def all() -> List[Parameter]:
         return materialize[Self._all]()
 
 
@@ -79,7 +79,7 @@ struct ExtraParameters:
     )
 
     @staticmethod
-    fn all() -> List[Parameter]:
+    def all() -> List[Parameter]:
         return materialize[Self._all]()
 
 
@@ -129,7 +129,7 @@ struct Blocks:
     )
 
     @staticmethod
-    fn all() -> List[Block]:
+    def all() -> List[Block]:
         return materialize[Self._all]()
 
 

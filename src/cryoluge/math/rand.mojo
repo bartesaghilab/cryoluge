@@ -28,7 +28,7 @@ struct Rand:
     comptime _num_rounds = 10
     comptime _cache_length = 4
 
-    fn __init__(
+    def __init__(
         out self,
         *,
         seed: Int = default_seed
@@ -37,19 +37,19 @@ struct Rand:
         self._cache = SIMD[DType.uint32, Self._cache_length](0)
         self._cache_index = Self._cache_length
 
-    fn uint32(mut self, out v: UInt32):
+    def uint32(mut self, out v: UInt32):
         if self._cache_index >= Self._cache_length:
             self._cache = self._rand.step()
             self._cache_index = 0
         v = self._cache[self._cache_index]
         self._cache_index += 1
 
-    fn uint64(mut self, out v: UInt64):
+    def uint64(mut self, out v: UInt64):
         var high = UInt64(self.uint32())
         var low = UInt64(self.uint32())
         v = (high << 32) | low
 
-    fn float64(mut self, out v: Float64):
+    def float64(mut self, out v: Float64):
         """
         Returns a random float64 in [0,1).
         """
@@ -67,8 +67,8 @@ struct Rand:
         # normalize the value to get a float in [0,1)
         v = Float64(value)*normalization
 
-    @always_inline
-    fn float64(mut self, *, min: Float64, max: Float64, out v: Float64):
+    @inline(.always)
+    def float64(mut self, *, min: Float64, max: Float64, out v: Float64):
         """
         Returns a random float64 in [min,max).
         Min and max must be finite.
@@ -77,7 +77,7 @@ struct Rand:
         debug_assert(isfinite(max), "Max must be finite")
         v = min + self.float64()*(max - min)
 
-    fn float32(mut self, out v: Float32):
+    def float32(mut self, out v: Float32):
         """
         Returns a random float32 in [0,1).
         """
@@ -93,8 +93,8 @@ struct Rand:
         # normalize the value to get a float in [0,1)
         v = Float32(value)*normalization
 
-    @always_inline
-    fn float32(mut self, *, min: Float32, max: Float32, out v: Float32):
+    @inline(.always)
+    def float32(mut self, *, min: Float32, max: Float32, out v: Float32):
         """
         Returns a random float32 in [min,max).
         Min and max must be finite.
@@ -103,7 +103,7 @@ struct Rand:
         debug_assert(isfinite(max), "Max must be finite")
         v = min + self.float32()*(max - min)
 
-    fn scalar[dtype: DType](mut self, out v: Scalar[dtype]):
+    def scalar[dtype: DType](mut self, out v: Scalar[dtype]):
         """
         Returns a random dtype (either float32 or float64) in [-,1).
         """
@@ -117,8 +117,8 @@ struct Rand:
             v = 0
             abort()
 
-    @always_inline
-    fn scalar[dtype: DType](mut self, *, min: Scalar[dtype], max: Scalar[dtype], out v: Scalar[dtype]):
+    @inline(.always)
+    def scalar[dtype: DType](mut self, *, min: Scalar[dtype], max: Scalar[dtype], out v: Scalar[dtype]):
         """
         Returns a random dtype (either float32 or float64) in [min,max).
         Min and max must be finite.
@@ -146,7 +146,7 @@ struct VecRand[
 
     comptime Vec = Vec[dim,Scalar[dtype]]
 
-    fn __init__(
+    def __init__(
         out self,
         *,
         min: Self.Vec,
@@ -157,6 +157,6 @@ struct VecRand[
         self.max = max.copy()
         self._rand = Rand(seed=seed)
 
-    @always_inline
-    fn next(mut self, d: Int, out v: Scalar[dtype]):
+    @inline(.always)
+    def next(mut self, d: Int, out v: Scalar[dtype]):
         v = self._rand.scalar[dtype](min=self.min[d], max=self.max[d])

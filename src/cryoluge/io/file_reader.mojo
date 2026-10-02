@@ -17,22 +17,22 @@ struct FileReader[origin: Origin](
         self._fh = Pointer(to=fh)
         self._inner = _Inner(self._fh[], buf_size)
 
-    fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+    def read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
         return self._inner.read_bytes(buf)
 
-    fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+    def read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
         return self._inner.read_bytes_exact(buf)
     
-    fn skip_bytes(mut self, size: Int) raises:
+    def skip_bytes(mut self, size: Int) raises:
         return self._inner.skip_bytes(self._fh[], size)
 
-    fn offset(self) -> UInt64:
+    def offset(self) -> UInt64:
         return self._inner.offset()
 
-    fn seek_to(mut self, offset: UInt64) raises:
+    def seek_to(mut self, offset: UInt64) raises:
         self._inner.seek_to(self._fh[], offset)
 
-    fn seek_by(mut self, offset: Int64) raises:
+    def seek_by(mut self, offset: Int64) raises:
         self._inner.seek_by(self._fh[], offset)
 
 
@@ -51,22 +51,22 @@ struct OwnedFileReader(
         self._fh = fh^
         self._inner = _Inner(self._fh, buf_size)
 
-    fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+    def read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
         return self._inner.read_bytes(buf)
 
-    fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+    def read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
         return self._inner.read_bytes_exact(buf)
     
-    fn skip_bytes(mut self, size: Int) raises:
+    def skip_bytes(mut self, size: Int) raises:
         return self._inner.skip_bytes(self._fh, size)
 
-    fn offset(self) -> UInt64:
+    def offset(self) -> UInt64:
         return self._inner.offset()
 
-    fn seek_to(mut self, offset: UInt64) raises:
+    def seek_to(mut self, offset: UInt64) raises:
         self._inner.seek_to(self._fh, offset)
 
-    fn seek_by(mut self, offset: Int64) raises:
+    def seek_by(mut self, offset: Int64) raises:
         self._inner.seek_by(self._fh, offset)
 
 
@@ -86,7 +86,7 @@ struct _Inner(Movable):
         self._limit = 0
         self._offset = 0
 
-    fn read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+    def read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
 
         var size = Int(len(buf))
         var span_out = Span(ptr=buf.unsafe_ptr(), length=size)
@@ -136,7 +136,7 @@ struct _Inner(Movable):
         self._offset += size_buf_remaining + size_copy
         return size_buf_remaining + size_copy
 
-    fn read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+    def read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
 
         var size = len(buf)
         var size_out_read = 0
@@ -157,7 +157,7 @@ struct _Inner(Movable):
             "Failed to read exact buffer size: read=", size_out_read, ", buf=", size
         )
 
-    fn skip_bytes(mut self, fh: FileHandle, size: Int) raises:
+    def skip_bytes(mut self, fh: FileHandle, size: Int) raises:
 
         # if we've already buffered the skip size, just advance the buffer position
         var size_buf_remaining = self._limit - self._pos
@@ -176,10 +176,10 @@ struct _Inner(Movable):
 
         self._offset += size
 
-    fn offset(self) -> UInt64:
+    def offset(self) -> UInt64:
         return self._offset
 
-    fn seek_to(mut self, fh: FileHandle, offset: UInt64) raises:
+    def seek_to(mut self, fh: FileHandle, offset: UInt64) raises:
 
         # ignore the current buffer
         self._pos = self._limit
@@ -189,7 +189,7 @@ struct _Inner(Movable):
 
         self._offset = offset
 
-    fn seek_by(mut self, fh: FileHandle, offset: Int64) raises:
+    def seek_by(mut self, fh: FileHandle, offset: Int64) raises:
 
         var new_offset = Int64(self._offset) + offset
         if new_offset < 0:

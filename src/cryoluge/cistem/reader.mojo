@@ -20,7 +20,7 @@ struct CistemReader[
     var _line_buf: ByteBuffer
     var _next_line: Int
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] reader: R
     ) raises:
@@ -28,7 +28,7 @@ struct CistemReader[
 
 
     # TODO: can we use Iterable trait here?
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] reader: R,
         *,
@@ -36,7 +36,7 @@ struct CistemReader[
     ) raises:
         self = Self(reader, KeyableSet[Parameter](parameters))
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] reader: R,
         var parameters: KeyableSet[Parameter]
@@ -97,35 +97,35 @@ struct CistemReader[
             line_size += col.type.size.value()
         self._line_buf = ByteBuffer(line_size)
 
-    fn num_lines(self) -> Int:
+    def num_lines(self) -> Int:
         return self._num_lines
 
-    fn line_size(self) -> Int:
+    def line_size(self) -> Int:
         return self._line_buf.size()
 
-    fn cols(self) -> ref [origin_of(self._cols)] List[Parameter]:
+    def cols(self) -> ref [origin_of(self._cols)] List[Parameter]:
         return self._cols
 
-    fn has_parameter[param: Parameter](self) -> Bool:
+    def has_parameter[param: Parameter](self) -> Bool:
         return self._col_offsets.get(param.id) is not None
 
-    fn seek(mut self, linei: Int) raises:
+    def seek(mut self, linei: Int) raises:
         self.reader[].seek_to(self._first_line_offset + UInt64(linei*self._line_buf.size()))
         self._next_line = linei
 
-    fn next_line(self) -> Int:
+    def next_line(self) -> Int:
         return self._next_line
 
-    fn eof(self) -> Bool:
+    def eof(self) -> Bool:
         return self._next_line >= self._num_lines
 
-    fn read_line(mut self) raises:
+    def read_line(mut self) raises:
         self.reader[].read_bytes_exact(self._line_buf.span())
         # TODO: can we get rid of this copy? ^^
         #       need some kind of window function on the BytesReader
         self._next_line += 1
    
-    fn get_parameter[
+    def get_parameter[
         param: Parameter,
         dtype: DType=param.type.dtype.value()
     ](self, out v: Scalar[dtype]) raises:
@@ -153,7 +153,7 @@ struct CistemReader[
         ]()
         v = reader.read_scalar[dtype, endian]()
 
-    fn _get_parameter[
+    def _get_parameter[
         param: Parameter,
         type: ParameterType,
         dtype: DType
@@ -171,28 +171,28 @@ struct CistemReader[
     # so we still need to make type-specific wrapper functions,
     # but at least they can be very simple wrappers =)
 
-    fn get_parameter_bool[param: Parameter](self, out v: Bool) raises:
+    def get_parameter_bool[param: Parameter](self, out v: Bool) raises:
         v = self._get_parameter[param, ParameterType.bool, DType.bool]()
 
-    fn get_parameter_byte[param: Parameter](self, out v: Byte) raises:
+    def get_parameter_byte[param: Parameter](self, out v: Byte) raises:
         v = self._get_parameter[param, ParameterType.byte, DType.uint8]()
 
-    fn get_parameter_int[param: Parameter](self, out v: Int32) raises:
+    def get_parameter_int[param: Parameter](self, out v: Int32) raises:
         v = self._get_parameter[param, ParameterType.int, DType.int32]()
 
-    fn get_parameter_uint[param: Parameter](self, out v: UInt32) raises:
+    def get_parameter_uint[param: Parameter](self, out v: UInt32) raises:
         v = self._get_parameter[param, ParameterType.uint, DType.uint32]()
 
-    fn get_parameter_long[param: Parameter](self, out v: Int64) raises:
+    def get_parameter_long[param: Parameter](self, out v: Int64) raises:
         v = self._get_parameter[param, ParameterType.long, DType.int64]()
 
-    fn get_parameter_float[param: Parameter](self, out v: Float32) raises:
+    def get_parameter_float[param: Parameter](self, out v: Float32) raises:
         v = self._get_parameter[param, ParameterType.float, DType.float32]()
 
-    fn get_parameter_double[param: Parameter](self, out v: Float64) raises:
+    def get_parameter_double[param: Parameter](self, out v: Float64) raises:
         v = self._get_parameter[param, ParameterType.double, DType.float64]()
 
-    fn get_parameter_into_string(self, param: Parameter) raises -> String:
+    def get_parameter_into_string(self, param: Parameter) raises -> String:
 
         # lookup the parameter offset, if any
         var offset = self._col_offsets.get(param.id)
@@ -213,7 +213,7 @@ struct CistemReader[
         # parameter doesn't have a dtype
         raise Error(String("Failed to match scalar type to parameter: ", param))
 
-    fn line_string(self) raises -> String:
+    def line_string(self) raises -> String:
         var out = List[String]()
         for col in self._cols:
             out.append(String(col, '=', self.get_parameter_into_string(col)))

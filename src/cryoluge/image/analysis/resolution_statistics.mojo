@@ -9,10 +9,10 @@ from cryoluge.math.units import Ang
 struct ResolutionStatistics[dtype: DType]:
     var records: List[ResolutionStatisticsRecord[dtype]]
 
-    fn __init__(out self):
+    def __init__(out self):
         self.records = []
 
-    fn read(mut self, *, contents: String) raises:
+    def read(mut self, *, contents: String) raises:
 
         self.records.clear()
 
@@ -53,11 +53,11 @@ struct ResolutionStatistics[dtype: DType]:
                 reconstruction_ssnr = Scalar[dtype](atof(cols[6])**2)
             ))
 
-    fn read(mut self, *, path: String) raises:
+    def read(mut self, *, path: String) raises:
         with open(path, "r") as file:
             self.read(contents=file.read())
 
-    fn write(
+    def write(
         self,
         *,
         comments: List[String] = [],

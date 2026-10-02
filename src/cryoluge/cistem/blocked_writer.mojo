@@ -15,13 +15,13 @@ struct BlockedWriter[
 ](Movable):
     var _writer: Pointer[W, origin]
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] writer: W
     ):
         self._writer = Pointer(to=writer)
 
-    fn write_block(
+    def write_block(
         mut self,
         block: Block,
         *,

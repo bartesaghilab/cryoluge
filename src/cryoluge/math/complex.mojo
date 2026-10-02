@@ -1,11 +1,11 @@
 
-@always_inline
-fn zero[dtype: DType, simd_width: Int = 1](out zero: ComplexSIMD[dtype,simd_width]):
+@inline(.always)
+def zero[dtype: DType, simd_width: Int = 1](out zero: ComplexSIMD[dtype,simd_width]):
     zero = ComplexSIMD[dtype,simd_width](0, 0)
 
 
-@always_inline
-fn slice[
+@inline(.always)
+def slice[
     dtype: DType,
     //,
     i: Int = 0,
@@ -20,8 +20,8 @@ fn slice[
     )
 
 
-@always_inline
-fn _simd_slice[
+@inline(.always)
+def _simd_slice[
     dtype: DType,
     //,
     width: Int = 1
@@ -36,8 +36,8 @@ fn _simd_slice[
         v_out[w] = v_in[i+w]
 
 
-@always_inline
-fn slice[
+@inline(.always)
+def slice[
     dtype: DType,
     //,
     simd_width_out: Int = 1
@@ -52,8 +52,8 @@ fn slice[
     )
 
 
-@always_inline
-fn splice[
+@inline(.always)
+def splice[
     dtype: DType,
     //,
     len: Int = 1
@@ -69,8 +69,8 @@ fn splice[
         c.im[i+n] = src.im[i_src+n]
 
 
-@always_inline
-fn pack[
+@inline(.always)
+def pack[
     dtype: DType,
     simd_width_src: Int,
     //,

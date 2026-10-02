@@ -10,21 +10,21 @@ from cryoluge.fft import FFTCoords, FFTImage, CoordDomain, constrain_coord_domai
 
 
 trait MaskReal:
-    fn includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool: ...
+    def includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool: ...
 
 trait MaskFourier:
-    fn includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool: ...
+    def includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool: ...
 
 
 struct AllMask(MaskReal, MaskFourier):
 
-    fn __init__(out self):
+    def __init__(out self):
         pass
 
-    fn includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
+    def includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
         return True
 
-    fn includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool:
+    def includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool:
         return True
 
 
@@ -32,7 +32,7 @@ struct AllMask(MaskReal, MaskFourier):
 struct MaskRegion(
     ImplicitlyCopyable,
     Movable,
-    EqualityComparable,
+    Equatable,
     Writable,
     Stringable
 ):
@@ -41,10 +41,10 @@ struct MaskRegion(
     comptime Inside = MaskRegion(0)
     comptime Outside = MaskRegion(1)
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         return self.value == other.value
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         if self == Self.Inside:
             writer.write("Inside")
         elif self == Self.Outside:
@@ -52,16 +52,16 @@ struct MaskRegion(
         else:
             writer.write("(unrecognized MaskRegion value: ", self.value, ")")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
-fn unrecognized_mask_region[region: MaskRegion, T: AnyType = NoneType._mlir_type]() -> T:
+def unrecognized_mask_region[region: MaskRegion, T: AnyType = NoneType._mlir_type]() -> T:
     constrained[False, String("Unsupported MaskRegion: ", region)]()
     return abort[T]()
 
 
-fn center_dist2_real[
+def center_dist2_real[
     dim: Int,
     dtype: DType
 ](
@@ -75,7 +75,7 @@ fn center_dist2_real[
     dist2 = (pos - center).len2()
 
 
-fn center_dist2_fourier[
+def center_dist2_fourier[
     dim: Int,
     dtype: DType
 ](
@@ -112,11 +112,11 @@ struct RadialMask[
     comptime FourierOutsideExclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, False, _]
     comptime FourierOutsideInclusive = RadialMask[CoordDomain.Fourier, MaskRegion.Outside, True, _]
 
-    fn __init__(out self, radius: Scalar[dtype]):
+    def __init__(out self, radius: Scalar[dtype]):
         self.radius = radius
         self._r2 = radius*radius
 
-    fn includes(self, r2: Scalar[dtype]) -> Bool:
+    def includes(self, r2: Scalar[dtype]) -> Bool:
         @parameter
         if region == MaskRegion.Inside:
             @parameter
@@ -133,7 +133,7 @@ struct RadialMask[
         else:
             return unrecognized_mask_region[region,Bool]()
 
-    fn includes[dim: Int](
+    def includes[dim: Int](
         self,
         i: Vec[dim,Int],
         sizes: Vec[dim,Int]
@@ -141,7 +141,7 @@ struct RadialMask[
         constrain_coord_domain["includes()", domain, CoordDomain.Real]()
         return self.includes(center_dist2_real[dim,dtype](i, sizes))
 
-    fn includes[dim: Int](
+    def includes[dim: Int](
         self,
         i: Vec[dim,Int],
         fft_coords: FFTCoords[dim]
@@ -151,7 +151,7 @@ struct RadialMask[
 
     # TODO: move these into a generic image ops namespace?
 
-    fn correct_sinc[
+    def correct_sinc[
         dim: Int, //
     ](
         self: RadialMask[CoordDomain.Real, region, include_boundary, dtype],
@@ -164,7 +164,7 @@ struct RadialMask[
         weight_outside *= weight_outside
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             if self.includes(i, img.sizes()):
                 var dist = i - img.sizes()//2
                 var weight = (dist.map_scalar[dtype]()*scale).sinc().product()
@@ -195,21 +195,21 @@ struct AnnularMask[
 
     comptime RealInsideInclusive = AnnularMask[CoordDomain.Real, MaskRegion.Inside, True, True, _]
     comptime FourierInsideInclusive = AnnularMask[CoordDomain.Fourier, MaskRegion.Inside, True, True, _]
-    comptime EaseFn = fn[dtype_ease: DType, width: Int](SIMD[dtype_ease,width]) -> SIMD[dtype_ease,width]
+    comptime EaseFn = def[dtype_ease: DType, width: Int](SIMD[dtype_ease,width]) -> SIMD[dtype_ease,width]
 
-    fn __init__(out self, radius_inner: Scalar[dtype], radius_outer: Scalar[dtype]):
+    def __init__(out self, radius_inner: Scalar[dtype], radius_outer: Scalar[dtype]):
         self.radius_inner = radius_inner
         self.radius_outer = radius_outer
         self._r12 = radius_inner*radius_inner
         self._r22 = radius_outer*radius_outer
 
-    fn __init__(out self, *, radius_center: Scalar[dtype], width: Scalar[dtype]):
+    def __init__(out self, *, radius_center: Scalar[dtype], width: Scalar[dtype]):
         self = Self(
             radius_inner = clamp(radius_center - width/2, min=0),
             radius_outer = (radius_center + width/2)
         )
 
-    fn includes(self, r2: Scalar[dtype]) -> Bool:
+    def includes(self, r2: Scalar[dtype]) -> Bool:
         @parameter
         if region == MaskRegion.Inside:
             @parameter
@@ -235,19 +235,19 @@ struct AnnularMask[
             constrained[False, String("Unsupported MaskRegion: ", region)]()
             return abort[Bool]()
 
-    fn includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
+    def includes[dim: Int](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
         # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
         constrain_coord_domain["includes()", domain, CoordDomain.Real]()
         return self.includes(center_dist2_real[dim,dtype](i, sizes))
 
-    fn includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool:
+    def includes[dim: Int](self, i: Vec[dim,Int], fft_coords: FFTCoords[dim]) -> Bool:
         # can't use conditional conformance (ie, bounds on self) for trait impls, so constrain explicitly
         constrain_coord_domain["includes()", domain, CoordDomain.Fourier]()
         return self.includes(center_dist2_fourier[dim,dtype](i, fft_coords))
 
     # TODO: move these into a generic image ops namespace?
 
-    fn _blend_interpolate[
+    def _blend_interpolate[
         dir: AnnularBlendDirection,
         ease: Self.EaseFn
     ](self, r2: Scalar[dtype]) -> Scalar[dtype]:
@@ -268,7 +268,7 @@ struct AnnularMask[
         # apply easing function
         return ease(t)
 
-    fn _past_end[
+    def _past_end[
         dir: AnnularBlendDirection
     ](self, r2: Scalar[dtype]) -> Bool:
         # outside the annulus: determine if we're past the end
@@ -291,7 +291,7 @@ struct AnnularMask[
 
     # TODO: refactor into image operators?
 
-    fn blend[
+    def blend[
         dir: AnnularBlendDirection,
         *,
         ease: Self.EaseFn,
@@ -309,7 +309,7 @@ struct AnnularMask[
         """
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var r2 = center_dist2_real[dim,dtype](i, img.sizes())
             if self.includes(r2):
                 var t = self._blend_interpolate[dir,ease](r2)
@@ -319,7 +319,7 @@ struct AnnularMask[
 
         img.iterate[func]()
 
-    fn blend[
+    def blend[
         dir: AnnularBlendDirection,
         *,
         ease: Self.EaseFn,
@@ -337,7 +337,7 @@ struct AnnularMask[
         """
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var r2 = center_dist2_fourier[dim,dtype](i, img.coords())
             if self.includes(r2):
                 var t = self._blend_interpolate[dir,ease](r2)
@@ -347,7 +347,7 @@ struct AnnularMask[
 
         img.complex.iterate[func]()
 
-    fn volume_retained[
+    def volume_retained[
         dir: AnnularBlendDirection,
         *,
         ease: Self.EaseFn,
@@ -365,7 +365,7 @@ struct AnnularMask[
         # TODO: there's probably an analytical solution for this?
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var r2 = center_dist2_real[dim,dtype](i, sizes)
             if self.includes(r2):
                 var t = self._blend_interpolate[dir,ease](r2)
@@ -382,7 +382,7 @@ struct AnnularMask[
 struct AnnularBlendDirection(
     ImplicitlyCopyable,
     Movable,
-    EqualityComparable,
+    Equatable,
     Writable,
     Stringable
 ):
@@ -393,10 +393,10 @@ struct AnnularBlendDirection(
     comptime Out = AnnularBlendDirection(1)
     """Blend from the inner radius towards the outer radius."""
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         return self.value == other.value
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         if self == Self.In:
             writer.write("In")
         elif self == Self.Out:
@@ -404,10 +404,10 @@ struct AnnularBlendDirection(
         else:
             writer.write("(unrecognized MaskRegion value: ", self.value, ")")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
-    fn opposite(self, out other: Self):
+    def opposite(self, out other: Self):
         other = Self(self.value ^ 0x1)
 
 
@@ -422,7 +422,7 @@ struct EdgeMask[dim_edges: Int](MaskReal):
       If multiple positions encode edges, the mask matches the union of those edges.
     """
 
-    fn includes[
+    def includes[
         dim: Int
     ](self, i: Vec[dim,Int], sizes: Vec[dim,Int]) -> Bool:
 

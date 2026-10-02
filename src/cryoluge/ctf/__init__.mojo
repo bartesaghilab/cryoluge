@@ -1,6 +1,6 @@
 
-from math import sqrt, atan, atan2
-from complex import ComplexScalar
+from std.math import sqrt, atan, atan2
+from std.complex import ComplexScalar
 
 from cryoluge.math import Vec
 from cryoluge.math.units import UnitType, Unit, Px, Ang, MM, Rad, Deg, pi, Hz
@@ -11,24 +11,24 @@ struct CTF[dtype: DType](
     Copyable,
     Movable
 ):
-    var wavelength_px: Px[dtype]
-    var spherical_aberration_px: Px[dtype]
-    var astigmatism_azimuth_rad: Rad[dtype]
-    var pixel_size: Ang[dtype]
-    var additional_phase_shift_rad: Rad[dtype]
-    var amplitude_contrast_term_rad: Rad[dtype]
-    var beam_tilt_azimuth_rad: Rad[dtype]
-    var particle_shift_azimuth_rad: Rad[dtype]
-    var low_resolution_contrast: Scalar[dtype]  # TODO: does this have a unit?
-    var _sawl2: Scalar[dtype]
-    var _sawl3: Scalar[dtype]
-    var _defocus_half_sum: Scalar[dtype]
-    var _defocus_half_diff: Scalar[dtype]
-    var _extra_rotation: Rad[dtype]
-    var _beam_tilt_rad: Rad[dtype]
-    var _particle_shift_px: Scalar[dtype]
+    var wavelength_px: Px[Self.dtype]
+    var spherical_aberration_px: Px[Self.dtype]
+    var astigmatism_azimuth_rad: Rad[Self.dtype]
+    var pixel_size: Ang[Self.dtype]
+    var additional_phase_shift_rad: Rad[Self.dtype]
+    var amplitude_contrast_term_rad: Rad[Self.dtype]
+    var beam_tilt_azimuth_rad: Rad[Self.dtype]
+    var particle_shift_azimuth_rad: Rad[Self.dtype]
+    var low_resolution_contrast: Scalar[Self.dtype]  # TODO: does this have a unit?
+    var _sawl2: Scalar[Self.dtype]
+    var _sawl3: Scalar[Self.dtype]
+    var _defocus_half_sum: Scalar[Self.dtype]
+    var _defocus_half_diff: Scalar[Self.dtype]
+    var _extra_rotation: Rad[Self.dtype]
+    var _beam_tilt_rad: Rad[Self.dtype]
+    var _particle_shift_px: Scalar[Self.dtype]
 
-    fn __init__(
+    def __init__(
         out self,
         *,
         acceleration_voltage_kv: Scalar[dtype],
@@ -43,7 +43,7 @@ struct CTF[dtype: DType](
         low_resolution_contrast: Scalar[dtype] = 0
     ):
         @parameter
-        fn to_px(a: Ang[dtype]) -> Px[dtype]:
+        def to_px(a: Ang[dtype]) -> Px[dtype]:
             return a.to_px(pixel_size)
 
         self.wavelength_px = _acceleration_voltage_to_wavelength_a(acceleration_voltage_kv).to_px(pixel_size)
@@ -87,7 +87,7 @@ struct CTF[dtype: DType](
         self._beam_tilt_rad = beam_tilt_rad.len() * pi[dtype]*2
         self._particle_shift_px = particle_shift_px.len().value * pi[dtype].value*2
 
-    fn azimuth(
+    def azimuth(
         self,
         *,
         f_norm: Vec[2,Scalar[dtype]],
@@ -97,7 +97,7 @@ struct CTF[dtype: DType](
         if f_norm.x() != 0 or f_norm.y() != 0:
             result = Rad(atan2(f_norm.y(), f_norm.x()))
 
-    fn eval(
+    def eval(
         self,
         *,
         f_norm: Vec[2,Scalar[dtype]],
@@ -108,7 +108,7 @@ struct CTF[dtype: DType](
             freq_norm2=f_norm.len2()
         )
 
-    fn eval(
+    def eval(
         self,
         *,
         azimuth: Rad[dtype],
@@ -125,7 +125,7 @@ struct CTF[dtype: DType](
 
         return -phase_shift_rad.sin()
 
-    fn eval_beam_tilt_phase_shift(
+    def eval_beam_tilt_phase_shift(
         self,
         *,
         f_norm: Vec[2,Scalar[dtype]],
@@ -138,7 +138,7 @@ struct CTF[dtype: DType](
             freq_norm=sqrt(freq_norm2)
         )
 
-    fn eval_beam_tilt_phase_shift(
+    def eval_beam_tilt_phase_shift(
         self,
         *,
         azimuth: Rad[dtype],
@@ -157,7 +157,7 @@ struct CTF[dtype: DType](
         result = ComplexScalar[dtype](phase_shift_rad.cos(), phase_shift_rad.sin())
 
 
-fn _acceleration_voltage_to_wavelength_a[dtype: DType](
+def _acceleration_voltage_to_wavelength_a[dtype: DType](
     acceleration_voltage_kv: Scalar[dtype],
     out wavelength_a: Ang[dtype]
 ):

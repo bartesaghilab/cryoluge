@@ -1,5 +1,5 @@
 
-fn intcast_i32(i: Int, out i32: Int32) raises:
+def intcast_i32(i: Int, out i32: Int32) raises:
     var range = (0, Int(Int32.MAX))
     if i >= range[0] and i <= range[1]:
         return Int32(i)

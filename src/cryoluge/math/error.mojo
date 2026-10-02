@@ -2,18 +2,18 @@
 from complex import ComplexScalar
 
 
-fn err_abs[dtype: DType](obs: Scalar[dtype], exp: Scalar[dtype]) -> Scalar[dtype]:
+def err_abs[dtype: DType](obs: Scalar[dtype], exp: Scalar[dtype]) -> Scalar[dtype]:
     return abs(obs - exp)
 
 
-fn err_rel[dtype: DType](obs: Scalar[dtype], exp: Scalar[dtype]) -> Scalar[dtype]:
+def err_rel[dtype: DType](obs: Scalar[dtype], exp: Scalar[dtype]) -> Scalar[dtype]:
     if exp == 0:
         return err_abs(obs, exp)
     else:
         return err_abs(obs, exp)/abs(exp)
 
 
-fn is_err_small[dtype: DType](
+def is_err_small[dtype: DType](
     err: Scalar[dtype],
     *,
     eps: Scalar[dtype] = 1e-5
@@ -21,7 +21,7 @@ fn is_err_small[dtype: DType](
     return err < eps
 
 
-fn is_err_small[dtype: DType](
+def is_err_small[dtype: DType](
     err: ComplexScalar[dtype],
     *,
     eps: Scalar[dtype] = 1e-5
@@ -29,7 +29,7 @@ fn is_err_small[dtype: DType](
     return is_err_small(err.re, eps=eps) and is_err_small(err.im, eps=eps)
 
 
-fn is_err_small[samples: Int, //, dtype: DType](
+def is_err_small[samples: Int, //, dtype: DType](
     err: InlineArray[Scalar[dtype],samples],
     *,
     eps: Scalar[dtype] = 1e-5
@@ -41,7 +41,7 @@ fn is_err_small[samples: Int, //, dtype: DType](
     return True
 
 
-fn is_err_small[samples: Int, //, dtype: DType](
+def is_err_small[samples: Int, //, dtype: DType](
     err: InlineArray[ComplexScalar[dtype],samples],
     *,
     eps: Scalar[dtype] = 1e-5
@@ -53,21 +53,21 @@ fn is_err_small[samples: Int, //, dtype: DType](
     return True
 
 
-comptime ErrFn[dtype: DType] = fn(Scalar[dtype], Scalar[dtype]) -> Scalar[dtype]
+comptime ErrFn[dtype: DType] = def(Scalar[dtype], Scalar[dtype]) -> Scalar[dtype]
 
 
-fn err[dtype: DType, err_fn: ErrFn[dtype]](obs: Scalar[dtype], exp: Scalar[dtype]) -> Scalar[dtype]:
+def err[dtype: DType, err_fn: ErrFn[dtype]](obs: Scalar[dtype], exp: Scalar[dtype]) -> Scalar[dtype]:
     return err_fn(obs, exp)
 
 
-fn err[dtype: DType, err_fn: ErrFn[dtype]](obs: ComplexScalar[dtype], exp: ComplexScalar[dtype]) -> ComplexScalar[dtype]:
+def err[dtype: DType, err_fn: ErrFn[dtype]](obs: ComplexScalar[dtype], exp: ComplexScalar[dtype]) -> ComplexScalar[dtype]:
     return ComplexScalar[dtype](
         re=err_fn(obs.re, exp.re),
         im=err_fn(obs.im, exp.im)
     )
 
 
-fn err[samples: Int, //, dtype: DType, err_fn: ErrFn[dtype]](
+def err[samples: Int, //, dtype: DType, err_fn: ErrFn[dtype]](
     obs: InlineArray[Scalar[dtype],samples],
     exp: InlineArray[Scalar[dtype],samples],
     out result: InlineArray[Scalar[dtype],samples]
@@ -78,7 +78,7 @@ fn err[samples: Int, //, dtype: DType, err_fn: ErrFn[dtype]](
         result[s] = err[dtype,err_fn](obs[s], exp[s])
 
 
-fn err[samples: Int, //, dtype: DType, err_fn: ErrFn[dtype]](
+def err[samples: Int, //, dtype: DType, err_fn: ErrFn[dtype]](
     obs: InlineArray[ComplexScalar[dtype],samples],
     exp: InlineArray[ComplexScalar[dtype],samples],
     out result: InlineArray[ComplexScalar[dtype],samples]

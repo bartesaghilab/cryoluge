@@ -3,7 +3,7 @@
 struct Mode(
     ImplicitlyCopyable,
     Movable,
-    EqualityComparable,
+    Equatable,
     Writable,
     Stringable
 ):
@@ -21,11 +21,11 @@ struct Mode(
     comptime Int4 = Self(101, "Int4", None)
 
     @staticmethod
-    fn unknown(value: UInt32) -> Self:
+    def unknown(value: UInt32) -> Self:
         return Self(value, "?", None)
 
     @staticmethod
-    fn find(value: UInt32) -> Self:
+    def find(value: UInt32) -> Self:
         if value == Self.Int8.value:
             return Self.Int8
         elif value == Self.Int16.value:
@@ -45,11 +45,11 @@ struct Mode(
         else:
             return Self.unknown(value)
 
-    fn __eq__(self, rhs: Self) -> Bool:
+    def __eq__(self, rhs: Self) -> Bool:
         return self.value == rhs.value
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write(self.name, "(", self.value, ")")
         
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)

@@ -8,10 +8,10 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Int]:
     var phase_shift_op: PhaseShiftOperator[dtype,dim]
 
     @staticmethod
-    fn shifts(sizes_real: Vec[dim,Int], out result: Vec[dim,Px[dtype]]):
+    def shifts(sizes_real: Vec[dim,Int], out result: Vec[dim,Px[dtype]]):
         result = sizes_real.map_scalar[dtype]().map_unit[Px.utype]()/2
 
-    fn __init__(
+    def __init__(
         out self,
         sizes_real: Vec[dim,Int]
     ):
@@ -20,7 +20,7 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Int]:
             shifts=Self.shifts(sizes_real)
         )
 
-    fn eval(
+    def eval(
         self,
         *,
         f: Vec[dim,Int],
@@ -29,14 +29,14 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Int]:
     ):
         result = self.phase_shift_op.eval(f=f, v=v)
 
-    fn apply(
+    def apply(
         self,
         mut img: FFTImage[dim,dtype]
     ):
         var coords = img.coords()
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var f = coords.i2f(i)
             img.complex[i=i] = self.eval(f=f, v=img.complex[i=i])
 

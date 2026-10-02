@@ -17,7 +17,7 @@ struct CistemWriter[
     var _col_offsets: Dict[Int64,Int]
     var _line_buf: ByteBuffer
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin] writer: W,
         *,
@@ -60,7 +60,7 @@ struct CistemWriter[
             self.writer[].write_i64[endian](col.id)
             self.writer[].write_u8(col.type.id)
 
-    fn copy_line[
+    def copy_line[
         R: BinaryReader,
         origin_reader: Origin[mut=True]
     ](
@@ -80,7 +80,7 @@ struct CistemWriter[
             count=len(dst)
         )
 
-    fn set_parameter[
+    def set_parameter[
         param: Parameter,
         dtype: DType
     ](
@@ -108,25 +108,25 @@ struct CistemWriter[
         var writer = BytesWriter(self._line_buf.span(), pos=offset.value())
         writer.write_scalar[dtype, endian](v)
 
-    fn set_parameter[param: Parameter](
+    def set_parameter[param: Parameter](
         mut self,
         v: IntLiteral
     ) raises:
         comptime dtype = param.type.dtype.value()
         self.set_parameter[param](Scalar[dtype](v))
 
-    fn set_parameter[param: Parameter](
+    def set_parameter[param: Parameter](
         mut self,
         v: FloatLiteral
     ) raises:
         comptime dtype = param.type.dtype.value()
         self.set_parameter[param](Scalar[dtype](v))
 
-    fn write_line(mut self) raises:
+    def write_line(mut self) raises:
         self.writer[].write_bytes(self._line_buf.span())
 
-    fn transform[
-        func: fn (CistemReader, mut CistemWriter) capturing raises -> Bool,
+    def transform[
+        func: def (CistemReader, mut CistemWriter) capturing raises -> Bool,
         R: BinaryReader,
         reader_origin: Origin[mut=True]
     ](mut self, mut reader: CistemReader[R,reader_origin], out num_written: Int) raises:

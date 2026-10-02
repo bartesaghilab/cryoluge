@@ -9,7 +9,7 @@ from .file_writer import *
 from .file_reader import *
 
 
-fn as_byte_span[
+def as_byte_span[
     dtype: DType,
     origin: Origin
 ](ref [origin] v: Scalar[dtype]) -> Span[Byte, origin]:
@@ -22,7 +22,7 @@ fn as_byte_span[
 
 # Can't use stdlib's swap() in spans because of aliasing rules (right?)
 # So just implement a basic swap() instead
-fn swap_in_span(s: Span[mut=True, Byte], i1: Int, i2: Int):
+def swap_in_span(s: Span[mut=True, Byte], i1: Int, i2: Int):
     debug_assert(i1 < len(s))
     debug_assert(i2 < len(s))
     var swap = s[i1]
@@ -30,7 +30,7 @@ fn swap_in_span(s: Span[mut=True, Byte], i1: Int, i2: Int):
     s[i2] = swap
 
 
-fn swap_bytes_if_needed[dtype: DType, endian: Endian](mut v: Scalar[dtype]):
+def swap_bytes_if_needed[dtype: DType, endian: Endian](mut v: Scalar[dtype]):
     from bit import byte_swap
     @parameter
     if endian != Endian.native():
@@ -38,7 +38,7 @@ fn swap_bytes_if_needed[dtype: DType, endian: Endian](mut v: Scalar[dtype]):
         if dtype.is_integral():
             v = byte_swap(v)
         else:
-            # no fancy intrinsic fn for non-int types, so just do it the hard way
+            # no fancy intrinsic def for non-int types, so just do it the hard way
             var s = as_byte_span(v)
             comptime size = size_of[dtype]()
             @parameter

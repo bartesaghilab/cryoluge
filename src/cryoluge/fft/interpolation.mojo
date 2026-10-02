@@ -29,14 +29,14 @@ struct OutOfRangeBehavior[dtype: DType](
     alias Override: Int = 2
 
     @staticmethod
-    fn interpolate(v: ComplexScalar[dtype], out s: Self):
+    def interpolate(v: ComplexScalar[dtype], out s: Self):
         s = Self(Self.Interpolate, v)
 
     @staticmethod
-    fn override(v: ComplexScalar[dtype], out s: Self):
+    def override(v: ComplexScalar[dtype], out s: Self):
         s = Self(Self.Override, v)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write("OutOfRangeBehavior[")
         if self.id == Self.Interpolate:
             writer.write("interpolate")
@@ -46,7 +46,7 @@ struct OutOfRangeBehavior[dtype: DType](
             writer.write("(unknown)")
         writer.write(", v=", self.value, "]")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -77,7 +77,7 @@ struct PrecomputedFFTInterpolationFull[
     )
     comptime Selector = _Selector[Self.num_samples]
 
-    fn __init__(
+    def __init__(
         out self,
         img: FFTImage[dim,dtype]
     ):
@@ -92,7 +92,7 @@ struct PrecomputedFFTInterpolationFull[
 
         # precompute all the pixel samples
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
 
             var f = self._i2f(i)
             var pixel = Self.Pixel(0, 0)
@@ -125,22 +125,22 @@ struct PrecomputedFFTInterpolationFull[
                 
         self._samples.iterate[func]()
 
-    fn _coords(self) -> FFTCoordsFull[dim]:
+    def _coords(self) -> FFTCoordsFull[dim]:
         return FFTCoordsFull(self._sizes_real)
 
-    @always_inline
-    fn _offset[d: Int](self, out offset: Int):
+    @inline(.always)
+    def _offset[d: Int](self, out offset: Int):
         offset = (self._sizes_real[d] + 2) >> 1
 
-    @always_inline
-    fn _imax[d: Int](self, out imax: Int):
+    @inline(.always)
+    def _imax[d: Int](self, out imax: Int):
         imax = self._sizes_real[d]
         @parameter
         if d == 0:
             imax |= 0b1
 
-    @always_inline
-    fn _i2f(self, i: Vec[dim,Int], out f: Vec[dim,Int]):
+    @inline(.always)
+    def _i2f(self, i: Vec[dim,Int], out f: Vec[dim,Int]):
         """
         Maps interpolation storage coordinates into frequency coordinates.
         NOTE: This is not the same transformation as FFTCoords.i2f(),
@@ -153,8 +153,8 @@ struct PrecomputedFFTInterpolationFull[
         for d in range(0, dim):
             f[d] = i[d] - self._offset[d]()
         
-    @always_inline
-    fn _f2i[simd_width: Int](
+    @inline(.always)
+    def _f2i[simd_width: Int](
         self,
         f: Vec[dim,SIMDInt[simd_width]],
         out i: Vec[dim,SIMDInt[simd_width]]
@@ -178,7 +178,7 @@ struct PrecomputedFFTInterpolationFull[
                 false_case = i[d]
             )
 
-    fn _start_dists[
+    def _start_dists[
         simd_width: Int
     ](
         self,
@@ -200,7 +200,7 @@ struct PrecomputedFFTInterpolationFull[
 
         result = (start^, dists^)
 
-    fn _neighborhood(
+    def _neighborhood(
         self,
         *,
         i: Vec[dim,Int],
@@ -209,7 +209,7 @@ struct PrecomputedFFTInterpolationFull[
         v = self._samples.get(i)
             .or_else(Self.empty_samples)
 
-    fn get[simd_width: Int](
+    def get[simd_width: Int](
         self,
         *,
         f: Vec[dim,SIMD[dtype_coords,simd_width]],
@@ -231,7 +231,7 @@ struct PrecomputedFFTInterpolationFull[
             v.im[w] = vw.im
 
 
-fn interpolate[
+def interpolate[
     dim: Int,
     dtype: DType,
     dtype_coords: DType,
@@ -268,7 +268,9 @@ struct PrecomputedFFTInterpolationNop[
     """
     A no-op implementation of the FFT interpolation, for testing,
     to see how well (or poorly) doing the interpolation with incoherent memory accesses really is.
-    NOTE: It's very poor.
+    NOTE: It's very slow compared to the real pre-computed interpolation,
+          but it doesn't suffer from the 16x memory requirements
+          and resultant scaling issues due to limited CPU cache sizes.
     """
     var _img: FFTImage[dim,dtype]
 
@@ -280,13 +282,13 @@ struct PrecomputedFFTInterpolationNop[
         im=SIMD[dtype,Self.num_samples](c.im)
     )
 
-    fn __init__(
+    def __init__(
         out self,
         img: FFTImage[dim,dtype]
     ):
         self._img = img.copy()
 
-    fn get[simd_width: Int](
+    def get[simd_width: Int](
         self,
         *,
         f: Vec[dim,SIMD[dtype_coords,simd_width]],
@@ -339,7 +341,7 @@ struct PrecomputedFFTInterpolationNop[
 
 comptime _Selector[num_samples: Int] = SIMDBool[num_samples]
 
-fn _make_selector[
+def _make_selector[
     dim: Int,
     num_samples: Int
 ](d: Int, out selector: _Selector[num_samples]):
@@ -375,7 +377,7 @@ fn _make_selector[
         selector = abort[S]()
 
 
-comptime PrecomputedFFTInterpolation = PrecomputedFFTInterpolationFull
+comptime PrecomputedFFTInterpolation = PrecomputedFFTInterpolationNop
 # NOTE: this is useful for switching downstream apps to use different implementations during benchmarking
 
 
@@ -396,7 +398,7 @@ struct VolumeNeighborhoods[
     )
     comptime num_neighborhoods_in_segment = _num_neighborhoods_in_segment[simd_width]()
 
-    fn __init__(
+    def __init__(
         out self,
         img: FFTImage[3,dtype]
     ):
@@ -413,7 +415,7 @@ struct VolumeNeighborhoods[
 
         # pack all the segments
         @parameter
-        fn func(s: Vec[3,Int]):
+        def func(s: Vec[3,Int]):
 
             var segment = Self.out_of_range_segment
 
@@ -441,12 +443,12 @@ struct VolumeNeighborhoods[
         # TEMP: extend lifetimes to work around compiler bug
         _ = coords
 
-    @always_inline
-    fn coords(self) -> FFTCoords[3]:
+    @inline(.always)
+    def coords(self) -> FFTCoords[3]:
         return FFTCoords(self._sizes_real_vol)
     
-    @always_inline
-    fn _segment(
+    @inline(.always)
+    def _segment(
         self,
         *,
         i: Vec[3,Int],
@@ -458,8 +460,8 @@ struct VolumeNeighborhoods[
 
         segment = self._segments[i=s]
 
-    @always_inline
-    fn _segment(
+    @inline(.always)
+    def _segment(
         self,
         *,
         i: Optional[Vec[3,Int]],
@@ -470,8 +472,8 @@ struct VolumeNeighborhoods[
         else:
             segment = Self.out_of_range_segment
 
-    # TODO: @always_inline ?
-    fn _segment_neighborhood[x_halfspace: Int](
+    # TODO: @inline(.always) ?
+    def _segment_neighborhood[x_halfspace: Int](
         self,
         f_vi_pos: Vec[3,Int],
         out segment_neighborhood: _SegmentNeighborhood[dtype,simd_width]
@@ -581,8 +583,8 @@ struct VolumeNeighborhoods[
                         segment_neighborhood.s11.im[0] *= -1
                 # TODO: can we simplify this?
 
-                @always_inline
-                fn flipped_i[f_d: Vec[3,Int]](
+                @inline(.always)
+                def flipped_i[f_d: Vec[3,Int]](
                     coords: FFTCoords[3],
                     f_vi: Vec[3,Int],
                     in_range: Bool,
@@ -627,8 +629,8 @@ struct VolumeNeighborhoods[
                 # TODO: try splicing one value into the newly-loaded segment, then overwrite the neighborhood
 
             # conjugate all the in-range voxels
-            @always_inline
-            fn conj_mask(
+            @inline(.always)
+            def conj_mask(
                 in_range_x_mask: SIMDBool[simd_width],
                 in_range: Bool,
                 out conj_mask: SIMD[dtype,simd_width]
@@ -673,7 +675,7 @@ struct VolumeNeighborhoods[
             segment_neighborhood.in_range_x_mask[0] = True
             segment_neighborhood.in_range_x_mask = segment_neighborhood.in_range_x_mask.reversed()
 
-    fn _voxels_bounds[*, rounding: Int = 0](
+    def _voxels_bounds[*, rounding: Int = 0](
         self,
         coords_proj: FFTCoords[2],
         projections: List[VolumeNeighborhoodsProjection[dtype]],
@@ -710,12 +712,12 @@ struct VolumeNeighborhoods[
 
         bounds = (f_v_mini^, f_v_maxi^)
 
-    fn scan[
-        func: fn(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing,
+    def scan[
+        func: def(proj_inf: Int, var f_pi: Vec[2,Int], var f_vf: Vec[3,Scalar[dtype]], var sv: ComplexScalar[dtype]) capturing,
         *,
         rounding: Int = 0,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         sizes_real_proj: Vec[2,Int],
@@ -1032,7 +1034,7 @@ struct VolumeNeighborhoods[
         p.print()
 
 
-fn _num_neighborhoods_in_segment[simd_width: Int]() -> Int:
+def _num_neighborhoods_in_segment[simd_width: Int]() -> Int:
     return simd_width - 1
     # one less neighborhood, due to needing two x voxels per neighborhood
 
@@ -1044,7 +1046,7 @@ struct VolumeNeighborhoodsProjection[dtype: DType](
     var id: Int
     var rot_proj_to_vol: Matrix[3,3,dtype]
 
-    fn __init__(
+    def __init__(
         out self,
         id: Int,
         rot_proj_to_vol: Matrix[3,3,dtype]
@@ -1052,24 +1054,24 @@ struct VolumeNeighborhoodsProjection[dtype: DType](
         self.id = id
         self.rot_proj_to_vol = rot_proj_to_vol.copy()
 
-    @always_inline
-    fn proj_to_vol(
+    @inline(.always)
+    def proj_to_vol(
         self,
         v: Vec[3,Scalar[dtype]],
         out result: Vec[3,Scalar[dtype]]
     ):
         result = self.rot_proj_to_vol*v
 
-    @always_inline
-    fn proj_to_vol(
+    @inline(.always)
+    def proj_to_vol(
         self,
         v: Vec[2,Scalar[dtype]],
         out result: Vec[3,Scalar[dtype]]
     ):
         result = self.proj_to_vol(v.lift(z=0))
 
-    @always_inline
-    fn vol_to_proj[simd_width: Int](
+    @inline(.always)
+    def vol_to_proj[simd_width: Int](
         self,
         v: Vec[3,SIMD[dtype,simd_width]],
         out result: Vec[3,SIMD[dtype,simd_width]]
@@ -1101,7 +1103,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
     comptime PZ = _Plane.z()
     comptime Planes = _Planes[dtype,simd_width,_]
 
-    fn __init__(out self):
+    def __init__(out self):
         comptime zero_i = SIMDInt[simd_width](0)
         comptime zero_f = SIMD[dtype,simd_width](0)
         self.num_projections = 0
@@ -1114,53 +1116,53 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
         self.planes_yz = Self.Planes[Self.PY,Self.PZ,Self.PX]()
         self.planes_zx = Self.Planes[Self.PZ,Self.PX,Self.PY]()
 
-    @always_inline
-    fn vol_to_proj(
+    @inline(.always)
+    def vol_to_proj(
         self,
         f_vf: Vec[3,Scalar[dtype]],
         out f_pf: Vec[3,SIMD[dtype,simd_width]]
     ):
         f_pf = self.vol_to_proj(f_vf.splat[simd_width]())
 
-    @always_inline
-    fn vol_to_proj(
+    @inline(.always)
+    def vol_to_proj(
         self,
         f_vf: Vec[3,SIMD[dtype,simd_width]],
         out f_pf: Vec[3,SIMD[dtype,simd_width]]
     ):
         f_pf = self.rot_proj_to_vol.mul_transpose(f_vf)
 
-    @always_inline
-    fn proj_to_vol(
+    @inline(.always)
+    def proj_to_vol(
         self,
         f_pf: Vec[3,SIMD[dtype,simd_width]],
         out f_vf: Vec[3,SIMD[dtype,simd_width]]
     ):
         f_vf = self.rot_proj_to_vol*f_pf
 
-    @always_inline
-    fn proj_to_vol(
+    @inline(.always)
+    def proj_to_vol(
         self,
         f_pf: Vec[2,SIMD[dtype,simd_width]],
         out f_vf: Vec[3,SIMD[dtype,simd_width]]
     ):
         f_vf = self.proj_to_vol(f_pf.lift(z=0))
 
-    @always_inline
-    fn normal_p[d: Int](
+    @inline(.always)
+    def normal_p[d: Int](
         self,
         out normal_p: Vec[3,SIMD[dtype,simd_width]]
     ):
         normal_p = self.rot_proj_to_vol.vec(row=d)
 
-    @always_inline
-    fn normal_v[d: Int](
+    @inline(.always)
+    def normal_v[d: Int](
         self,
         out normal_v: Vec[3,SIMD[dtype,simd_width]]
     ):
         normal_v = self.rot_proj_to_vol.vec(col=d)
 
-    fn bound_fy_vf(
+    def bound_fy_vf(
         self,
         x_vi: Int,
         z_vi: Int,
@@ -1200,7 +1202,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
 
         bound_fy_vf = (fy_vf_min, fy_vf_max)
 
-    fn bound_pi[dim: Int, bound_simd_width: Int](
+    def bound_pi[dim: Int, bound_simd_width: Int](
         self,
         bound_pf: _PBound[dim,dtype,bound_simd_width],
         min_pi: Vec[dim,Int],
@@ -1242,7 +1244,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
         bi.max_inclusive = Vec[dim,SIMDBool[bound_simd_width]](fill=SIMDBool[bound_simd_width](fill=True))
 
     # for debugging
-    fn render_bound_geometry[x_halfspace: Int](
+    def render_bound_geometry[x_halfspace: Int](
         self,
         w: Int,
         f_vi: Vec[3,Int],
@@ -1261,7 +1263,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
         var outside_points = List[Vec[2,Scalar[dtype]]]()
 
         @parameter
-        fn classify_intersection[uv: _UV, p1: _Plane, p2: _Plane, p3: _Plane](
+        def classify_intersection[uv: _UV, p1: _Plane, p2: _Plane, p3: _Plane](
             planes: Self.Planes[p1,p2,p3]
         ):
             var i = intersections.intersect[uv](self, planes)
@@ -1289,7 +1291,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
         var x_out = List[Vec[2,Scalar[dtype]]]()
 
         @parameter
-        fn classify_x_intersection[i: Int, p1: _Plane, p2: _Plane, p3: _Plane](
+        def classify_x_intersection[i: Int, p1: _Plane, p2: _Plane, p3: _Plane](
             planes: Self.Planes[p1,p2,p3],
             fy_pf: Scalar[dtype]
         ):
@@ -1315,7 +1317,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
                 classify_x_intersection[i](pzx, fy_pf)
 
         @parameter
-        fn display_intersections(
+        def display_intersections(
             pts: List[Vec[2,Scalar[dtype]]],
             out s: String
         ):
@@ -1375,7 +1377,7 @@ struct _ProjectionGroup[dtype: DType, simd_width: Int, *, rounding: Int = 0](
             "]"
         )
 
-    fn render_bound_geometry(
+    def render_bound_geometry(
         self,
         w: Int,
         f_vi: Vec[3,Int],
@@ -1400,7 +1402,7 @@ struct _Projections[max_num_projections: Int, simd_width: Int, dtype: DType, *, 
     comptime max_num_groups = ceildiv(max_num_projections, simd_width)
     comptime Group = _ProjectionGroup[dtype,simd_width,rounding=rounding]
 
-    fn __init__(out self, projections: List[VolumeNeighborhoodsProjection[dtype]]):
+    def __init__(out self, projections: List[VolumeNeighborhoodsProjection[dtype]]):
 
         # check the sizes
         self.num_groups = ceildiv(len(projections), simd_width)
@@ -1472,10 +1474,10 @@ struct _UV(
 
     comptime all = [_UV(0,0), _UV(0,1), _UV(1,0), _UV(1,1)]
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write(self.u, ",", self.v)
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -1487,12 +1489,12 @@ struct _UVMap[T: AnyType & Copyable & Movable](
 
     comptime num_values = 4
 
-    fn __init__(out self, *, fill: T):
+    def __init__(out self, *, fill: T):
         self._values = InlineArray[T,Self.num_values](fill=fill)
 
     # TODO: upgrade these to __getitem_parm__ in the new versions of Mojo
-    @always_inline
-    fn at[u: Int, v: Int](ref self) -> ref [self._values] T:
+    @inline(.always)
+    def at[u: Int, v: Int](ref self) -> ref [self._values] T:
 
         # just in case ...
         constrained[
@@ -1502,8 +1504,8 @@ struct _UVMap[T: AnyType & Copyable & Movable](
 
         return self._values[(u<<1) | v]
 
-    @always_inline
-    fn at[uv: _UV](ref self) -> ref [self._values] T:
+    @inline(.always)
+    def at[uv: _UV](ref self) -> ref [self._values] T:
         return self.at[uv.u, uv.v]()
 
 
@@ -1517,22 +1519,22 @@ struct _Plane(
     var len: Int
 
     @staticmethod
-    fn x(out self: Self, len: Int=1):
+    def x(out self: Self, len: Int=1):
         self = Self("x", 0, len)
 
     @staticmethod
-    fn y(out self: Self, len: Int=1):
+    def y(out self: Self, len: Int=1):
         self = Self("y", 1, len)
 
     @staticmethod
-    fn z(out self: Self, len: Int=1):
+    def z(out self: Self, len: Int=1):
         self = Self("z", 2, len)
 
-    fn normal_i(self, out n: Vec[3,Int]):
+    def normal_i(self, out n: Vec[3,Int]):
         n = Vec[3](fill=0)
         n[self.d] = 1
 
-    fn normal_f[dtype: DType](self, out n: Vec[3,Scalar[dtype]]):
+    def normal_f[dtype: DType](self, out n: Vec[3,Scalar[dtype]]):
         n = self.normal_i().map_scalar[dtype]()
 
 
@@ -1555,7 +1557,7 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
     comptime Group = _ProjectionGroup[dtype,simd_width,rounding=_]
     comptime Planes = _Planes[dtype,simd_width]
 
-    fn __init__(out self):
+    def __init__(out self):
         comptime zero = SIMD[dtype,simd_width](0)
         self.f = Vec[2](fill=zero)
         self.s1 = Vec[3](fill=zero)
@@ -1566,7 +1568,7 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
         self.v_xoy_pf = zero
         self.u_xmy_pf = zero
 
-    fn init(mut self, group: Self.Group):
+    def init(mut self, group: Self.Group):
 
         # intersection forumla for two axis-aligned volume-space planes with z_p=0,
         # but only the third coordinate
@@ -1614,7 +1616,7 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
         # TODO: u,v are redundant, ie two copies of each (except for an inversion)
         #       could put in single-plane storage? and negate as needed?
 
-    fn init_more(mut self, other_planes: Self.Planes[_,_,_]):
+    def init_more(mut self, other_planes: Self.Planes[_,_,_]):
 
         ref v1 = self.v
         ref v2 = other_planes.u
@@ -1636,24 +1638,24 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
         self.v_xoy_pf = v.x()/v.y()
         self.u_xmy_pf = u.x() - u.y()*self.v_xoy_pf
 
-    @always_inline
-    fn project12[vec_simd_width: Int](
+    @inline(.always)
+    def project12[vec_simd_width: Int](
         self,
         v: Vec[3,SIMD[dtype,vec_simd_width]],
         out result: Vec[2,SIMD[dtype,vec_simd_width]]
     ):
         result = Vec[2](x=v[p1.d], y=v[p2.d])
 
-    @always_inline
-    fn project23[vec_simd_width: Int](
+    @inline(.always)
+    def project23[vec_simd_width: Int](
         self,
         v: Vec[3,SIMD[dtype,vec_simd_width]],
         out result: Vec[2,SIMD[dtype,vec_simd_width]]
     ):
         result = Vec[2](x=v[p2.d], y=v[p3.d])
 
-    @always_inline
-    fn d3_vf_terms(
+    @inline(.always)
+    def d3_vf_terms(
         self,
         seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
         out d3_vf_terms: Tuple[Vec[2,SIMD[dtype,simd_width]],Vec[2,SIMD[dtype,simd_width]]]
@@ -1663,16 +1665,16 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
             self.project12(seg_bounds_vf[1])*self.f
         )
 
-    @always_inline
-    fn intersect_min_p(
+    @inline(.always)
+    def intersect_min_p(
         self,
         seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]],
         out p: Vec[2,SIMD[dtype,simd_width]]
     ):
         p = seg_bounds_vf[0].two_inner_products(self.s1, self.s2)
 
-    @always_inline
-    fn intersect_p[uv: _UV](
+    @inline(.always)
+    def intersect_p[uv: _UV](
         self,
         p_pf: Vec[2,SIMD[dtype,simd_width]],
         out i_pf: Vec[2,SIMD[dtype,simd_width]]
@@ -1681,14 +1683,14 @@ struct _Planes[dtype: DType, simd_width: Int, p1: _Plane, p2: _Plane, p3: _Plane
         # by just translating the existing intersection point along the u,v directions
         i_pf = p_pf + self.u*uv.u + self.v*uv.v
 
-    @always_inline
-    fn sy(self, out sy: Vec[2,SIMD[dtype,simd_width]]):
+    @inline(.always)
+    def sy(self, out sy: Vec[2,SIMD[dtype,simd_width]]):
         sy = Vec[2](x=self.s1.y(), y=self.s2.y())
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write(p1.name, p2.name)
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -1698,12 +1700,12 @@ struct _PlaneMap[dim: Int, T: AnyType & Copyable & Movable](
 ):
     var _values: InlineArray[T,dim]
 
-    fn __init__(out self, *, fill: T):
+    def __init__(out self, *, fill: T):
         self._values = InlineArray[T,dim](fill=fill)
 
     # TODO: upgrade these to __getitem_parm__ in the new versions of Mojo
-    @always_inline
-    fn at[pi: Int](ref self) -> ref [self._values] T:
+    @inline(.always)
+    def at[pi: Int](ref self) -> ref [self._values] T:
 
         # just in case ...
         constrained[
@@ -1713,12 +1715,12 @@ struct _PlaneMap[dim: Int, T: AnyType & Copyable & Movable](
 
         return self._values[pi]
 
-    @always_inline
-    fn at[p: _Plane](ref self) -> ref [self._values] T:
+    @inline(.always)
+    def at[p: _Plane](ref self) -> ref [self._values] T:
         return self.at[p.d]()
 
-    @always_inline
-    fn __getitem__[p3: _Plane](ref self, planes: _Planes[_,_,_,_,p3]) -> ref [self._values] T:
+    @inline(.always)
+    def __getitem__[p3: _Plane](ref self, planes: _Planes[_,_,_,_,p3]) -> ref [self._values] T:
         return self.at[p3]()
 
 
@@ -1737,7 +1739,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
     comptime segment_sizes = Vec[3,Int](x=Self.num_neighborhoods_in_segment, y=1, z=1)
     comptime Planes = _Planes[dtype,simd_width,_,_,_]
 
-    fn __init__(out self):
+    def __init__(out self):
 
         comptime zero = SIMD[dtype,simd_width](0)
         comptime zero2 = Vec[2,SIMD[dtype,simd_width]](fill=0)
@@ -1747,7 +1749,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         self.points_pf = _PlaneMap[3](fill=materialize[zero2]())
         self.q_xmy_pf = _PlaneMap[3](fill=zero)
 
-    fn compute(
+    def compute(
         mut self,
         f_vi_corner: Vec[3,Int],
         group: Self.Group
@@ -1775,7 +1777,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         q = pzx.uv_selector.select(self.points_pf[pzx], self.points_pf[pyz])
         self.q_xmy_pf[pzx] = q.x() - q.y()*pzx.v_xoy_pf
 
-    fn advance_y(
+    def advance_y(
         mut self,
         group: Self.Group
     ):
@@ -1799,8 +1801,8 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         q = pyz.uv_selector.select(self.points_pf[pyz], self.points_pf[pxy])
         self.q_xmy_pf[pyz] = q.x() - q.y()*pyz.v_xoy_pf
 
-    @always_inline
-    fn get_seg_bounds_vf[x_halfspace: Int](
+    @inline(.always)
+    def get_seg_bounds_vf[x_halfspace: Int](
         self,
         out seg_bounds_vf: Tuple[Vec[3,SIMD[dtype,simd_width]],Vec[3,SIMD[dtype,simd_width]]]
     ):
@@ -1811,12 +1813,12 @@ struct _PIntersections[dtype: DType, simd_width: Int](
             seg_bounds_vf[0] = -seg_bounds_vf[1]
             seg_bounds_vf[1] = swap^
 
-    @always_inline
-    fn in_range[
+    @inline(.always)
+    def in_range[
         p3: _Plane, rounding: Int = 0,
         *,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group[rounding=rounding],
@@ -1845,12 +1847,12 @@ struct _PIntersections[dtype: DType, simd_width: Int](
                     "  in_range=", in_range[w]
                 ))
 
-    @always_inline
-    fn intersect[
+    @inline(.always)
+    def intersect[
         uv: _UV, p3: _Plane, rounding: Int = 0,
         *,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group[rounding=rounding],
@@ -1874,10 +1876,10 @@ struct _PIntersections[dtype: DType, simd_width: Int](
                     "  in_range=", result.in_range[w]
                 ))
 
-    fn bound_f_pf[
+    def bound_f_pf[
         *,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group,
@@ -1907,12 +1909,12 @@ struct _PIntersections[dtype: DType, simd_width: Int](
                     "  bound_pf=", bound_pf.f[slice=w],
                 ))
 
-    @always_inline
-    fn ranges_x[
+    @inline(.always)
+    def ranges_x[
         p2: _Plane, p3: _Plane, rounding: Int = 0,
         *,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group[rounding=rounding],
@@ -1954,13 +1956,13 @@ struct _PIntersections[dtype: DType, simd_width: Int](
                     "  in_range=", in_range[w]
                 ))
 
-    @always_inline
-    fn intersect_x[
+    @inline(.always)
+    def intersect_x[
         x_halfspace: Int,
         i: Int, p1: _Plane, p2: _Plane, p3: _Plane, rounding: Int,
         *,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group[rounding=rounding],
@@ -2001,7 +2003,7 @@ struct _PIntersections[dtype: DType, simd_width: Int](
 
         result = (in_range, inclusive, x_pf)
 
-    fn dot_bounds_x[x_halfspace: Int, rounding: Int](
+    def dot_bounds_x[x_halfspace: Int, rounding: Int](
         self,
         group: Self.Group[rounding=rounding],
         y_pf: SIMD[dtype,simd_width],
@@ -2019,11 +2021,11 @@ struct _PIntersections[dtype: DType, simd_width: Int](
         dot_bounds_x[0] -= dot_rounded
         dot_bounds_x[1] -= dot_rounded
 
-    fn bound_fx_pf[
+    def bound_fx_pf[
         x_halfspace: Int,
         *,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group,
@@ -2058,10 +2060,10 @@ struct _PIntersections[dtype: DType, simd_width: Int](
                 ))
 
     # slow path: only use in testing
-    fn bound_fx_pf[
+    def bound_fx_pf[
         *,
         debug: Bool = False,
-        debugger: fn () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
+        debugger: def () capturing -> UnsafePointer[ScanDebugger,MutAnyOrigin] = _no_debugger
     ](
         self,
         group: Self.Group,
@@ -2093,34 +2095,34 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
     var mask: SIMDBool[simd_width]
     var f: _Bounds[dim,dtype,simd_width]
 
-    fn __init__(out self):
+    def __init__(out self):
         self.mask = SIMDBool[simd_width](fill=False)
         self.f = _Bounds[dim,dtype,simd_width]()
 
-    @always_inline
-    fn select[d: Int](self, out result: _PBound[1,dtype,simd_width]):
+    @inline(.always)
+    def select[d: Int](self, out result: _PBound[1,dtype,simd_width]):
         result = _PBound[1,dtype,simd_width](
             mask = self.mask,
             f = self.f.select[d]()
         )
 
-    @always_inline
-    fn all_empty(self) -> Bool:
+    @inline(.always)
+    def all_empty(self) -> Bool:
         return not self.mask.reduce_or() or self.f.all_empty()
 
-    @always_inline
-    fn is_empty(self, w: Int) -> Bool:
+    @inline(.always)
+    def is_empty(self, w: Int) -> Bool:
         return not self.mask[w] or self.f.is_empty(w)
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self,
         in_range: SIMDBool[simd_width]
     ):
         self.mask |= in_range
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self,
         in_range: SIMDBool[simd_width],
         f: Vec[dim,SIMD[dtype,simd_width]]
@@ -2128,8 +2130,8 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
         self.f.update(in_range, f, self.mask)
         self.update(in_range)
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self,
         in_range: SIMDBool[simd_width],
         f: Vec[dim,SIMD[dtype,simd_width]],
@@ -2138,8 +2140,8 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
         self.f.update(in_range, f, self.mask, inclusive)
         self.update(in_range)
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self: _PBound[1,dtype,1],
         values: Tuple[Bool,Bool,Scalar[dtype]]
     ):
@@ -2150,8 +2152,8 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
             SIMD[dtype,1](f_pf)
         ))
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self: _PBound[1,dtype,simd_width],
         values: Tuple[SIMDBool[simd_width],SIMDBool[simd_width],SIMD[dtype,simd_width]]
     ):
@@ -2160,14 +2162,14 @@ struct _PBound[dim: Int, dtype: DType, simd_width: Int](
 
     # TODO: get rid of any unused update functions?
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self,
         i: _Intersection[dim,dtype,simd_width]
     ):
         self.update(i.in_range, i.point)
 
-    fn __getitem__(self, *, slice: Int, out result: _PBound[dim,dtype,1]):
+    def __getitem__(self, *, slice: Int, out result: _PBound[dim,dtype,1]):
         result = _PBound[dim,dtype,1](
             mask = self.mask[slice],
             f = self.f[slice=slice]
@@ -2186,19 +2188,19 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
     var min_inclusive: Vec[dim,SIMDBool[simd_width]]
     var max_inclusive: Vec[dim,SIMDBool[simd_width]]
 
-    fn __init__(out self):
+    def __init__(out self):
         # start with empty bounds
         self.min = Vec[dim,SIMD[dtype,simd_width]](fill=0)
         self.max = Vec[dim,SIMD[dtype,simd_width]](fill=0)
         self.min_inclusive = Vec[dim,SIMDBool[simd_width]](fill=False)
         self.max_inclusive = Vec[dim,SIMDBool[simd_width]](fill=False)
 
-    fn set_inclusive(mut self, v: Bool):
+    def set_inclusive(mut self, v: Bool):
         self.min_inclusive = Vec[dim](fill=SIMDBool[simd_width](fill=v))
         self.max_inclusive = Vec[dim](fill=SIMDBool[simd_width](fill=v))
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self,
         in_range: SIMDBool[simd_width],
         v: Vec[dim,SIMD[dtype,simd_width]],
@@ -2211,8 +2213,8 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
         self.min = update_min.select(v, self.min)
         self.max = update_max.select(v, self.max)
 
-    @always_inline
-    fn update(
+    @inline(.always)
+    def update(
         mut self,
         in_range: SIMDBool[simd_width],
         v: Vec[dim,SIMD[dtype,simd_width]],
@@ -2243,22 +2245,22 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
             self.min_inclusive[d] = mask_min.select(inclusive, self.min_inclusive[d])
             self.max_inclusive[d] = mask_max.select(inclusive, self.max_inclusive[d])
 
-    @always_inline
-    fn invert(mut self):
+    @inline(.always)
+    def invert(mut self):
         swap(self.min, self.max)
         swap(self.min_inclusive, self.max_inclusive)
         self.min *= -1
         self.max *= -1
     
-    @always_inline
-    fn all_empty(self) -> Bool:
+    @inline(.always)
+    def all_empty(self) -> Bool:
         return self.min.gt_any(self.max).reduce_and()
 
-    @always_inline
-    fn is_empty(self, w: Int) -> Bool:
+    @inline(.always)
+    def is_empty(self, w: Int) -> Bool:
         return self.min[slice=w].gt_any(self.max[slice=w])
 
-    fn select[d: Int](self, out result: _Bounds[1,dtype,simd_width]):
+    def select[d: Int](self, out result: _Bounds[1,dtype,simd_width]):
         result = _Bounds[1,dtype,simd_width](
             min = self.min.select[d](),
             max = self.max.select[d](),
@@ -2266,7 +2268,7 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
             max_inclusive = self.max_inclusive.select[d]()
         )
 
-    fn __getitem__(self, *, slice: Int, out result: _Bounds[dim,dtype,1]):
+    def __getitem__(self, *, slice: Int, out result: _Bounds[dim,dtype,1]):
         result = _Bounds[dim,dtype,1](
             min = self.min[slice=slice],
             max = self.max[slice=slice],
@@ -2274,10 +2276,10 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
             max_inclusive = self.max_inclusive[slice=slice]
         )
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
 
         @parameter
-        fn write_dim(v: SIMD[dtype,simd_width], inclusive: SIMDBool[simd_width]):
+        def write_dim(v: SIMD[dtype,simd_width], inclusive: SIMDBool[simd_width]):
             @parameter
             for w in range(simd_width):
                 @parameter
@@ -2298,7 +2300,7 @@ struct _Bounds[dim: Int, dtype: DType, simd_width: Int](
             write_dim(self.max[d], self.max_inclusive[d])
             writer.write("]")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
 
@@ -2316,7 +2318,7 @@ struct _SegmentNeighborhood[dtype: DType, simd_width: Int](
     comptime Segment = ComplexSIMD[dtype,simd_width]
     comptime num_neighborhoods_in_segment = _num_neighborhoods_in_segment[simd_width]()
 
-    fn voxel_neighborhood[x_halfspace: Int, out_of_range: OutOfRangeBehavior[dtype]](
+    def voxel_neighborhood[x_halfspace: Int, out_of_range: OutOfRangeBehavior[dtype]](
         self,
         x_offset: Int,
         out voxel_neighborhood: _VoxelNeighborhood[dtype]
@@ -2343,7 +2345,7 @@ struct _SegmentNeighborhood[dtype: DType, simd_width: Int](
         )
 
 
-fn _neighborhood_out_of_range[
+def _neighborhood_out_of_range[
     dtype: DType,
     //,
     out_of_range: OutOfRangeBehavior[dtype]
@@ -2360,7 +2362,7 @@ fn _neighborhood_out_of_range[
     )
 
 
-fn calc_f_vi[x_halfspace: Int](f_vi_pos: Vec[3,Int], out f_vi: Vec[3,Int]):
+def calc_f_vi[x_halfspace: Int](f_vi_pos: Vec[3,Int], out f_vi: Vec[3,Int]):
     f_vi = f_vi_pos.copy()
     @parameter
     if x_halfspace == -1:
@@ -2369,7 +2371,7 @@ fn calc_f_vi[x_halfspace: Int](f_vi_pos: Vec[3,Int], out f_vi: Vec[3,Int]):
         f_vi = -f_vi - 1
 
 
-fn calc_f_vi_corner[x_halfspace: Int, simd_width: Int](f_vi: Vec[3,Int], out f_vi_corner: Vec[3,Int]):
+def calc_f_vi_corner[x_halfspace: Int, simd_width: Int](f_vi: Vec[3,Int], out f_vi_corner: Vec[3,Int]):
     f_vi_corner = f_vi.copy()
     @parameter
     if x_halfspace == -1:
@@ -2379,7 +2381,7 @@ fn calc_f_vi_corner[x_halfspace: Int, simd_width: Int](f_vi: Vec[3,Int], out f_v
 
 # complex value rendering code, mostly only useful for debugging
 
-fn _render_i[dtype: DType](i: Scalar[dtype], out s: String):
+def _render_i[dtype: DType](i: Scalar[dtype], out s: String):
     # values are triples of single digits
     s = String(Int(i))
     # but get rid of the sign, if any
@@ -2392,7 +2394,7 @@ fn _render_i[dtype: DType](i: Scalar[dtype], out s: String):
         s = "0" + s
 
 
-fn _render_v[dtype: DType](v: ComplexScalar[dtype]) -> String:
+def _render_v[dtype: DType](v: ComplexScalar[dtype]) -> String:
     var re = _render_i(v.re)
     var im = _render_i(v.im)
     if v.im >= 0:
@@ -2401,7 +2403,7 @@ fn _render_v[dtype: DType](v: ComplexScalar[dtype]) -> String:
         return String(re, "-", im, "i")
 
 
-fn _render_segment[dtype: DType, simd_width: Int](segment: ComplexSIMD[dtype,simd_width], out s: String):
+def _render_segment[dtype: DType, simd_width: Int](segment: ComplexSIMD[dtype,simd_width], out s: String):
     s = "["
     @parameter
     for i in range(simd_width):
@@ -2410,7 +2412,7 @@ fn _render_segment[dtype: DType, simd_width: Int](segment: ComplexSIMD[dtype,sim
     s += "  ]"
 
 
-fn _render_neighborhood[dtype: DType](neighborhood: ComplexSIMD[dtype,8]) -> String:
+def _render_neighborhood[dtype: DType](neighborhood: ComplexSIMD[dtype,8]) -> String:
     return String("[",
         "  ", _render_v(complex.slice[0](neighborhood)),
         "  ", _render_v(complex.slice[1](neighborhood)),
@@ -2421,7 +2423,7 @@ fn _render_neighborhood[dtype: DType](neighborhood: ComplexSIMD[dtype,8]) -> Str
     "  ]")
 
 
-fn _render_neighborhood[dtype: DType, simd_width: Int](neighborhood: _SegmentNeighborhood[dtype,simd_width]) -> String:
+def _render_neighborhood[dtype: DType, simd_width: Int](neighborhood: _SegmentNeighborhood[dtype,simd_width]) -> String:
     return String("SegmentNeighborhood[",
         "\n  00=", _render_segment(neighborhood.s00),
         "\n  10=", _render_segment(neighborhood.s10),
@@ -2441,7 +2443,7 @@ struct ScanDebugger(
 
     var msgs: List[String]
 
-    fn __init__(
+    def __init__(
         out self,
         proj_i: Int,
         f_pi: Vec[2,Int],
@@ -2453,17 +2455,17 @@ struct ScanDebugger(
 
         self.msgs = List[String]()
 
-    fn is_projection(self, proj_group: _ProjectionGroup[_,_,rounding=_], w: Int) -> Bool:
+    def is_projection(self, proj_group: _ProjectionGroup[_,_,rounding=_], w: Int) -> Bool:
         return proj_group.proj_indices[w] == self.proj_i
 
-    fn projection_coords[simd_width: Int](self, projections: _Projections[_,simd_width,_,rounding=_]) -> Tuple[Int,Int]:
+    def projection_coords[simd_width: Int](self, projections: _Projections[_,simd_width,_,rounding=_]) -> Tuple[Int,Int]:
         for g in range(projections.num_groups):
             var w = self.projection_offset(projections.groups[g])
             if w is not None:
                 return (g, w.value())
         return abort[Tuple[Int,Int]]("Target projection not found")
 
-    fn projection_offset[simd_width: Int](self, proj_group: _ProjectionGroup[_,simd_width,rounding=_]) -> Optional[Int]:
+    def projection_offset[simd_width: Int](self, proj_group: _ProjectionGroup[_,simd_width,rounding=_]) -> Optional[Int]:
 
         # TEMP: needed to avoid a miscompilation bug with closures =(
         var num_projections = proj_group.num_projections
@@ -2478,7 +2480,7 @@ struct ScanDebugger(
                 return w
         return None
 
-    fn is_segment[x_halfspace: Int, simd_width: Int](self, f_vi: Vec[3,Int]) -> Bool:
+    def is_segment[x_halfspace: Int, simd_width: Int](self, f_vi: Vec[3,Int]) -> Bool:
         @parameter
         for n in range(_num_neighborhoods_in_segment[simd_width]()):
             var f_vi_vox = f_vi + Vec[3](x=x_halfspace*n, y=0, z=0)
@@ -2486,11 +2488,11 @@ struct ScanDebugger(
                 return True
         return False
 
-    fn is_segment_xz[x_halfspace: Int, simd_width: Int](self, x_vi: Int, z_vi: Int) -> Bool:
+    def is_segment_xz[x_halfspace: Int, simd_width: Int](self, x_vi: Int, z_vi: Int) -> Bool:
         var f_vi = Vec[3](x=x_vi, y=self.f_vi.y(), z=z_vi)
         return self.is_segment[x_halfspace,simd_width](f_vi)
 
-    fn is_projection_segment[x_halfspace: Int, simd_width: Int](
+    def is_projection_segment[x_halfspace: Int, simd_width: Int](
         self,
         proj_group: _ProjectionGroup[_,_,rounding=_],
         w: Int,
@@ -2499,10 +2501,10 @@ struct ScanDebugger(
         return self.is_projection(proj_group, w)
             and self.is_segment[x_halfspace,simd_width](f_vi)
 
-    fn is_sample(self, f_pi: Vec[2,Int]) -> Bool:
+    def is_sample(self, f_pi: Vec[2,Int]) -> Bool:
         return self.f_pi == f_pi
 
-    fn is_projection_sample(
+    def is_projection_sample(
         self,
         proj_group: _ProjectionGroup[_,_,rounding=_],
         w: Int,
@@ -2511,12 +2513,12 @@ struct ScanDebugger(
         return self.is_projection(proj_group, w)
             and self.is_sample(f_pi)
 
-    fn log(mut self, msg: String):
+    def log(mut self, msg: String):
         self.msgs.append(msg)
 
 
 @parameter
-fn _no_debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
+def _no_debugger() -> UnsafePointer[ScanDebugger,MutAnyOrigin]:
     return UnsafePointer[ScanDebugger,MutAnyOrigin]()
     # yes, deliberately return a null pointer
     # the caller should (hopefully) never actually dereference it

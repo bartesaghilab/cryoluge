@@ -1,6 +1,6 @@
 
-from math import sin, cos, pi
-from complex import ComplexSIMD
+from std.math import sin, cos, pi, min, max
+from std.complex import ComplexScalar, ComplexSIMD
 
 from .dimension import *
 from .vec import *
@@ -12,25 +12,20 @@ from .sphere import *
 from .box import *
 
 
-# NOTE: coming in mojo stdlib in next release
-comptime ComplexScalar = ComplexSIMD[_,1]
-
-
-fn is_even(n: Int) -> Bool:
+def is_even(n: Int) -> Bool:
     # TODO: does this work for negative values?
     # TODO: TEST!!
     return (n & 1) == 0
 
 
-fn is_odd(n: Int) -> Bool:
+def is_odd(n: Int) -> Bool:
     return not is_even(n)
 
 
-fn round[digits: Int, dtype: DType, w: Int](v: SIMD[dtype,w]) -> SIMD[dtype,w]:
+def round[digits: Int, dtype: DType, w: Int](v: SIMD[dtype,w]) -> SIMD[dtype,w]:
     # the SIMD.__round__(digits) implementation is slow
     # this is a lot faster, when we know the number of digits at compile-time
-    @parameter
-    if digits == 0:
+    comptime if digits == 0:
         return v
     else:
         comptime f = SIMD[dtype,w]( 10**digits )
@@ -40,52 +35,52 @@ fn round[digits: Int, dtype: DType, w: Int](v: SIMD[dtype,w]) -> SIMD[dtype,w]:
     # TODO: would a bitwise right shift then left shift accomplish something similar?
 
 
-fn clamp[dtype: DType, width: Int](
+def clamp[dtype: DType, width: Int](
     n: SIMD[dtype,width],
     out r: SIMD[dtype,width],
     *,
     min: SIMD[dtype,width]
 ):
-    r = math.max(n, min)
+    r = std.math.max(n, min)
 
 
-fn clamp[dtype: DType, width: Int](
+def clamp[dtype: DType, width: Int](
     n: SIMD[dtype,width],
     out r: SIMD[dtype,width],
     *,
     max: SIMD[dtype,width]
 ):
-    r = math.min(n, max)
+    r = std.math.min(n, max)
 
 
-fn clamp[dtype: DType, width: Int](
+def clamp[dtype: DType, width: Int](
     n: SIMD[dtype,width],
     out r: SIMD[dtype,width],
     *,
     min: SIMD[dtype,width],
     max: SIMD[dtype,width]
 ):
-    r = math.min(math.max(n, min), max)
+    r = std.math.min(std.math.max(n, min), max)
 
 
-fn ladder[width: Int](out v: SIMD[DType.int,width]):
+def ladder[width: Int](out v: SIMD[DType.int,width]):
     """
     Returns a vector containing all the integers in the range [0,width) in order.
     """
     v = SIMD[DType.int,width]()
-    @parameter
-    for i in range(width):
+    comptime for i in range(width):
         v[i] = i
 
 
-fn ease_linear[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[dtype,width]):
+def ease_linear[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[dtype,width]):
     """
     Easing function over [0,1] with a linear shape, essentially a no-op.
     """
     v_out = v_in
 
 
-fn ease_cos[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[dtype,width]):
+def ease_cos[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[dtype,width])
+    where dtype.is_floating_point():
     """
     Easing function over [0,1] with a cos shape.
     This curve matches the linear curve at inputs 0.0, 0.5, and 1.0
@@ -96,7 +91,9 @@ fn ease_cos[dtype: DType, width: Int](v_in: SIMD[dtype,width], out v_out: SIMD[d
 
 # some of the more exotic trig functions
 
-fn sinc[dtype: DType](f: Scalar[dtype], out result: Scalar[dtype]):
+def sinc[dtype: DType](f: Scalar[dtype], out result: Scalar[dtype])
+    where dtype.is_floating_point():
+
     if f == 0:
         result = 1
     elif f >= 0.01:

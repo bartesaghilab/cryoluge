@@ -5,31 +5,31 @@ from cryoluge.collections import Keyable
 
 
 @fieldwise_init
-struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComparable, Keyable):
+struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, Equatable, Keyable):
     var id: Int64
     var name: StaticString
     var type: ParameterType
 
     @staticmethod
-    fn unknown(id: Int64, type: ParameterType) -> Self:
+    def unknown(id: Int64, type: ParameterType) -> Self:
         return Self(id, "?", type)
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write(self.name, "(", self.id, ",", self.type, ")")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
-    fn __eq__(self: Self, other: Self) -> Bool:
+    def __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
 
     comptime Key = Int64
-    fn key(self) -> Self.Key:
+    def key(self) -> Self.Key:
         return self.id
 
 
 @fieldwise_init
-struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, EqualityComparable):
+struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equatable):
     var id: UInt8
     var name: StaticString
     var dtype: Optional[DType]
@@ -57,28 +57,28 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equality
         Self.uint
     )
 
-    fn __init__(out self, id: UInt8, name: StaticString):
+    def __init__(out self, id: UInt8, name: StaticString):
         self = Self(id, name, None, None)
 
     @staticmethod
-    fn of[dtype: DType](id: UInt8, name: StaticString, out self: Self):
+    def of[dtype: DType](id: UInt8, name: StaticString, out self: Self):
         self = Self(id, name, dtype, size_of[dtype]())
 
     @staticmethod
-    fn get(id: UInt8) -> Optional[Self]:
+    def get(id: UInt8) -> Optional[Self]:
         @parameter
         for t in Self.all:
             if t.id == id:
                 return t
         return None
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write(self.name)
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)
 
-    fn __eq__(self: Self, other: Self) -> Bool:
+    def __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
 
 
@@ -159,5 +159,5 @@ struct CistemParameters:
     )
 
     @staticmethod
-    fn all() -> List[Parameter]:
+    def all() -> List[Parameter]:
         return materialize[Self._all]()

@@ -4,8 +4,8 @@ from builtin.debug_assert import _assert_enabled, ASSERT_MODE
 from os import abort
 
 
-@always_inline
-fn stack_trace() -> String:
+@inline(.always)
+def stack_trace() -> String:
     """
     Requires setting environment variable MOJO_ENABLE_STACK_TRACE_ON_ERROR on the runtime executable.
     Set it to some non-empty string, like '1' or 'yup'.
@@ -17,8 +17,8 @@ fn stack_trace() -> String:
     return String(StackTrace(depth=0))
 
 
-@always_inline
-fn debug_assert_with_stack[
+@inline(.always)
+def debug_assert_with_stack[
     assert_mode: StaticString = "none",
     *Ts: Writable,
     cpu_only: Bool = False,

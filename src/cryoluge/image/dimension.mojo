@@ -25,7 +25,7 @@ struct DimensionalBuffer[
     comptime Vec = Vec[dim,_]
     comptime _elem_size = size_of[T]()
 
-    fn __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
+    def __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
         """WARNING: produces un-initialized memory."""
         self._sizes = sizes.copy()
         @parameter
@@ -47,19 +47,19 @@ struct DimensionalBuffer[
         else:
             return unrecognized_dimension[dim,Self]()
 
-    fn rank(self) -> Int:
+    def rank(self) -> Int:
         return dim
 
-    fn num_elements(self) -> Int:
+    def num_elements(self) -> Int:
         return self._sizes.product()
 
-    fn sizes(self) -> ref [origin_of(self._sizes)] Self.Vec[Int]:
+    def sizes(self) -> ref [origin_of(self._sizes)] Self.Vec[Int]:
         return self._sizes
 
-    fn span_bytes(ref self, *, start: Int = 0) -> Span[Byte, origin_of(self._buf)]:
+    def span_bytes(ref self, *, start: Int = 0) -> Span[Byte, origin_of(self._buf)]:
         return self._buf.span(start=start)
     
-    fn span(ref self, *, start: Int = 0) -> Span[T, origin_of(self._buf)]:
+    def span(ref self, *, start: Int = 0) -> Span[T, origin_of(self._buf)]:
         return Span[T](
             ptr=self._buf.span(start=size_of[T]()*start)
                 .unsafe_ptr()
@@ -67,10 +67,10 @@ struct DimensionalBuffer[
             length=self.num_elements() - start
         )
 
-    fn alignment(self) -> Int:
+    def alignment(self) -> Int:
         return self._buf.alignment()
 
-    fn _offset(self, i: Self.Vec[Int], out offset: Int):
+    def _offset(self, i: Self.Vec[Int], out offset: Int):
         
         comptime d_names = InlineArray[String, 3]("x", "y", "z")
 
@@ -86,7 +86,7 @@ struct DimensionalBuffer[
             )
             offset += coord*self._strides[d]
 
-    fn _maybe_offset(self, i: Self.Vec[Int]) -> Optional[Int]:
+    def _maybe_offset(self, i: Self.Vec[Int]) -> Optional[Int]:
 
         var offset: Int = 0
 
@@ -101,60 +101,60 @@ struct DimensionalBuffer[
         
         return offset
 
-    @always_inline
-    fn _check_offset(self, i: Int):
+    @inline(.always)
+    def _check_offset(self, i: Int):
         debug_assert(
             i >= 0 and i < self.num_elements(),
             "i=", i, " out of range [0,", self.num_elements(), ")"
         )
 
-    @always_inline
-    fn __getitem__(self, *, i: Int, out v: T):
+    @inline(.always)
+    def __getitem__(self, *, i: Int, out v: T):
         self._check_offset(i)
         v = self.span()[i].copy()
 
-    fn __getitem__(self, i: Self.Vec[Int], out v: T):
+    def __getitem__(self, i: Self.Vec[Int], out v: T):
         v = self[i=self._offset(i)]
 
-    fn __getitem__(self, *, x: Int, out v: T):
+    def __getitem__(self, *, x: Int, out v: T):
         expect_at_least_rank[dim, 1]()
         v = self[Self.Vec(x=x)]
 
-    fn __getitem__(self, *, x: Int, y: Int, out v: T):
+    def __getitem__(self, *, x: Int, y: Int, out v: T):
         expect_at_least_rank[dim, 2]()
         v = self[Self.Vec(x=x, y=y)]
 
-    fn __getitem__(self, *, x: Int, y: Int, z: Int, out v: T):
+    def __getitem__(self, *, x: Int, y: Int, z: Int, out v: T):
         expect_at_least_rank[dim, 3]()
         v = self[Self.Vec[Int](x=x, y=y, z=z)]
 
-    fn __setitem__(mut self, *, i: Int, v: T):
+    def __setitem__(mut self, *, i: Int, v: T):
         self._check_offset(i)
         self.span()[i] = v.copy()
 
-    fn __setitem__(mut self, i: Self.Vec[Int], v: T):
+    def __setitem__(mut self, i: Self.Vec[Int], v: T):
         self[i=self._offset(i)] = v
 
-    fn __setitem__(mut self, *, x: Int, v: T):
+    def __setitem__(mut self, *, x: Int, v: T):
         expect_at_least_rank[dim, 1]()
         self[Self.Vec[Int](x=x)] = v
 
-    fn __setitem__(mut self, *, x: Int, y: Int, v: T):
+    def __setitem__(mut self, *, x: Int, y: Int, v: T):
         expect_at_least_rank[dim, 2]()
         self[Self.Vec[Int](x=x, y=y)] = v
 
-    fn __setitem__(mut self, *, x: Int, y: Int, z: Int, v: T):
+    def __setitem__(mut self, *, x: Int, y: Int, z: Int, v: T):
         expect_at_least_rank[dim, 3]()
         self[Self.Vec[Int](x=x, y=y, z=z)] = v
 
-    fn get(self, i: Self.Vec[Int]) -> Optional[T]:
+    def get(self, i: Self.Vec[Int]) -> Optional[T]:
         var offset = self._maybe_offset(i)
         if offset is None:
             return None
         return self[i=offset.value()]
 
-    @always_inline
-    fn get[*, or_else: T](self, i: Self.Vec[Int], out v: T):
+    @inline(.always)
+    def get[*, or_else: T](self, i: Self.Vec[Int], out v: T):
 
         var offset: Int = 0
 
@@ -168,13 +168,13 @@ struct DimensionalBuffer[
 
         v = self[i=offset]
 
-    fn iterate[
-        func: fn (i: Self.Vec[Int]) capturing
+    def iterate[
+        func: def (i: Self.Vec[Int]) capturing
     ](self):
         self.sizes().iterate_over_sizes[func]()
 
     # TEMP
-    fn assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+    def assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
         self: DimensionalBuffer[dim,Scalar[dtype]],
         msg: String,
         sizes: Self.Vec[Int],
@@ -226,7 +226,7 @@ struct DimensionalBuffer[
             print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
 
     # TEMP
-    fn assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+    def assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
         self: DimensionalBuffer[dim,ComplexScalar[dtype]],
         msg: String,
         sizes: Self.Vec[Int],
@@ -280,7 +280,7 @@ struct DimensionalBuffer[
         if verbose:
             print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
 
-    fn _render_samples[samples: Int, S: Stringable & Copyable & Movable](
+    def _render_samples[samples: Int, S: Stringable & Copyable & Movable](
         self: DimensionalBuffer[dim,T],
         data: InlineArray[S,samples]
     ) -> String:
@@ -294,14 +294,14 @@ struct DimensionalBuffer[
         msg += " ]"
         return msg
 
-    fn _sample[samples: Int](self, i: Int, out data: InlineArray[T,samples]):
+    def _sample[samples: Int](self, i: Int, out data: InlineArray[T,samples]):
         data = InlineArray[T,samples](uninitialized=True)
         @parameter
         for s in range(samples):
             data[s] = self[i=i+s]
 
     # TEMP
-    fn assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+    def assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
         mut self: DimensionalBuffer[dim,Scalar[dtype]],
         msg: String,
         path: String,
@@ -326,7 +326,7 @@ struct DimensionalBuffer[
         var mismatches = List[Self.Vec[Int]]()
         var expi = 0
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
@@ -363,7 +363,7 @@ struct DimensionalBuffer[
             )
 
     # TEMP
-    fn assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
+    def assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
         mut self: DimensionalBuffer[dim,ComplexScalar[dtype]],
         msg: String,
         path: String,
@@ -391,7 +391,7 @@ struct DimensionalBuffer[
         var mismatches = List[Self.Vec[Int]]()
         var expi = 0
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var obs = self[i=i]
             var exp = exp_data[expi]
             expi += 1
@@ -427,7 +427,7 @@ struct DimensionalBuffer[
                 count=self.num_elements()
             )
 
-    fn _assert_sizes(
+    def _assert_sizes(
         self,
         msg: String,
         mut reader: FileReader

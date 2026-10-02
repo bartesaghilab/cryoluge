@@ -24,21 +24,21 @@ struct FFTImage[
     comptime ScalarType = ComplexImage[dim,dtype].ScalarType
     comptime ScalarVec = ComplexImage[dim,dtype].ScalarVec
 
-    fn __init__(out self, sizes_real: Self.Vec[Int], *, alignment: Optional[Int] = None):
+    def __init__(out self, sizes_real: Self.Vec[Int], *, alignment: Optional[Int] = None):
         """WARNING: produces un-initialized memory."""
         self.sizes_real = sizes_real.copy()
         var fft_coords = FFTCoords(sizes_real)
         self.complex = ComplexImage[dim,dtype](fft_coords.sizes_fourier(), alignment=alignment)
 
-    fn __init__(out self, *, of: Image[dim,dtype], alignment: Optional[Int] = None):
+    def __init__(out self, *, of: Image[dim,dtype], alignment: Optional[Int] = None):
         """WARNING: produces un-initialized memory."""
         ref real = of
         self = Self(real.sizes(), alignment=alignment)
 
-    fn coords(self) -> FFTCoords[dim]:
+    def coords(self) -> FFTCoords[dim]:
         return FFTCoords(self.sizes_real)
 
-    fn crop(self, *, mut to: Self, out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)):
+    def crop(self, *, mut to: Self, out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)):
         ref dst = to
         ref src = self
 
@@ -47,7 +47,7 @@ struct FFTImage[
 
         # sample into the dst image
         @parameter
-        fn sample(i_dst: Self.Vec[Int]):
+        def sample(i_dst: Self.Vec[Int]):
             var i_src = coords_src.maybe_f2i(coords_dst.i2f(i_dst))
             if i_src is not None:
                 dst.complex[i_dst] = src.complex[i_src.value()]
@@ -63,7 +63,7 @@ struct FFTImage[
         _ = coords_src
         _ = out_of_range
 
-    fn find(
+    def find(
         self,
         *,
         f: Self.Vec[Int],
@@ -77,7 +77,7 @@ struct FFTImage[
             if v is not None and self.coords().needs_conjugation(f=f):
                 v = v.value().conj()
 
-    fn get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
+    def get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
         self,
         *,
         f: Self.Vec[Int],
@@ -93,7 +93,7 @@ struct FFTImage[
             if self.coords().needs_conjugation(f=f):
                 v = v.conj()
 
-    fn get[
+    def get[
         *,
         or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
         dtype_coords: DType = DType.float32
@@ -129,7 +129,7 @@ struct Delta[
 ](
     Copyable,
     Movable,
-    EqualityComparable,
+    Equatable,
     Writable,
     Stringable
 ):
@@ -142,7 +142,7 @@ struct Delta[
     """[-1], unless flipped, then 1@d."""
 
     @staticmethod
-    fn build(out deltas: List[Delta[dim,dtype]]):
+    def build(out deltas: List[Delta[dim,dtype]]):
         deltas = [Delta[dim,dtype]()]
         for d in range(dim):
             for i in range(len(deltas)):
@@ -152,7 +152,7 @@ struct Delta[
                 deltas.append(delta^)
 
     @staticmethod
-    fn dir_pos[num_samples: Int](
+    def dir_pos[num_samples: Int](
         deltas: List[Delta[dim,dtype]],
         out dir_pos: Tuple[SIMD[dtype,num_samples], SIMD[dtype,num_samples]]
     ):
@@ -164,22 +164,22 @@ struct Delta[
             pos[s] = delta.pos[delta.d]
         dir_pos = (dir, pos)
 
-    fn __init__(out self):
+    def __init__(out self):
         self.d = 0
         self.pos = Vec[dim,Int](fill=0)
         self.pos_f = Vec[dim,Scalar[dtype]](fill=1)
         self.dir = Vec[dim,Scalar[dtype]](fill=-1)
 
-    fn flip(mut self):
+    def flip(mut self):
         self.pos[self.d] = 1
         self.pos_f[self.d] = 0
         self.dir[self.d] = 1
 
-    fn __eq__(self, rhs: Self) -> Bool:
+    def __eq__(self, rhs: Self) -> Bool:
         return self.pos == rhs.pos
 
-    fn write_to[W: Writer](self, mut writer: W):
+    def write_to[W: Writer](self, mut writer: W):
         writer.write("Delta[pos=", self.pos, ", pos_f=", self.pos_f, ", dir=", self.dir, "]")
 
-    fn __str__(self) -> String:
+    def __str__(self) -> String:
         return String.write(self)

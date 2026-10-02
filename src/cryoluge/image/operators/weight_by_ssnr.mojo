@@ -13,7 +13,7 @@ struct WeightBySSNROperator[
     var shells: Pointer[FourierShells[2],shells_origin]
     var _factors: List[Scalar[dtype]]
 
-    fn __init__(
+    def __init__(
         out self,
         *,
         mass_kda: KDa[dtype],
@@ -41,7 +41,7 @@ struct WeightBySSNROperator[
             var factor = abs(ssnr[shelli])*scale_factor
             self._factors.append(factor)
 
-    fn eval(
+    def eval(
         self,
         *,
         freq_norm: Scalar[dtype],
@@ -57,12 +57,12 @@ struct WeightBySSNROperator[
             var shelli = self.shells[].shelli(freq_norm=freq_norm)
             result *= sqrt(1 + ctf2*self._factors[shelli])
 
-    fn apply(self, ctf: CTF[dtype], mut image: FFTImage[2,dtype]):
+    def apply(self, ctf: CTF[dtype], mut image: FFTImage[2,dtype]):
 
         var coords = image.coords()
         
         @parameter
-        fn func(i: Vec[2,Int]):
+        def func(i: Vec[2,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var f_norm = coords.f_norm[dtype](f=f)

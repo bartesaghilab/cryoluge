@@ -8,7 +8,7 @@ from testing import assert_equal, assert_true
 from builtin._location import __call_location, _SourceLocation
 
 
-@always_inline
+@inline(.always)
 def assert_equal_buffers(
     obs: Span[Byte],
     exp: Span[Byte],
@@ -27,7 +27,7 @@ def assert_equal_buffers(
         )
 
 
-@always_inline
+@inline(.always)
 def assert_equal_angles[dtype: DType](
     obs: EulerAnglesZYZ[dtype],
     exp: EulerAnglesZYZ[dtype],
@@ -50,16 +50,16 @@ def assert_equal_angles[dtype: DType](
 
 
 @parameter
-fn _no_context() -> String:
+def _no_context() -> String:
     return ""
 
 
-@always_inline
+@inline(.always)
 def assert_equal_float[
     dtype: DType,
     //,
     err_fn: ErrFn[dtype],
-    context: fn () capturing -> String = _no_context
+    context: def () capturing -> String = _no_context
 ](
     obs: Scalar[dtype],
     exp: Scalar[dtype],
@@ -81,12 +81,12 @@ def assert_equal_float[
             location=location.or_else(__call_location())
         )
 
-@always_inline
+@inline(.always)
 def assert_equal_float[
     dtype: DType,
     //,
     err_fn: ErrFn[dtype],
-    context: fn () capturing -> String = _no_context
+    context: def () capturing -> String = _no_context
 ](
     obs: ComplexScalar[dtype],
     exp: ComplexScalar[dtype],
@@ -109,13 +109,13 @@ def assert_equal_float[
         )
 
 
-@always_inline
+@inline(.always)
 def assert_equal_float[
     dim: Int,
     dtype: DType,
     //,
     err_fn: ErrFn[dtype],
-    context: fn () capturing -> String = _no_context
+    context: def () capturing -> String = _no_context
 ](
     obs: Vec[dim,Scalar[dtype]],
     exp: Vec[dim,Scalar[dtype]],

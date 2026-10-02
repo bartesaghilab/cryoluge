@@ -14,7 +14,7 @@ struct SliceOperator[dtype: DType](
     var _dst_sizes_real: Vec[2,Int]
     var _res_limit2: Float32
 
-    fn __init__(
+    def __init__(
         out self,
         *,
         src_sizes_real: Vec[3,Int],
@@ -26,7 +26,7 @@ struct SliceOperator[dtype: DType](
         var x_size = Float32(src_sizes_real.x())
         self._res_limit2 = (res_limit*x_size)**2
 
-    fn eval[
+    def eval[
         *,
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
     ](
@@ -57,7 +57,7 @@ struct SliceOperator[dtype: DType](
             else:
                 pixel = out_of_range
     
-    fn eval[
+    def eval[
         *,
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
     ](
@@ -77,7 +77,7 @@ struct SliceOperator[dtype: DType](
             origin_value=origin_value
         )
 
-    fn apply[
+    def apply[
         *,
         out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
     ](
@@ -89,7 +89,7 @@ struct SliceOperator[dtype: DType](
         origin_value: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)
     ):
         @parameter
-        fn func(i: to.Vec[Int]):
+        def func(i: to.Vec[Int]):
             to.complex[i] = self.eval[out_of_range=out_of_range](
                 src=src,
                 rot=rot,

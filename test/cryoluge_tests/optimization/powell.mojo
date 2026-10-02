@@ -23,7 +23,7 @@ def test_quadratic():
         dim = 1
     )
     @parameter
-    fn f(x: Coords[info], out fx: Value[info]):
+    def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 5)**2 + 42 )
 
     var result = powell[f](
@@ -51,7 +51,7 @@ def test_biquadratic():
         dim = 2
     )
     @parameter
-    fn f(x: Coords[info], out fx: Value[info]):
+    def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 3)*(x[1] + 4) + (x[0] - 5)**2 + (x[1] + 7)**2 - 9 )
         # NOTE: add some rotation to the paraboloid, so we make Powell's method actually
         #       search along the extra direction
@@ -82,7 +82,7 @@ def test_minimizer():
         dim = 2
     )
     @parameter
-    fn f(x: Coords[info], out fx: Value[info]):
+    def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 3)*(x[1] + 4) + (x[0] - 5)**2 + (x[1] + 7)**2 - 9 )
 
     var result = PowellMinimizer[dtype](

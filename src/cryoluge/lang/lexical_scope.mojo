@@ -15,11 +15,11 @@ struct LexicalScope:
     https://github.com/modular/modular/issues/5371
     """
 
-    fn __init__(out self):
+    def __init__(out self):
         pass
 
-    fn __enter__(self):
+    def __enter__(self):
         pass
 
-    fn __exit__(self):
+    def __exit__(self):
         pass

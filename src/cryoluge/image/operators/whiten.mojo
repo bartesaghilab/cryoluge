@@ -17,7 +17,7 @@ struct WhitenOperator[
     var stats: WhitenStats[sum_dtype,dim,origin_shells]
     var _factor: List[Scalar[dtype]]
 
-    fn __init__(
+    def __init__(
         out self,
         var stats: WhitenStats[sum_dtype,dim,origin_shells]
     ):
@@ -37,7 +37,7 @@ struct WhitenOperator[
                 factor = 1
             self._factor.append(factor)
 
-    fn eval(
+    def eval(
         self,
         *,
         freq_norm: Scalar[dtype],
@@ -47,12 +47,12 @@ struct WhitenOperator[
         var shelli = self.stats.shells[].shelli(freq_norm=freq_norm)
         result = v*self._factor[shelli]
 
-    fn apply(self, mut image: FFTImage[dim,dtype]):
+    def apply(self, mut image: FFTImage[dim,dtype]):
 
         var coords = image.coords()
 
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var f_norm = coords.f_norm[dtype](f=f)
@@ -76,7 +76,7 @@ struct WhitenStats[
     var _sum: List[Scalar[sum_dtype]]
     var _count: List[Int]
 
-    fn __init__(
+    def __init__(
         out self,
         ref [origin_shells] shells: FourierShells[dim],
         *,
@@ -87,7 +87,7 @@ struct WhitenStats[
         self._sum = List[Scalar[sum_dtype]](length=len(shells), fill=0)
         self._count = List[Int](length=len(shells), fill=0)
 
-    fn eval[dtype: DType](mut self, *, freq_norm2: Scalar[dtype], v: ComplexScalar[dtype]):
+    def eval[dtype: DType](mut self, *, freq_norm2: Scalar[dtype], v: ComplexScalar[dtype]):
         var dist2 = v.squared_norm()
         if dist2 > 0:
             var shelli = self.shells[].shelli(freq_norm2=freq_norm2)
@@ -95,12 +95,12 @@ struct WhitenStats[
                 self._sum[shelli] += Scalar[sum_dtype](dist2)
                 self._count[shelli] += 1
 
-    fn apply[dtype: DType](mut self, mut image: FFTImage[dim,dtype]):
+    def apply[dtype: DType](mut self, mut image: FFTImage[dim,dtype]):
 
         var coords = image.coords()
         
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var freq_norm2 = coords.f_norm[dtype](f=f).len2()

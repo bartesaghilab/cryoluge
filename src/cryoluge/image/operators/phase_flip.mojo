@@ -4,18 +4,18 @@ from cryoluge.image import ComplexImage
 
 struct PhaseFlipOperator:
 
-    fn __init__(out self):
+    def __init__(out self):
         # nothing to do
         pass
 
-    fn eval[dtype: DType](
+    def eval[dtype: DType](
         self,
         v: ComplexScalar[dtype],
         out result: ComplexScalar[dtype]
     ):
         result = -v
 
-    fn eval[dtype: DType](
+    def eval[dtype: DType](
         self,
         ctf: Scalar[dtype],
         v: ComplexScalar[dtype],
@@ -25,12 +25,12 @@ struct PhaseFlipOperator:
         # NOTE: mojo True casts to 1 and False to 0
         result = v*sign
 
-    fn apply[dim: Int, dtype: DType](
+    def apply[dim: Int, dtype: DType](
         self,
         mut image: ComplexImage[dim,dtype]
     ):
         @parameter
-        fn func(i: Vec[dim,Int]):
+        def func(i: Vec[dim,Int]):
             image[i=i] = self.eval(image[i=i])
 
         image.iterate[func]()
