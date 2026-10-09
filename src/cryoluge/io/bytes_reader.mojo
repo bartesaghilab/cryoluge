@@ -1,12 +1,15 @@
 
+from cryoluge.io.binary_reader import BinaryReader
+
+
 struct BytesReader[
     origin: Origin[mut=False]
 ](BinaryReader, Movable):
 
-    var buf: Span[Byte, origin]
+    var buf: Span[Byte, Self.origin]
     var _pos: Int
 
-    def __init__(out self, buf: Span[Byte, origin], pos: Int = 0):
+    def __init__(out self, buf: Span[Byte, Self.origin], pos: Int = 0):
         self.buf = buf
         self._pos = pos
 
@@ -26,17 +29,18 @@ struct BytesReader[
     def reset(mut self):
         self._pos = 0
         
-    def read_bytes(mut self, bytes: Span[mut=True, Byte]) raises -> Int:
-        self.read_bytes_exact(bytes)
-        return len(bytes)
+    def read_bytes[origin_dst: MutOrigin](mut self, dst: Span[Byte,origin_dst]) raises -> Int:
+        self.read_bytes_exact(dst)
+        return len(dst)
 
-    def read_bytes_exact(mut self, bytes: Span[mut=True, Byte]) raises:
-        var size = len(bytes)
+    def read_bytes_exact[origin_dst: MutOrigin](mut self, dst: Span[Byte,origin_dst]) raises:
+        var size = len(dst)
         if size > self.bytes_remaining():
             raise Error("Buffer underflow: read=", size, ", remaining=", self.bytes_remaining())
-        var dst = bytes.unsafe_ptr()
-        var src = self.buf.unsafe_ptr() + self._pos
-        memcpy(src=src, dest=dst, count=size)
+        dst.copy_from(self.buf.unsafe_subspan(
+            offset=self._pos,
+            length=len(dst)
+        ))
         self._pos += size
 
     def skip_bytes(mut self, size: Int) raises:
@@ -48,7 +52,7 @@ struct BytesReader[
         return UInt64(self._pos)
 
     def seek_to(mut self, offset: UInt64) raises:
-        if offset > self.capacity():
+        if offset > UInt64(self.capacity()):
             raise Error(String("Seek overflow: seek=", offset, ", capacity=", self.capacity()))
         self._pos = Int(offset)
 

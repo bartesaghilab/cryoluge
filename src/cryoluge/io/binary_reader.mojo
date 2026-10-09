@@ -1,7 +1,13 @@
 
+from std.sys import size_of
+
+from cryoluge.io import as_byte_span, swap_bytes_if_needed
+from cryoluge.io.endian import Endian
+
+
 trait BinaryReader:
-    def read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int: ...
-    def read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises: ...
+    def read_bytes[origin: MutOrigin](mut self, dst: Span[Byte,origin]) raises -> Int: ...
+    def read_bytes_exact[origin: MutOrigin](mut self, dst: Span[Byte,origin]) raises: ...
     def skip_bytes(mut self, size: Int) raises: ...
     def offset(self) -> UInt64: ...
     def seek_to(mut self, offset: UInt64) raises: ...
@@ -9,10 +15,7 @@ trait BinaryReader:
 
     def read_scalar[dtype: DType](mut self, out v: Scalar[dtype]) raises:
         v = 0
-        var buf = Span(
-            ptr = UnsafePointer(to=v).bitcast[Byte](),
-            length = size_of[Scalar[dtype]]()
-        )
+        var buf = as_byte_span(v)
         self.read_bytes_exact(buf)
 
     def read_scalar[dtype: DType, endian: Endian](mut self, out v: Scalar[dtype]) raises:

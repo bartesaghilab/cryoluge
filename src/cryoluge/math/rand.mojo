@@ -110,7 +110,7 @@ struct Rand:
         elif dtype == DType.float64:
             v = rebind[Scalar[dtype]](self.float64())
         else:
-            comptime assert False, t"Rand not supported yet for dtype: {dtype}"
+            comptime assert False, String("Rand not supported yet for dtype: ", dtype)
 
     @inline(.always)
     def scalar[dtype: DType](mut self, *, min: Scalar[dtype], max: Scalar[dtype], out v: Scalar[dtype]):

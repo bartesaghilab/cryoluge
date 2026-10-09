@@ -1,5 +1,5 @@
 
-from testing import assert_equal, assert_raises
+from std.testing import assert_equal, assert_raises
 
 from cryoluge.io import ByteBuffer, BytesReader
 from cryoluge.test import assert_equal_buffers
@@ -8,88 +8,88 @@ from cryoluge.test import assert_equal_buffers
 comptime funcs = __functions_in_module()
 
 
-def test_init():
-    var buf = InlineArray[Byte, 3](1, 2, 3)
+def test_init() raises:
+    var buf: Array[Byte,3] = [1, 2, 3]
     var reader = BytesReader(buf)
     assert_equal(reader.bytes_read(), 0)
     assert_equal(reader.bytes_remaining(), 3)
 
 
-def test_read_bytes_once():
-    var buf = InlineArray[Byte, 3](1, 2, 3)
+def test_read_bytes_once() raises:
+    var buf: Array[Byte, 3] = [1, 2, 3]
     var reader = BytesReader(buf)
-    var read_buf = InlineArray[Byte, 1](fill=0)
+    var read_buf = Array[Byte, 1](fill=0)
     assert_equal(reader.read_bytes(read_buf), 1)
-    assert_equal_buffers(read_buf, InlineArray[Byte, 1](1))
+    assert_equal_buffers(read_buf, [1])
     assert_equal(reader.bytes_read(), 1)
     assert_equal(reader.bytes_remaining(), 2)
 
 
-def test_read_bytes_multiple():
+def test_read_bytes_multiple() raises:
 
-    var buf = InlineArray[Byte, 5](1, 2, 3, 4, 5)
+    var buf: Array[Byte, 5] = [1, 2, 3, 4, 5]
     var reader = BytesReader(buf)
 
-    var read1 = InlineArray[Byte, 2](fill=0)
+    var read1 = Array[Byte, 2](fill=0)
     assert_equal(reader.read_bytes(read1), 2)
-    assert_equal_buffers(read1, InlineArray[Byte, 2](1, 2))
+    assert_equal_buffers(read1, [1, 2])
     assert_equal(reader.bytes_read(), 2)
     assert_equal(reader.bytes_remaining(), 3)
 
-    var read2 = InlineArray[Byte, 1](fill=0)
+    var read2 = Array[Byte, 1](fill=0)
     assert_equal(reader.read_bytes(read2), 1)
-    assert_equal_buffers(read2, InlineArray[Byte, 1](3))
+    assert_equal_buffers(read2, [3])
     assert_equal(reader.bytes_read(), 3)
     assert_equal(reader.bytes_remaining(), 2)
 
-    var read3 = InlineArray[Byte, 2](fill=0)
+    var read3 = Array[Byte, 2](fill=0)
     assert_equal(reader.read_bytes(read3), 2)
-    assert_equal_buffers(read3, InlineArray[Byte, 2](4, 5))
+    assert_equal_buffers(read3, [4, 5])
     assert_equal(reader.bytes_read(), 5)
     assert_equal(reader.bytes_remaining(), 0)
 
 
-def test_read_bytes_overflow():
+def test_read_bytes_overflow() raises:
 
-    var buf = InlineArray[Byte, 3](1, 2, 3)
+    var buf: Array[Byte, 3] = [1, 2, 3]
     var reader = BytesReader(buf)
 
-    var read1 = InlineArray[Byte, 4](fill=0)
+    var read1 = Array[Byte, 4](fill=0)
     with assert_raises():
         _ = reader.read_bytes(read1)
 
-    var read2 = InlineArray[Byte, 3](fill=0)
+    var read2 = Array[Byte, 3](fill=0)
     assert_equal(reader.read_bytes(read2), 3)
     assert_equal(reader.bytes_read(), 3)
     assert_equal(reader.bytes_remaining(), 0)
 
-    var read3 = InlineArray[Byte, 1](fill=0)
+    var read3 = Array[Byte, 1](fill=0)
     with assert_raises():
         _ = reader.read_bytes(read3)
 
 
-def test_read_from_buffer():
+def test_read_from_buffer() raises:
 
     var buf = ByteBuffer(3)
-    buf._p[0] = 1
-    buf._p[1] = 2
-    buf._p[2] = 3
-    assert_equal_buffers(buf.span(), InlineArray[Byte, 3](1, 2, 3))
+    buf[0] = 1
+    buf[1] = 2
+    buf[2] = 3
+    assert_equal_buffers(buf.span(), [1, 2, 3])
 
     var reader = BytesReader(buf.span())
 
-    var read1 = InlineArray[Byte, 2](fill=0)
+    var read1 = Array[Byte, 2](fill=0)
     assert_equal(reader.read_bytes(read1), 2)
-    assert_equal_buffers(read1, InlineArray[Byte, 2](1, 2))
+    assert_equal_buffers(read1, [1, 2])
     assert_equal(reader.bytes_read(), 2)
     assert_equal(reader.bytes_remaining(), 1)
 
-    assert_equal_buffers(buf.span(), InlineArray[Byte, 3](1, 2, 3))
+    assert_equal_buffers(buf.span(), [1, 2, 3])
 
 
-def test_skip_bytes():
+def test_skip_bytes() raises:
 
-    var buf = InlineArray[Byte, 3](fill=0)
+    var buf = Array[Byte, 3](fill=0)
     var reader = BytesReader(buf)
 
     reader.skip_bytes(1)
@@ -115,9 +115,9 @@ def test_skip_bytes():
     assert_equal(reader.bytes_remaining(), 0)
     
 
-def test_skip_scalar():
+def test_skip_scalar() raises:
 
-    var buf = InlineArray[Byte, 3](fill=0)
+    var buf = Array[Byte, 3](fill=0)
     var reader = BytesReader(buf)
 
     reader.skip_scalar[DType.int8]()
@@ -139,9 +139,9 @@ def test_skip_scalar():
     assert_equal(reader.bytes_remaining(), 0)
 
 
-def test_seek_to():
+def test_seek_to() raises:
 
-    var buf = InlineArray[Byte, 3](1, 2, 3)
+    var buf: Array[Byte, 3] = [1, 2, 3]
     var reader = BytesReader(buf)
 
     reader.seek_to(0)
@@ -167,9 +167,9 @@ def test_seek_to():
         reader.seek_to(4)
 
 
-def test_seek_by():
+def test_seek_by() raises:
 
-    var buf = InlineArray[Byte, 3](1, 2, 3)
+    var buf: Array[Byte, 3] = [1, 2, 3]
     var reader = BytesReader(buf)
 
     reader.seek_to(0)
@@ -231,9 +231,9 @@ def test_seek_by():
         reader.seek_by(-3)
 
 
-def test_offset():
+def test_offset() raises:
 
-    var buf = InlineArray[Byte, 3](1, 2, 3)
+    var buf: Array[Byte, 3] = [1, 2, 3]
     var reader = BytesReader(buf)
 
     assert_equal(reader.offset(), 0)
