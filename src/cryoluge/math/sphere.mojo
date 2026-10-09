@@ -2,28 +2,31 @@
 from cryoluge.math.units import Unit, UnitType, pi
 
 
-struct Sphere[utype: UnitType, dtype: DType]:
+struct Sphere[dtype: DType]
+    where dtype.is_floating_point():
+
+    comptime V = Scalar[Self.dtype]
 
     @staticmethod
-    def radius(*, volume: Unit[utype,dtype]) -> Unit[utype,dtype]:
-        return (0.75/pi[dtype].value*volume)**(1.0/3.0)
+    def radius(*, volume: Self.V) -> Self.V:
+        return (0.75/pi[Self.dtype].value*volume)**(1.0/3.0)
 
     @staticmethod
-    def radius(*, diameter: Unit[utype,dtype]) -> Unit[utype,dtype]:
+    def radius(*, diameter: Self.V) -> Self.V:
         return diameter/2
     
     @staticmethod
-    def diameter(*, radius: Unit[utype,dtype]) -> Unit[utype,dtype]:
+    def diameter(*, radius: Self.V) -> Self.V:
         return radius*2
 
     @staticmethod
-    def cross_area(*, radius: Unit[utype,dtype]) -> Unit[utype,dtype]:
-        return pi[dtype].value*radius**2
+    def cross_area(*, radius: Self.V) -> Self.V:
+        return pi[Self.dtype].value*radius**2
 
     @staticmethod
-    def cross_area(*, diameter: Unit[utype,dtype]) -> Unit[utype,dtype]:
+    def cross_area(*, diameter: Self.V) -> Self.V:
         return Self.cross_area(radius=Self.radius(diameter=diameter))
 
     @staticmethod
-    def surface_area(*, radius: Unit[utype,dtype]) -> Unit[utype,dtype]:
-        return 4*pi[dtype].value*radius**2
+    def surface_area(*, radius: Self.V) -> Self.V:
+        return 4*pi[Self.dtype].value*radius**2

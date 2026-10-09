@@ -17,6 +17,12 @@ mojo = "==1.1.0"
 
 [tasks]
 build_dir = "rm -rf build 2> /dev/null; mkdir -p build"
-build_pkg = { cmd = "mojo precompile -o build/cryoluge.mojoc src/cryoluge", depends-on = ["build_dir"] }
-test = { cmd = "mojo run -I build -D ASSERT=all --debug-level line-tables test/suite.mojo", depends-on = ["build_pkg"] }
+
+[tasks.build_pkg]
+cmd = "mojo precompile -o build/cryoluge.mojoc src/cryoluge"
+depends-on = ["build_dir"]
+
+[tasks.test]
+cmd = "mojo run -I build -D ASSERT=all --debug-level line-tables test/suite.mojo"
+depends-on = ["build_pkg"]
 # NOTE: `mojo test` doesn't seem to support `-flag=value` syntax, only `-flag value`

@@ -1,8 +1,8 @@
 
-from random import Random
-from os import abort
-from sys import size_of
-from utils.numerics import FPUtils, isfinite
+from std.random import Random
+from std.os import abort
+from std.sys import size_of
+from std.utils.numerics import FPUtils, isfinite
 
 from cryoluge.math import Vec
 
@@ -57,12 +57,10 @@ struct Rand:
         comptime f64_mantissa_bits = FPUtils[DType.float64].mantissa_width()
         comptime f64_sign_bits = 1
         comptime f64_bits = f64_mantissa_bits + f64_sign_bits
-        # TEMP: can't run this at comptime for some reason: "not implemented"
-        #comptime normalization = 1.0/Float64(1 << f64_bits)
-        var normalization = 1.0/Float64(1 << f64_bits)
+        comptime normalization = 1.0/Float64(1 << f64_bits)
 
         # get enough bits of randomness to cover the mantissa and the sign (but not the exponent)
-        var value = self.uint64() >> (size_of[Float64]()*8 - f64_bits)
+        var value = self.uint64() >> UInt64(size_of[Float64]()*8 - f64_bits)
 
         # normalize the value to get a float in [0,1)
         v = Float64(value)*normalization
@@ -88,7 +86,7 @@ struct Rand:
         comptime normalization = 1.0/Float32(1 << f32_bits)
 
         # get enough bits of randomness to cover the mantissa and the sign (but not the exponent)
-        var value = self.uint32() >> (size_of[Float32]()*8 - f32_bits)
+        var value = self.uint32() >> UInt32(size_of[Float32]()*8 - f32_bits)
 
         # normalize the value to get a float in [0,1)
         v = Float32(value)*normalization
@@ -107,15 +105,12 @@ struct Rand:
         """
         Returns a random dtype (either float32 or float64) in [-,1).
         """
-        @parameter
-        if dtype == DType.float32:
+        comptime if dtype == .float32:
             v = rebind[Scalar[dtype]](self.float32())
         elif dtype == DType.float64:
             v = rebind[Scalar[dtype]](self.float64())
         else:
-            constrained[False, String("Rand not supported yet for dtype: ", dtype)]()
-            v = 0
-            abort()
+            comptime assert False, t"Rand not supported yet for dtype: {dtype}"
 
     @inline(.always)
     def scalar[dtype: DType](mut self, *, min: Scalar[dtype], max: Scalar[dtype], out v: Scalar[dtype]):
@@ -131,7 +126,7 @@ struct Rand:
 struct VecRand[
     dtype: DType,
     dim: Int
-]:
+] where dim > 0:
     """
     A utility to easily generate random numbers in multi-dimensional ranges.
 
@@ -144,7 +139,7 @@ struct VecRand[
     var max: Self.Vec
     var _rand: Rand
 
-    comptime Vec = Vec[dim,Scalar[dtype]]
+    comptime Vec = Vec[Self.dim,Self.dtype]
 
     def __init__(
         out self,
@@ -158,5 +153,5 @@ struct VecRand[
         self._rand = Rand(seed=seed)
 
     @inline(.always)
-    def next(mut self, d: Int, out v: Scalar[dtype]):
-        v = self._rand.scalar[dtype](min=self.min[d], max=self.max[d])
+    def next(mut self, d: Int, out v: Scalar[Self.dtype]):
+        v = self._rand.scalar[Self.dtype](min=self.min[d], max=self.max[d])

@@ -1,20 +1,23 @@
 
-from cryoluge.math import Vec
+from cryoluge.math.vec import Vec
 from cryoluge.math.units import Unit, UnitType
 
 
-struct MeanVariance[dim: Int, dtype: DType, utype: UnitType=UnitType._None](
+struct MeanVariance[dim: Int, dtype: DType](
     Copyable,
     Movable
-):
-    var mean: Vec[dim,Unit[utype,dtype]]
-    var variance: Vec[dim,Unit[utype,dtype]]
+) where dim > 0:
+
+    var mean: Self.V
+    var variance: Self.V
+
+    comptime V = Vec[Self.dim,Self.dtype]
 
     def __init__(out self):
-        self.mean = Vec[dim,Unit[utype,dtype]](fill=Unit[utype,dtype](0))
-        self.variance = Vec[dim,Unit[utype,dtype]](fill=Unit[utype,dtype](0))
+        self.mean = Self.V(fill=0)
+        self.variance = Self.V(fill=0)
 
-    def add(mut self, v: Vec[dim,Unit[utype,dtype]]):
+    def add(mut self, v: Self.V):
         self.mean += v
         self.variance += v**2
     

@@ -1,6 +1,6 @@
 
-from io import FileHandle
-from tempfile import NamedTemporaryFile
+from std.io import FileHandle
+from std.tempfile import NamedTemporaryFile
 
 
 def file_handle(tempfile: NamedTemporaryFile) -> ref [tempfile._file_handle] FileHandle:

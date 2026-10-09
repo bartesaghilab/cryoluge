@@ -1,6 +1,6 @@
 
-from math import sqrt
-from testing import assert_equal
+from std.math import sqrt
+from std.testing import assert_equal
 
 from cryoluge.math import Vec, Matrix, AlignedBox, OrientedBox
 from cryoluge.math.units import Deg
@@ -9,15 +9,16 @@ from cryoluge.math.units import Deg
 comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float32
-comptime V1 = Vec[1,Scalar[dtype]]
-comptime V2 = Vec[2,Scalar[dtype]]
-comptime V3 = Vec[3,Scalar[dtype]]
+comptime S = Scalar[dtype]
+comptime V1 = Vec[1,dtype]
+comptime V2 = Vec[2,dtype]
+comptime V3 = Vec[3,dtype]
 comptime M1 = Matrix[1,1,dtype]
 comptime M2 = Matrix[2,2,dtype]
 comptime M3 = Matrix[3,3,dtype]
 
 
-def test_unit_corners():
+def test_unit_corners() raises:
 
     # 1D
     var corners1 = AlignedBox[1,dtype].unit_corners()
@@ -46,10 +47,10 @@ def test_unit_corners():
     assert_equal(len(corners3), 8)
 
 
-def test_oriented_corners():
+def test_oriented_corners() raises:
 
     # 1D is kind of trivial, but whatever
-    var obb1 = OrientedBox(
+    var obb1 = OrientedBox[1,dtype](
         origin = V1(x=0),
         sizes = V1(x=1),
         orientation = M1.identity()
@@ -83,9 +84,9 @@ def test_oriented_corners():
     var obb4 = OrientedBox(
         origin = V2(x=0, y=0),
         sizes = V2(x=1, y=1),
-        orientation = M2(rotate=Deg[dtype](30))
+        orientation = M2(rotate=Deg(S(30)))
     )
-    var r3o2 = sqrt(Scalar[dtype](3))/2
+    var r3o2 = sqrt(S(3))/2
     var h = Scalar[dtype](0.5)
     assert_equal(obb4.corner(V2(x=0, y=0)), V2(x=0, y=0))
     assert_equal(obb4.corner(V2(x=1, y=0)), V2(x=r3o2, y=h))
@@ -96,7 +97,7 @@ def test_oriented_corners():
     var obb5 = OrientedBox(
         origin = V2(x=5, y=7),
         sizes = V2(x=1, y=1),
-        orientation = M2(rotate=Deg[dtype](30))
+        orientation = M2(rotate=Deg(S(30)))
     )
     assert_equal(obb5.corner(V2(x=0, y=0)), V2(x=5, y=7))
     assert_equal(obb5.corner(V2(x=1, y=0)), V2(x=5+r3o2, y=7+h))
@@ -104,7 +105,7 @@ def test_oriented_corners():
     assert_equal(obb5.corner(V2(x=1, y=1)), V2(x=5+r3o2-h, y=7+h+r3o2 + 1e-6))
 
 
-def test_oriented_bound():
+def test_oriented_bound() raises:
 
     # 1D is kind of trivial, but whatever
     var obb1 = OrientedBox(
@@ -130,7 +131,7 @@ def test_oriented_bound():
     var obb3 = OrientedBox(
         origin = V2(x=0, y=0),
         sizes = V2(x=1, y=1),
-        orientation = M2(rotate=Deg[dtype](30))
+        orientation = M2(rotate=Deg(S(30)))
     )
     var aabb3 = obb3.bounding_box()
     var r3o2 = sqrt(Scalar[dtype](3))/2
