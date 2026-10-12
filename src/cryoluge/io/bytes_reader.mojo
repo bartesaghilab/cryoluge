@@ -9,16 +9,20 @@ struct BytesReader[
     var buf: Span[Byte, Self.origin]
     var _pos: Int
 
+    @inline(.always)
     def __init__(out self, buf: Span[Byte, Self.origin], pos: Int = 0):
         self.buf = buf
         self._pos = pos
 
+    @inline(.always)
     def capacity(self) -> Int:
         return len(self.buf)
 
+    @inline(.always)
     def bytes_read(self) -> Int:
         return self._pos
 
+    @inline(.always)
     def bytes_remaining(self) -> Int:
         debug_assert(
             self._pos <= self.capacity(),
@@ -26,6 +30,20 @@ struct BytesReader[
         )
         return self.capacity() - self._pos
 
+    @inline(.always)
+    def span_remaining(ref self, *, length: Optional[Int] = None) -> Span[Byte,Self.origin]:
+        var bytes_remaining = self.bytes_remaining()
+        if length is not None:
+            debug_assert(
+                length.value() <= bytes_remaining,
+                t"Can't read {length.value()} bytes, only {bytes_remaining} remaining"
+            )
+        return self.buf.unsafe_subspan(
+            offset=self._pos,
+            length=length.or_else(bytes_remaining)
+        )
+
+    @inline(.always)
     def reset(mut self):
         self._pos = 0
         
@@ -37,10 +55,7 @@ struct BytesReader[
         var size = len(dst)
         if size > self.bytes_remaining():
             raise Error("Buffer underflow: read=", size, ", remaining=", self.bytes_remaining())
-        dst.copy_from(self.buf.unsafe_subspan(
-            offset=self._pos,
-            length=len(dst)
-        ))
+        dst.copy_from(self.span_remaining(length=size))
         self._pos += size
 
     def skip_bytes(mut self, size: Int) raises:
@@ -48,16 +63,16 @@ struct BytesReader[
             raise Error(String("Buffer underflow: skip=", size, ", remaining=", self.bytes_remaining()))
         self._pos += size
 
-    def offset(self) -> UInt64:
-        return UInt64(self._pos)
+    def offset(self) -> Int:
+        return self._pos
 
-    def seek_to(mut self, offset: UInt64) raises:
-        if offset > UInt64(self.capacity()):
+    def seek_to(mut self, offset: Int) raises:
+        if offset > self.capacity():
             raise Error(String("Seek overflow: seek=", offset, ", capacity=", self.capacity()))
-        self._pos = Int(offset)
+        self._pos = offset
 
-    def seek_by(mut self, offset: Int64) raises:
-        var pos = self._pos + Int(offset)
+    def seek_by(mut self, offset: Int) raises:
+        var pos = self._pos + offset
         if pos < 0 or pos > self.capacity():
             raise Error(String("Seek overflow: offset_before=", self._pos, ", seek=", offset, ", offset_after=", pos))
         self._pos = pos

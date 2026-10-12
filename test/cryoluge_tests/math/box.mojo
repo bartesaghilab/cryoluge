@@ -5,8 +5,9 @@ from std.testing import assert_equal
 from cryoluge.math import Vec, Matrix, AlignedBox, OrientedBox
 from cryoluge.math.units import Deg
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float32
 comptime S = Scalar[dtype]

@@ -1,38 +1,41 @@
 
-from io import FileDescriptor
-from os import SEEK_CUR, SEEK_SET
+from std.io import FileDescriptor
+from std.os import SEEK_CUR, SEEK_SET
+
+from cryoluge.io.buffers import ByteBuffer
+from cryoluge.io.binary_reader import BinaryReader
 
 
-alias DEFAULT_BUFFER_SIZE = 16*1024
+comptime DEFAULT_BUFFER_SIZE = 16*1024
 
 
 struct FileReader[origin: Origin](
     BinaryReader,
     Movable
 ):
-    var _fh: Pointer[FileHandle, origin]
+    var _fh: Pointer[FileHandle, Self.origin]
     var _inner: _Inner
 
-    def __init__(out self, ref [origin] fh: FileHandle, *, buf_size: Int = DEFAULT_BUFFER_SIZE):
+    def __init__(out self, ref [Self.origin] fh: FileHandle, *, buf_size: Int = DEFAULT_BUFFER_SIZE):
         self._fh = Pointer(to=fh)
         self._inner = _Inner(self._fh[], buf_size)
 
-    def read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+    def read_bytes[o: MutOrigin](mut self, buf: Span[Byte,o]) raises -> Int:
         return self._inner.read_bytes(buf)
 
-    def read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+    def read_bytes_exact[o: MutOrigin](mut self, buf: Span[Byte,o]) raises:
         return self._inner.read_bytes_exact(buf)
     
     def skip_bytes(mut self, size: Int) raises:
         return self._inner.skip_bytes(self._fh[], size)
 
-    def offset(self) -> UInt64:
+    def offset(self) -> Int:
         return self._inner.offset()
 
-    def seek_to(mut self, offset: UInt64) raises:
+    def seek_to(mut self, offset: Int) raises:
         self._inner.seek_to(self._fh[], offset)
 
-    def seek_by(mut self, offset: Int64) raises:
+    def seek_by(mut self, offset: Int) raises:
         self._inner.seek_by(self._fh[], offset)
 
 
@@ -43,7 +46,7 @@ struct OwnedFileReader(
     var _fh: FileHandle
     var _inner: _Inner
 
-    def __init__(out self, path: String, *, buf_size: Int = DEFAULT_BUFFER_SIZE):
+    def __init__(out self, path: String, *, buf_size: Int = DEFAULT_BUFFER_SIZE) raises:
         self._fh = open(path, 'r')
         self._inner = _Inner(self._fh, buf_size)
 
@@ -51,22 +54,22 @@ struct OwnedFileReader(
         self._fh = fh^
         self._inner = _Inner(self._fh, buf_size)
 
-    def read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+    def read_bytes[origin: MutOrigin](mut self, buf: Span[Byte,origin]) raises -> Int:
         return self._inner.read_bytes(buf)
 
-    def read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+    def read_bytes_exact[origin: MutOrigin](mut self, buf: Span[Byte,origin]) raises:
         return self._inner.read_bytes_exact(buf)
     
     def skip_bytes(mut self, size: Int) raises:
         return self._inner.skip_bytes(self._fh, size)
 
-    def offset(self) -> UInt64:
+    def offset(self) -> Int:
         return self._inner.offset()
 
-    def seek_to(mut self, offset: UInt64) raises:
+    def seek_to(mut self, offset: Int) raises:
         self._inner.seek_to(self._fh, offset)
 
-    def seek_by(mut self, offset: Int64) raises:
+    def seek_by(mut self, offset: Int) raises:
         self._inner.seek_by(self._fh, offset)
 
 
@@ -76,7 +79,7 @@ struct _Inner(Movable):
     var _buf: ByteBuffer
     var _pos: Int
     var _limit: Int
-    var _offset: UInt64
+    var _offset: Int
 
     def __init__(out self, fh: FileHandle, buf_size: Int):
         self._fd = FileDescriptor(fh._get_raw_fd())
@@ -86,10 +89,10 @@ struct _Inner(Movable):
         self._limit = 0
         self._offset = 0
 
-    def read_bytes(mut self, buf: Span[mut=True, Byte]) raises -> Int:
+    def read_bytes[origin: MutOrigin](mut self, buf: Span[Byte,origin]) raises -> Int:
 
-        var size = Int(len(buf))
-        var span_out = Span(ptr=buf.unsafe_ptr(), length=size)
+        var size = len(buf)
+        var span_out = buf
 
         # read whatever's already in the buffer
         var size_buf_remaining = self._limit - self._pos
@@ -97,28 +100,22 @@ struct _Inner(Movable):
 
             if size <= size_buf_remaining:
                 # the buffer already has all we need: read all of it
-                memcpy(
-                    src=self._buf._p + self._pos,
-                    dest=span_out.unsafe_ptr(),
-                    count=size
-                )
+                span_out.copy_from(self._buf.span(start=self._pos, length=size))
                 self._pos += size
                 self._offset += size
                 return size
 
             # otherwise, read what we can from the buffer
-            memcpy(
-                src=self._buf._p + self._pos,
-                dest=span_out.unsafe_ptr(),
-                count=size_buf_remaining
-            )
-            span_out = Span(
-                ptr=buf.unsafe_ptr() + size_buf_remaining,
+            span_out
+                .unsafe_subspan(offset=0, length=size_buf_remaining)
+                .copy_from(self._buf.span(start=self._pos, length=size_buf_remaining))
+            span_out = span_out.unsafe_subspan(
+                offset=size_buf_remaining,
                 length=size - size_buf_remaining
             )
 
         # need more: read from the fd into the buffer
-        var size_read = Int(self._fd.read_bytes(self._buf.span()))
+        var size_read = self._fd.read_bytes(self._buf.span())
         if size_read <= 0:
             self._offset += size_buf_remaining
             return size_buf_remaining
@@ -127,23 +124,21 @@ struct _Inner(Movable):
 
         # then copy whatever else we can from the buffer
         var size_copy = min(size_read, len(span_out))
-        memcpy(
-            src=self._buf._p,
-            dest=span_out.unsafe_ptr(),
-            count=size_copy
-        )
+        span_out
+            .unsafe_subspan(offset=0, length=size_copy)
+            .copy_from(self._buf.span(start=0, length=size_copy))
         self._pos += size_copy
         self._offset += size_buf_remaining + size_copy
         return size_buf_remaining + size_copy
 
-    def read_bytes_exact(mut self, buf: Span[mut=True, Byte]) raises:
+    def read_bytes_exact[origin: MutOrigin](mut self, buf: Span[Byte,origin]) raises:
 
         var size = len(buf)
         var size_out_read = 0
 
         while size_out_read < size:
-            var span_out = Span(
-                ptr=buf.unsafe_ptr() + size_out_read,
+            var span_out = buf.unsafe_subspan(
+                offset=size_out_read,
                 length=size - size_out_read
             )
             var size_read = self.read_bytes(span_out)
@@ -176,10 +171,10 @@ struct _Inner(Movable):
 
         self._offset += size
 
-    def offset(self) -> UInt64:
+    def offset(self) -> Int:
         return self._offset
 
-    def seek_to(mut self, fh: FileHandle, offset: UInt64) raises:
+    def seek_to(mut self, fh: FileHandle, offset: Int) raises:
 
         # ignore the current buffer
         self._pos = self._limit
@@ -189,9 +184,9 @@ struct _Inner(Movable):
 
         self._offset = offset
 
-    def seek_by(mut self, fh: FileHandle, offset: Int64) raises:
+    def seek_by(mut self, fh: FileHandle, offset: Int) raises:
 
-        var new_offset = Int64(self._offset) + offset
+        var new_offset = self._offset + offset
         if new_offset < 0:
             raise Error(String("Seek underflow: offset_before=", self._offset, ", seek=", offset, ", offset_after=", new_offset))
 
@@ -199,9 +194,6 @@ struct _Inner(Movable):
         self._pos = self._limit
 
         # seek the file
-        _ = fh.seek(UInt64(offset), SEEK_CUR)
-        # NOTE: The UInt64 cast won't actually destroy negative offsets,
-        #       since the stdlib is probably just passing those bits to libc.
-        #       Probably the stdlib should be accepting a signed int here?
-
-        self._offset = UInt64(new_offset)
+        _ = fh.seek(offset, SEEK_CUR)
+        
+        self._offset = new_offset

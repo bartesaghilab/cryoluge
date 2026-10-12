@@ -3,11 +3,10 @@ from std.testing import assert_equal
 
 from cryoluge.math import Rand
 from cryoluge.math.error import err_abs
-
 from cryoluge.test import assert_equal_float
 
-
-comptime funcs = __functions_in_module()
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
 # just some regression tests, really

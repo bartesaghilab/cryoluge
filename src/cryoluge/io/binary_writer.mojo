@@ -1,7 +1,13 @@
 
+from cryoluge.io import as_byte_span
+from cryoluge.io.endian import Endian, swap_bytes_if_needed
+
+
 trait BinaryWriter:
-    def write_bytes(mut self, bytes: Span[Byte]): ...
-    def write_scalar[dtype: DType](mut self, v: Scalar[dtype]): ...
+    def write_bytes(mut self, bytes: Span[Byte,_]): ...
+
+    def write_scalar[dtype: DType](mut self, v: Scalar[dtype]):
+        self.write_bytes(as_byte_span(v))
 
     def write_scalar[dtype: DType, endian: Endian](mut self, var v: Scalar[dtype]):
         swap_bytes_if_needed[dtype, endian](v)

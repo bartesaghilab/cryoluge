@@ -7,8 +7,9 @@ from cryoluge.math.units import Deg
 from cryoluge.math.error import err_abs
 from cryoluge.test import assert_equal_angles, assert_equal_euler
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float32
 comptime Deg32 = Deg[Scalar[dtype]]

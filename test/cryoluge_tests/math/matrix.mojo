@@ -4,8 +4,9 @@ from std.testing import assert_equal, assert_true, assert_false
 from cryoluge.lang import LexicalScope
 from cryoluge.math import Matrix, Vec
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float32
 comptime M1 = Matrix[1,1,dtype]

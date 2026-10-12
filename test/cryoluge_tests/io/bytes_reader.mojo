@@ -4,8 +4,8 @@ from std.testing import assert_equal, assert_raises
 from cryoluge.io import ByteBuffer, BytesReader
 from cryoluge.test import assert_equal_buffers
 
-
-comptime funcs = __functions_in_module()
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
 def test_init() raises:

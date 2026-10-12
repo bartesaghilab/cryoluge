@@ -4,8 +4,8 @@ from std.testing import assert_equal, assert_true, assert_false
 from cryoluge.lang import LexicalScope
 from cryoluge.math import Vec
 
-
-comptime funcs = __functions_in_module()
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
 def test_ctor_accessors() raises:

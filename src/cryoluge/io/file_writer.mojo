@@ -1,5 +1,10 @@
 
-from io import FileDescriptor
+from std.io import FileDescriptor
+
+from cryoluge.io.buffers import ByteBuffer
+from cryoluge.io.binary_writer import BinaryWriter
+from cryoluge.io.bytes_writer import OwnedBytesWriter
+from cryoluge.io.bytes_reader import BytesReader
 
 
 struct FileWriter(
@@ -7,79 +12,38 @@ struct FileWriter(
     Movable
 ):
     var _fd: FileDescriptor
-    var _buf: ByteBuffer
-    # TODO: how to write a self-referential struct?
-    #var _buf_writer: BytesWriter[origin=origin_of(self._buf)]
-    # until we figure that out, just keep the pos in this struct
-    var _pos: Int
+    var _buf: OwnedBytesWriter
 
     def __init__(out self, fh: FileHandle, *, buf_size: Int = 16*1024) raises:
         self._fd = FileDescriptor(fh._get_raw_fd())
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
-        self._buf = ByteBuffer(buf_size)
-        # TODO: how to do self references?
-        #self._buf_writer = BytesWriter(self._buf.span())
-        self._pos = 0
+        self._buf = OwnedBytesWriter(ByteBuffer(buf_size))
 
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         # flush any remaining buffers
         self.flush()
 
-    def write_bytes(mut self, bytes: Span[Byte]):
+    def write_bytes(mut self, bytes: Span[Byte,_]):
 
-        var span_left = bytes
-        var writer = BytesWriter(self._buf.span(), self._pos)
+        var reader = BytesReader(bytes)
 
         while True:
 
-            # how much is left to write?
-            var bytes_left = len(span_left)
-            if bytes_left == 0:
+            if reader.bytes_remaining() <= 0:
                 break
 
             # write whatever will fit into the buffer
-            var bytes_write = min(bytes_left, writer.bytes_remaining())
-            writer.write_bytes(Span(ptr=span_left.unsafe_ptr(), length=bytes_write))
-            span_left = Span(
-                ptr=span_left.unsafe_ptr() + bytes_write,
-                length=bytes_left - bytes_write
-            )
+            var size = min(reader.bytes_remaining(), self._buf.bytes_remaining())
+            try:
+                self._buf.write_from_reader(reader, size)
+            except:
+                pass  # reading from a byte buffer within its bounds *should be* infallible
 
             # flush the buffer, if needed
-            if writer.bytes_remaining() == 0:
-                self._fd.write_bytes(writer.span_written())
-                writer.reset()
-        
-        self._pos = writer._pos
-
-    def write_scalar[dtype: DType](mut self, v: Scalar[dtype]):
-
-        var writer = BytesWriter(self._buf.span(), self._pos)
-        
-        # make sure the scalar can fit in the buffer, even when empty
-        var size = size_of[dtype]()
-        debug_assert[assert_mode="safe"](
-             size <= self._buf.size(),
-             "Buffer too small (", self._buf.size(), " bytes) to write scalar of ", size, " bytes"
-        )
-
-        # if the scalar won't fit in the remaining space, flush the buffer
-        if size > writer.bytes_remaining():
-            self._fd.write_bytes(writer.span_written())
-            writer.reset()
-
-        writer.write_scalar(v)
-
-        # flush the buffer, if needed
-        if writer.bytes_remaining() == 0:
-            self._fd.write_bytes(writer.span_written())
-            writer.reset()
-
-        self._pos = writer._pos
+            if self._buf.bytes_remaining() == 0:
+                self.flush()
 
     def flush(mut self):
-        var writer = BytesWriter(self._buf.span(), self._pos)
-        self._fd.write_bytes(writer.span_written())
+        self._fd.write_bytes(self._buf.span_written())
         # amazingly, a file write operation doesn't raise, or return an error code
-        writer.reset()
-        self._pos = writer._pos
+        self._buf.reset()

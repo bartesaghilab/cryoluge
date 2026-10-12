@@ -1,143 +1,140 @@
 
-from io import FileHandle
-from tempfile import NamedTemporaryFile
-
-from testing import assert_equal, assert_raises
+from std.io import FileHandle
+from std.tempfile import NamedTemporaryFile
+from std.testing import assert_equal, assert_raises
 
 from cryoluge.io import FileReader
 from cryoluge.test import assert_equal_buffers
 
-from cryoluge_testlib import file_handle
+from cryoluge_testlib import ModuleTests, TestLocation, file_handle
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
-comptime funcs = __functions_in_module()
-
-
-def test_read_bytes():
+def test_read_bytes() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 1](5))
+        f.write_bytes([5])
         _ = f.seek(0)
         var reader = FileReader(file_handle(f))
-        var buf = InlineArray[Byte, 1](fill=0)
+        var buf = Array[Byte, 1](fill=0)
         assert_equal(reader.read_bytes(buf), 1)
-        assert_equal_buffers(buf, InlineArray[Byte, 1](5))
+        assert_equal_buffers(buf, [5])
 
 
-def test_read_bytes_partial():
+def test_read_bytes_partial() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        f.write_bytes([1, 2, 3])
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
-        var buf = InlineArray[Byte, 3](fill=0)
+        var buf = Array[Byte, 3](fill=0)
         assert_equal(reader.read_bytes(buf), 2)
-        assert_equal_buffers(buf, InlineArray[Byte, 3](1, 2, 0))
+        assert_equal_buffers(buf, [1, 2, 0])
 
 
-def test_read_bytes_partial_leftovers():
+def test_read_bytes_partial_leftovers() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 4](1, 2, 3, 4))
+        f.write_bytes([1, 2, 3, 4])
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
 
-        var buf1 = InlineArray[Byte, 1](fill=0)
+        var buf1 = Array[Byte, 1](fill=0)
         assert_equal(reader.read_bytes(buf1), 1)
-        assert_equal_buffers(buf1, InlineArray[Byte, 1](1))
+        assert_equal_buffers(buf1, [1])
 
-        var buf2 = InlineArray[Byte, 3](fill=0)
+        var buf2 = Array[Byte, 3](fill=0)
         assert_equal(reader.read_bytes(buf2), 3)
-        assert_equal_buffers(buf2, InlineArray[Byte, 3](2, 3, 4))
+        assert_equal_buffers(buf2, [2, 3, 4])
 
 
-def test_read_bytes_eof():
+def test_read_bytes_eof() raises:
     with NamedTemporaryFile(mode="rw") as f:
         var reader = FileReader(file_handle(f))
 
-        var buf1 = InlineArray[Byte, 1](fill=0)
+        var buf1 = Array[Byte, 1](fill=0)
         assert_equal(reader.read_bytes(buf1), 0)
-        assert_equal_buffers(buf1, InlineArray[Byte, 1](0))
+        assert_equal_buffers(buf1, [0])
 
 
-def test_read_bytes_leftovers_eof():
+def test_read_bytes_leftovers_eof() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        f.write_bytes([1, 2, 3])
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
 
-        var buf1 = InlineArray[Byte, 1](fill=0)
+        var buf1 = Array[Byte, 1](fill=0)
         assert_equal(reader.read_bytes(buf1), 1)
-        assert_equal_buffers(buf1, InlineArray[Byte, 1](1))
+        assert_equal_buffers(buf1, [1])
 
-        var buf2 = InlineArray[Byte, 3](fill=0)
+        var buf2 = Array[Byte, 3](fill=0)
         assert_equal(reader.read_bytes(buf2), 2)
-        assert_equal_buffers(buf2, InlineArray[Byte, 3](2, 3, 0))
+        assert_equal_buffers(buf2, [2, 3, 0])
 
-        var buf3 = InlineArray[Byte, 1](fill=0)
+        var buf3 = Array[Byte, 1](fill=0)
         assert_equal(reader.read_bytes(buf3), 0)
-        assert_equal_buffers(buf3, InlineArray[Byte, 1](0))
+        assert_equal_buffers(buf3, [0])
 
 
-def test_read_bytes_exact():
+def test_read_bytes_exact() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 5](1, 2, 3, 4, 5))
+        f.write_bytes([1, 2, 3, 4, 5])
 
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
-        var buf1 = InlineArray[Byte, 1](fill=0)
+        var buf1 = Array[Byte, 1](fill=0)
         reader.read_bytes_exact(buf1)
-        assert_equal_buffers(buf1, InlineArray[Byte, 1](1))
+        assert_equal_buffers(buf1, [1])
 
         _ = f.seek(0)
         reader = FileReader(file_handle(f), buf_size=2)
-        var buf2 = InlineArray[Byte, 2](fill=0)
+        var buf2 = Array[Byte, 2](fill=0)
         reader.read_bytes_exact(buf2)
-        assert_equal_buffers(buf2, InlineArray[Byte, 2](1, 2))
+        assert_equal_buffers(buf2, [1, 2])
 
         _ = f.seek(0)
         reader = FileReader(file_handle(f), buf_size=2)
-        var buf3 = InlineArray[Byte, 3](fill=0)
+        var buf3 = Array[Byte, 3](fill=0)
         reader.read_bytes_exact(buf3)
-        assert_equal_buffers(buf3, InlineArray[Byte, 3](1, 2, 3))
+        assert_equal_buffers(buf3, [1, 2, 3])
 
         _ = f.seek(0)
         reader = FileReader(file_handle(f), buf_size=2)
-        var buf4 = InlineArray[Byte, 4](fill=0)
+        var buf4 = Array[Byte, 4](fill=0)
         reader.read_bytes_exact(buf4)
-        assert_equal_buffers(buf4, InlineArray[Byte, 4](1, 2, 3, 4))
+        assert_equal_buffers(buf4, [1, 2, 3, 4])
 
         _ = f.seek(0)
         reader = FileReader(file_handle(f), buf_size=2)
-        var buf5 = InlineArray[Byte, 5](fill=0)
+        var buf5 = Array[Byte, 5](fill=0)
         reader.read_bytes_exact(buf5)
-        assert_equal_buffers(buf5, InlineArray[Byte, 5](1, 2, 3, 4, 5))
+        assert_equal_buffers(buf5, [1, 2, 3, 4, 5])
 
         _ = f.seek(0)
         reader = FileReader(file_handle(f), buf_size=2)
-        var buf6 = InlineArray[Byte, 6](fill=0)
+        var buf6 = Array[Byte, 6](fill=0)
         with assert_raises():
             reader.read_bytes_exact(buf6)
-        assert_equal_buffers(buf6, InlineArray[Byte, 6](1, 2, 3, 4, 5, 0))
+        assert_equal_buffers(buf6, [1, 2, 3, 4, 5, 0])
 
 
-def test_read_scalar():
+def test_read_scalar() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 1](5))
+        f.write_bytes([5])
         _ = f.seek(0)
         var reader = FileReader(file_handle(f))
         assert_equal(reader.read_scalar[DType.uint8](), UInt8(5))
 
 
-def test_read_scalars():
+def test_read_scalars() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 4](5, 0, 42, 0))
+        f.write_bytes([5, 0, 42, 0])
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
         assert_equal(reader.read_scalar[DType.uint16](), UInt16(5))
         assert_equal(reader.read_scalar[DType.uint16](), UInt16(42))
 
 
-def test_read_scalars_leftover_copy():
+def test_read_scalars_leftover_copy() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 4](5, 42, 0, 7))
+        f.write_bytes([5, 42, 0, 7])
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
         assert_equal(reader.read_scalar[DType.uint8](), UInt8(5))
@@ -145,9 +142,9 @@ def test_read_scalars_leftover_copy():
         assert_equal(reader.read_scalar[DType.uint8](), UInt8(7))
 
 
-def test_skip_bytes():
+def test_skip_bytes() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 4](1, 2, 3, 4))
+        f.write_bytes([1, 2, 3, 4])
 
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
@@ -177,9 +174,9 @@ def test_skip_bytes():
             _ = reader.read_scalar[DType.uint8]()
 
 
-def test_skip_bytes_offset():
+def test_skip_bytes_offset() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 4](1, 2, 3, 4))
+        f.write_bytes([1, 2, 3, 4])
 
         _ = f.seek(0)
         var reader = FileReader(file_handle(f), buf_size=2)
@@ -208,9 +205,9 @@ def test_skip_bytes_offset():
             _ = reader.read_scalar[DType.uint8]()
 
 
-def test_skip_scalar():
+def test_skip_scalar() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        f.write_bytes([1, 2, 3])
 
         _ = f.seek(0)
         var reader = FileReader(file_handle(f))
@@ -218,9 +215,9 @@ def test_skip_scalar():
         assert_equal(reader.read_scalar[DType.uint8](), 2)
 
 
-def test_seek_to():
+def test_seek_to() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        f.write_bytes([1, 2, 3])
         var reader = FileReader(file_handle(f))
 
         reader.seek_to(0)
@@ -241,9 +238,9 @@ def test_seek_to():
             _ = reader.read_scalar[DType.uint8]()
 
 
-def test_seek_by():
+def test_seek_by() raises:
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        f.write_bytes([1, 2, 3])
         var reader = FileReader(file_handle(f))
 
         reader.seek_to(0)
@@ -290,10 +287,10 @@ def test_seek_by():
             reader.seek_by(-3)
 
 
-def test_offset():
+def test_offset() raises:
 
     with NamedTemporaryFile(mode="rw") as f:
-        f.write_bytes(InlineArray[Byte, 3](1, 2, 3))
+        f.write_bytes([1, 2, 3])
         var reader = FileReader(file_handle(f))
         _ = f.seek(0)
     
