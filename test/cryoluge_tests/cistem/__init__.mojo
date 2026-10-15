@@ -1,29 +1,10 @@
 
 from cryoluge.cistem import Parameter, ParameterType, Block
 
-
-struct ExtraParameters_DELETEME:
-    comptime im_ind = Parameter(20, "im_ind", ParameterType.int)
-    comptime p_ind = Parameter(15, "p_ind", ParameterType.int)
-    comptime t_ind = Parameter(35, "t_ind", ParameterType.int)
-    comptime r_ind = Parameter(70, "r_ind", ParameterType.int)
-    comptime f_ind = Parameter(55, "f_ind", ParameterType.int)
-    comptime fshift_x = Parameter(11, "fshift_x", ParameterType.float)
-    comptime fshift_y = Parameter(121, "fshift_y", ParameterType.float)
-
-    comptime _all = List[Parameter](
-        Self.im_ind,
-        Self.p_ind,
-        Self.t_ind,
-        Self.r_ind,
-        Self.f_ind,
-        Self.fshift_x,
-        Self.fshift_y
-    )
-
-    @staticmethod
-    def all() -> List[Parameter]:
-        return materialize[Self._all]()
+from . import cistem_reader
+from . import cistem_writer
+from . import blocked_reader
+from . import blocked_writer
 
 
 struct ExtraParameters:
@@ -53,7 +34,7 @@ struct ExtraParameters:
     comptime fshift_x = Parameter(11, "fshift_x", ParameterType.float)
     comptime fshift_y = Parameter(121, "fshift_y", ParameterType.float)
 
-    comptime _all = List[Parameter](
+    comptime _all = [
         Self.im_ind,
         Self.p_ind,
         Self.t_ind,
@@ -76,10 +57,10 @@ struct ExtraParameters:
         Self.t_tilt_axis,
         Self.fshift_x,
         Self.fshift_y
-    )
+    ]
 
     @staticmethod
-    def all() -> List[Parameter]:
+    def all() -> Array[Parameter,22]:
         return materialize[Self._all]()
 
 
@@ -123,13 +104,13 @@ struct Blocks:
     comptime particles = Block(15, "particles")
     comptime tilts = Block(35, "tilts")
 
-    comptime _all = List[Block](
+    comptime _all = [
         Self.particles,
         Self.tilts
-    )
+    ]
 
     @staticmethod
-    def all() -> List[Block]:
+    def all() -> Array[Block,2]:
         return materialize[Self._all]()
 
 

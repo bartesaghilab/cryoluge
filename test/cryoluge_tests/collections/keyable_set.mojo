@@ -1,10 +1,10 @@
 
-from testing import assert_equal, assert_true, assert_raises
+from std.testing import assert_equal, assert_true, assert_raises
 
 from cryoluge.collections import Keyable, KeyableSet
 
-
-comptime funcs = __functions_in_module()
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
 @fieldwise_init
@@ -17,22 +17,34 @@ struct Thing(Copyable, Movable, Keyable):
         return self.i
 
 
-def test_init():
+def test_init() raises:
 
     var set = KeyableSet[Thing](
         Thing(5),
         Thing(6)
     )
 
-    # TEMP: can't compile __len__() for KeyableSet,
-    #       probably due to a compiler bug?
-    #assert_equal(len(set), 2)
-    assert_equal(set[5].value()[].i, 5)
-    assert_equal(set[6].value()[].i, 6)
-    assert_true(set[7] is None)
+    assert_equal(len(set), 2)
+
+    assert_equal(set[5].i, 5)
+    assert_equal(set[6].i, 6)
+    with assert_raises():
+        _ = set[7]
 
 
-def test_duplicate():
+def test_get() raises:
+
+    var set = KeyableSet[Thing](
+        Thing(5),
+        Thing(6)
+    )
+
+    assert_equal(set.get(5).value()[].i, 5)
+    assert_equal(set.get(6).value()[].i, 6)
+    assert_true(set.get(7) is None)
+
+
+def test_duplicate() raises:
 
     with assert_raises():
         var _ = KeyableSet[Thing](

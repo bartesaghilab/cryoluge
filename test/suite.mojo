@@ -21,12 +21,19 @@ def main() raises:
     suite.add_module[cryoluge_tests.math.rand.tests]()
     suite.add_module[cryoluge_tests.math.box.tests]()
 
+    suite.add_module[cryoluge_tests.collections.keyable_set.tests]()
+
     suite.add_module[cryoluge_tests.io.binary_reader.tests]()
     suite.add_module[cryoluge_tests.io.binary_writer.tests]()
     suite.add_module[cryoluge_tests.io.bytes_reader.tests]()
     suite.add_module[cryoluge_tests.io.bytes_writer.tests]()
     suite.add_module[cryoluge_tests.io.file_reader.tests]()
     suite.add_module[cryoluge_tests.io.file_writer.tests]()
+
+    suite.add_module[cryoluge_tests.cistem.cistem_reader.tests]()
+    suite.add_module[cryoluge_tests.cistem.cistem_writer.tests]()
+    suite.add_module[cryoluge_tests.cistem.blocked_reader.tests]()
+    suite.add_module[cryoluge_tests.cistem.blocked_writer.tests]()
 
     # TEMP
     # try:
@@ -35,11 +42,6 @@ def main() raises:
 
         # suite._register_tests[cryoluge_tests.image.complex_image.funcs]()
         # suite._register_tests[cryoluge_tests.image.resolution_statistics.funcs]()
-
-        # suite._register_tests[cryoluge_tests.cistem.cistem_reader.funcs]()
-        # suite._register_tests[cryoluge_tests.cistem.cistem_writer.funcs]()
-        # suite._register_tests[cryoluge_tests.cistem.blocked_reader.funcs]()
-        # suite._register_tests[cryoluge_tests.cistem.blocked_writer.funcs]()
 
         # suite._register_tests[cryoluge_tests.fft.coords.funcs]()
         # suite._register_tests[cryoluge_tests.fft.fft.funcs]()

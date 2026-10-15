@@ -1,15 +1,17 @@
 
-from testing import assert_equal
+from std.testing import assert_equal
 
 from cryoluge.lang import LexicalScope
 from cryoluge.io import ByteBuffer, BytesWriter, BytesReader, FileReader
-from cryoluge.cistem import BlockedReader, BlockedWriter, CistemParameters
+from cryoluge.cistem import BlockedReader, BlockedWriter, Block, Parameter, CistemParameters
+
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
+
+from . import ExtraParameters
 
 
-comptime funcs = __functions_in_module()
-
-
-def test_write_blocks():
+def test_write_blocks() raises:
 
     comptime block_first = Block(5, "First")
     comptime cols_first = [
@@ -36,7 +38,7 @@ def test_write_blocks():
             var cistem_writer = blocked_writer.write_block(
                 block_first,
                 num_lines = 2,
-                cols = materialize[cols_first]()
+                parameters = materialize[cols_first]()
             )
 
             cistem_writer.set_parameter[CistemParameters.position_in_stack](5)
@@ -53,7 +55,7 @@ def test_write_blocks():
             var cistem_writer = blocked_writer.write_block(
                 block_second,
                 num_lines = 3,
-                cols = materialize[cols_second]()
+                parameters = materialize[cols_second]()
             )
 
             cistem_writer.set_parameter[ExtraParameters.t_ind](5)
@@ -74,7 +76,7 @@ def test_write_blocks():
         var blocked_reader = BlockedReader(
             reader,
             blocks = [block_first, block_second],
-            parameters = materialize[cols_first]() + materialize[cols_second]()
+            parameters = List[Parameter](materialize[cols_first]()) + List[Parameter](materialize[cols_second]())
         )
 
         with LexicalScope():

@@ -1,8 +1,8 @@
 
-from memory import memcpy
-
-from cryoluge.io import BinaryWriter, BytesWriter
+from cryoluge.io import ByteBuffer, BinaryWriter, BytesWriter, BinaryReader, Endian
 from cryoluge.lang import intcast_i32
+from cryoluge.cistem.parameters import Parameter, CistemParameters
+from cryoluge.cistem.reader import CistemReader
 
 
 comptime endian = Endian.Little
@@ -12,20 +12,32 @@ struct CistemWriter[
     W: BinaryWriter,
     origin: Origin[mut=True]
 ](Movable):
-    var writer: Pointer[W, origin]
+    var writer: Pointer[Self.W, Self.origin]
     var cols: List[Parameter]
     var _col_offsets: Dict[Int64,Int]
     var _line_buf: ByteBuffer
 
     def __init__(
         out self,
-        ref [origin] writer: W,
+        ref [Self.origin] writer: Self.W,
         *,
-        num_lines: Int,
-        var cols: List[Parameter] = CistemParameters.all()
+        num_lines: Int
     ) raises:
+        self = Self(writer, parameters=CistemParameters.all(), num_lines=num_lines)
+
+    def __init__(
+        out self,
+        ref [Self.origin] writer: Self.W,
+        *,
+        parameters: Some[Iterable],
+        num_lines: Int
+    ) raises:
+
         self.writer = Pointer(to=writer)
-        self.cols = cols^
+
+        self.cols = List[Parameter]()
+        for var p in parameters:
+            self.cols.append(rebind_var[Parameter](p^))
 
         # check for variable-width columns, which aren't supported here
         var variable_columns = [c for c in self.cols if c.type.dtype is None]
@@ -74,36 +86,28 @@ struct CistemWriter[
         if len(src) != len(dst):
             raise Error("Can't copy line buffer, sizes are different: ", len(src), " -> ", len(dst))
         
-        memcpy(
-            src=src.unsafe_ptr(),
-            dest=dst.unsafe_ptr(),
-            count=len(dst)
-        )
+        dst.copy_from(src)
 
     def set_parameter[
-        param: Parameter,
-        dtype: DType
+        dtype: DType,
+        //,
+        param: Parameter
     ](
         mut self,
         v: Scalar[dtype]
     ) raises:
 
-        # lookup the parameter offset, if any
-        var offset = self._col_offsets.get(param.id)
-        if offset is None:
-            raise Error(String("No line offset for parameter: ", param))
-
-        # mojo's compiler does type checking *before* function instantiation,
-        # which means it's not "smart enough" to know that the parameter's dtype
-        # matches the given dtype at type-checking time,
-        # so explicitly check that the types match during function instantiation
-        constrained[
-            param.type.dtype.value() == dtype,
+        # constraints can't see to handle this check, so just make a compile-time assert instead
+        comptime assert param.type.dtype.value() == dtype,
             String(
                 "Expected parameter type with dtype=", dtype,
                 ", but ", param.type.name, " has dtype=", param.type.dtype.value()
             )
-        ]()
+
+        # lookup the parameter offset, if any
+        var offset = self._col_offsets.get(param.id)
+        if offset is None:
+            raise Error(String("No line offset for parameter: ", param))
 
         var writer = BytesWriter(self._line_buf.span(), pos=offset.value())
         writer.write_scalar[dtype, endian](v)

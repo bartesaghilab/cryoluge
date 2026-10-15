@@ -1,7 +1,9 @@
 
-from cryoluge.lang import rebind_scalar
+from std.collections import Set
+
 from cryoluge.collections import KeyableSet
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian
+from cryoluge.cistem.parameters import Parameter, ParameterType, CistemParameters
 
 
 comptime endian = Endian.Little
@@ -11,44 +13,36 @@ struct CistemReader[
     R: BinaryReader,
     origin: Origin[mut=True]
 ](Movable):
-    var reader: Pointer[R, origin]
-    var parameters: KeyableSet[Parameter]
+    var reader: Pointer[Self.R, Self.origin]
+    var _parameters: KeyableSet[Parameter]
     var _num_lines: Int
     var _cols: List[Parameter]
-    var _first_line_offset: UInt64
+    var _first_line_offset: Int
     var _col_offsets: Dict[Int64,Int]
     var _line_buf: ByteBuffer
     var _next_line: Int
 
     def __init__(
         out self,
-        ref [origin] reader: R
+        ref [Self.origin] reader: Self.R
     ) raises:
         self = Self(reader, parameters=CistemParameters.all())
 
-
-    # TODO: can we use Iterable trait here?
     def __init__(
         out self,
-        ref [origin] reader: R,
+        ref [Self.origin] reader: Self.R,
         *,
-        parameters: List[Parameter]
+        parameters: Some[Iterable]
     ) raises:
-        self = Self(reader, KeyableSet[Parameter](parameters))
 
-    def __init__(
-        out self,
-        ref [origin] reader: R,
-        var parameters: KeyableSet[Parameter]
-    ) raises:
         self.reader = Pointer(to=reader)
-        self.parameters = parameters^
+        self._parameters = KeyableSet[Parameter](parameters)
 
         # read the number of columns and lines
         var num_cols = self.reader[].read_i32[endian]()
         var num_lines = self.reader[].read_i32[endian]()
         if num_lines < 0:
-            raise Error(String("Invalid number of lines: ", num_lines))
+            raise Error(t"Invalid number of lines: {num_lines}")
         self._num_lines = Int(num_lines)
 
         # read the column definitions
@@ -62,17 +56,17 @@ struct CistemReader[
             # try to lookup the type
             var _type = ParameterType.get(type_id)
             if _type is None:
-                raise Error(String("Column index=", coli, ",id=", id, " has unrecognized type_id=", type_id)) 
+                raise Error(t"Column index={coli},id={id} has unrecognized type_id={type_id}") 
             var type = _type.value()
 
             # try to look up the parameter
-            param = self.parameters[id]
+            var param = self._parameters.get(id)
             if param is not None:
-                var p = param.value()[]
+                ref p = param.value()[]
 
                 # known parameter: check the type
-                if param.value()[].type != type:
-                    raise Error(String("Parameter '", p.name, "' expects type ", p.type, ", but file has type ", type))
+                if p.type != type:
+                    raise Error(t"Parameter '{p.name}' expects type {p.type}, but file has type {type}")
 
                 self._cols.append(p)
 
@@ -101,7 +95,7 @@ struct CistemReader[
         return self._num_lines
 
     def line_size(self) -> Int:
-        return self._line_buf.size()
+        return self._line_buf.length()
 
     def cols(self) -> ref [origin_of(self._cols)] List[Parameter]:
         return self._cols
@@ -110,7 +104,7 @@ struct CistemReader[
         return self._col_offsets.get(param.id) is not None
 
     def seek(mut self, linei: Int) raises:
-        self.reader[].seek_to(self._first_line_offset + UInt64(linei*self._line_buf.size()))
+        self.reader[].seek_to(self._first_line_offset + linei*self._line_buf.length())
         self._next_line = linei
 
     def next_line(self) -> Int:
@@ -144,13 +138,11 @@ struct CistemReader[
         # which means it's not "smart enough" to know that the parameter's dtype
         # matches the given dtype at type-checking time,
         # so explicitly check that the types match during function instantiation
-        constrained[
-            param.type.dtype.value() == dtype,
+        comptime assert param.type.dtype.value() == dtype,
             String(
                 "Expected parameter type with dtype=", dtype,
                 ", but ", param.type.name, " has dtype=", param.type.dtype.value()
             )
-        ]()
         v = reader.read_scalar[dtype, endian]()
 
     def _get_parameter[
@@ -158,12 +150,9 @@ struct CistemReader[
         type: ParameterType,
         dtype: DType
     ](self, out v: Scalar[dtype]) raises:
-        constrained[
-            param.type == type,
+        comptime assert param.type == type,
             String("Expected parameter with ", type.name, " type, but ", param.name, " has ", param.type.name, " type")
-        ]()
-        var param_value = self.get_parameter[param, dtype]()
-        v = rebind_scalar[dtype](param_value)
+        v = self.get_parameter[param, dtype]()
 
     # tragically, mojo's compiler isn't "smart enough" to use parametric return types
     # with the ergonomics you'd expect
@@ -197,21 +186,19 @@ struct CistemReader[
         # lookup the parameter offset, if any
         var offset = self._col_offsets.get(param.id)
         if offset is None:
-            raise Error(String("No line offset for parameter: ", param))
+            raise Error(t"No line offset for parameter: {param}")
         
         var reader = BytesReader(self._line_buf.span(), pos=offset.value())
         # TODO: any way to store the reader in the struct?
 
-        @parameter
-        for type in ParameterType.all:
-            @parameter
-            if type.dtype is not None:
+        comptime for type in ParameterType.all:
+            comptime if type.dtype is not None:
                 if type == param.type:
                     var v = reader.read_scalar[type.dtype.value(), endian]()
                     return String(v)
 
         # parameter doesn't have a dtype
-        raise Error(String("Failed to match scalar type to parameter: ", param))
+        raise Error(t"Failed to match scalar type to parameter: {param}")
 
     def line_string(self) raises -> String:
         var out = List[String]()

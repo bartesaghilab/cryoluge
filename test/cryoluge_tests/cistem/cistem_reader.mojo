@@ -1,15 +1,16 @@
 
-from testing import assert_equal
+from std.testing import assert_equal
 
-from cryoluge.lang import rebind_scalar
 from cryoluge.io import FileReader
 from cryoluge.cistem import CistemReader, CistemParameters, Parameter, ParameterType
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
+from . import TEST_FILE, ExtraParameters
 
 
-def test_default_parameters():
+def test_default_parameters() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader)
@@ -25,7 +26,7 @@ def test_default_parameters():
         assert_equal(cistem_reader.cols()[31], Parameter.unknown(121, ParameterType.float))
 
 
-def test_some_default_parameters():
+def test_some_default_parameters() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader, parameters=[
@@ -45,7 +46,7 @@ def test_some_default_parameters():
         assert_equal(cistem_reader.cols()[31], Parameter.unknown(121, ParameterType.float))
 
 
-def test_extended_parameters():
+def test_extended_parameters() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader, parameters=ExtraParameters.all())
@@ -57,7 +58,7 @@ def test_extended_parameters():
         assert_equal(cistem_reader.cols()[31], ExtraParameters.fshift_y)
 
 
-def test_has_parameter():
+def test_has_parameter() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader, parameters=[
@@ -80,7 +81,7 @@ def test_has_parameter():
         assert_equal(cistem_reader.has_parameter[rando](), False)
 
 
-def test_get_parameter_first_line():
+def test_get_parameter_first_line() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader)
@@ -95,7 +96,7 @@ def test_get_parameter_first_line():
         assert_equal(cistem_reader.get_parameter[CistemParameters.original_y_position](), 260.0)
 
 
-def test_get_parameter_into_string():
+def test_get_parameter_into_string() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader)
@@ -106,7 +107,7 @@ def test_get_parameter_into_string():
         assert_equal(cistem_reader.get_parameter_into_string(CistemParameters.psi), '89.76255')
 
 
-def test_read_a_few_lines():
+def test_read_a_few_lines() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader)
@@ -130,7 +131,7 @@ def test_read_a_few_lines():
         assert_equal(cistem_reader.eof(), False)
 
 
-def test_seek():
+def test_seek() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader)
@@ -152,7 +153,7 @@ def test_seek():
         assert_equal(cistem_reader.eof(), True)
 
 
-def test_get_parameter_types():
+def test_get_parameter_types() raises:
     with open(TEST_FILE, "r") as f:
         var file_reader = FileReader(f)
         var cistem_reader = CistemReader(file_reader)
@@ -165,7 +166,7 @@ def test_get_parameter_types():
         assert_equal(p1, 1)
 
         # but you can explicitly rebind it
-        var u1: UInt32 = rebind_scalar[DType.uint32](p1)
+        var u1: UInt32 = rebind[Scalar[.uint32]](p1)
         assert_equal(u1, 1)
 
         # or you can supply the concrete dtype

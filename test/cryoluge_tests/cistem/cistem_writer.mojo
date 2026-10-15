@@ -1,15 +1,17 @@
 
-from testing import assert_equal
+from std.testing import assert_equal
 
 from cryoluge.lang import LexicalScope
 from cryoluge.io import ByteBuffer, BytesWriter, BytesReader
 from cryoluge.cistem import CistemWriter, CistemReader, CistemParameters
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
+from . import ExtraParameters
 
 
-def test_write_lines():
+def test_write_lines() raises:
 
     var params = [
         CistemParameters.position_in_stack,  # uint => UInt32 => 4
@@ -23,13 +25,15 @@ def test_write_lines():
 
     with LexicalScope():
         var writer = BytesWriter(buf.span())
-        var cistem_writer = CistemWriter(writer, num_lines=2, cols=params.copy())
+        var cistem_writer = CistemWriter(writer, num_lines=2, parameters=params.copy())
 
+        # write with literals
         cistem_writer.set_parameter[CistemParameters.position_in_stack](5)
         cistem_writer.set_parameter[CistemParameters.psi](4.2)
         cistem_writer.set_parameter[ExtraParameters.p_ind](9)
         cistem_writer.write_line()
 
+        # write with scalars
         cistem_writer.set_parameter[CistemParameters.position_in_stack](UInt32(6))
         cistem_writer.set_parameter[CistemParameters.psi](Float32(4.3))
         cistem_writer.set_parameter[ExtraParameters.p_ind](Int32(7))

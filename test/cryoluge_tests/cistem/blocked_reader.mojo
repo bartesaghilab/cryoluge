@@ -1,14 +1,16 @@
 
-from testing import assert_equal
+from std.testing import assert_equal
 
 from cryoluge.io import FileReader
 from cryoluge.cistem import BlockedReader
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
+from . import TEST_FILE_EXT, Blocks, ExtraParameters
 
 
-def test_blocks():
+def test_blocks() raises:
     with open(TEST_FILE_EXT, "r") as f:
         var file_reader = FileReader(f)
         var blocked_reader = BlockedReader(file_reader)
@@ -19,7 +21,7 @@ def test_blocks():
         assert_equal(blocked_reader.blocks()[1], Blocks.tilts)
 
 
-def test_cols_and_lines():
+def test_cols_and_lines() raises:
     with open(TEST_FILE_EXT, "r") as f:
         var file_reader = FileReader(f)
         var blocked_reader = BlockedReader(

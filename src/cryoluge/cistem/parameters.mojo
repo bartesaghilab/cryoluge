@@ -1,11 +1,12 @@
 
-from sys import size_of
+from std.sys import size_of
+from std.hashlib import Hasher
 
 from cryoluge.collections import Keyable
 
 
 @fieldwise_init
-struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, Equatable, Keyable):
+struct Parameter(ImplicitlyCopyable, Movable, Writable, Equatable, Hashable, Keyable):
     var id: Int64
     var name: StaticString
     var type: ParameterType
@@ -17,11 +18,11 @@ struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, Equatable, K
     def write_to[W: Writer](self, mut writer: W):
         writer.write(self.name, "(", self.id, ",", self.type, ")")
 
-    def __str__(self) -> String:
-        return String.write(self)
-
     def __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
+
+    def __hash__(self, mut hasher: Some[Hasher]):
+        self.id.__hash__(hasher)
 
     comptime Key = Int64
     def key(self) -> Self.Key:
@@ -29,7 +30,7 @@ struct Parameter(ImplicitlyCopyable, Movable, Writable, Stringable, Equatable, K
 
 
 @fieldwise_init
-struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equatable):
+struct ParameterType(ImplicitlyCopyable, Movable, Writable, Equatable):
     var id: UInt8
     var name: StaticString
     var dtype: Optional[DType]
@@ -45,7 +46,7 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equatabl
     comptime vary = Self(8, "vary")
     comptime uint = Self.of[DType.uint32](9, "uint")
 
-    comptime all = List[Self](
+    comptime all = [
         Self.text,
         Self.int,
         Self.float,
@@ -55,7 +56,7 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equatabl
         Self.byte,
         Self.vary,
         Self.uint
-    )
+    ]
 
     def __init__(out self, id: UInt8, name: StaticString):
         self = Self(id, name, None, None)
@@ -66,17 +67,13 @@ struct ParameterType(ImplicitlyCopyable, Movable, Writable, Stringable, Equatabl
 
     @staticmethod
     def get(id: UInt8) -> Optional[Self]:
-        @parameter
-        for t in Self.all:
+        comptime for t in Self.all:
             if t.id == id:
                 return t
         return None
 
     def write_to[W: Writer](self, mut writer: W):
         writer.write(self.name)
-
-    def __str__(self) -> String:
-        return String.write(self)
 
     def __eq__(self: Self, other: Self) -> Bool:
         return self.id == other.id
@@ -120,7 +117,7 @@ struct CistemParameters:
     comptime original_x_position = Parameter(1 << 33, "original_x_position", ParameterType.float)
     comptime original_y_position = Parameter(1 << 34, "original_y_position", ParameterType.float)
 
-    comptime _all = List[Parameter](
+    comptime _all = [
         Self.position_in_stack,
         Self.image_is_active,
         Self.psi,
@@ -156,8 +153,8 @@ struct CistemParameters:
         Self.assigned_subset,
         Self.original_x_position,
         Self.original_y_position
-    )
+    ]
 
     @staticmethod
-    def all() -> List[Parameter]:
+    def all() -> Array[Parameter,35]:
         return materialize[Self._all]()

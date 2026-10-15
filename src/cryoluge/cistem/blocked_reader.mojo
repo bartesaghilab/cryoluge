@@ -1,5 +1,9 @@
 
-from cryoluge.collections import MovableList, Keyable
+from cryoluge.collections import KeyableSet
+from cryoluge.io import BinaryReader, Endian
+from cryoluge.cistem.parameters import Parameter, CistemParameters
+from cryoluge.cistem.blocks import Block
+from cryoluge.cistem.reader import CistemReader
 
 
 comptime endian = Endian.Little
@@ -9,41 +13,36 @@ struct BlockedReader[
     R: BinaryReader,
     origin: Origin[mut=True]
 ](Movable):
-    var _reader: Pointer[R, origin]
+    var _reader: Pointer[Self.R, Self.origin]
     var _blocks: KeyableSet[Block]
     var _parameters: KeyableSet[Parameter]
     var _blocks_present: List[Block]
     var _block_reader_indices: Dict[Block.Key, Int]
-    var _block_readers: MovableList[CistemReader[R, origin]]
+    var _block_readers: List[Self.CistemReader]
+
+    comptime CistemReader = CistemReader[Self.R, Self.origin]
 
     def __init__(
         out self,
-        ref [origin] reader: R
+        ref [Self.origin] reader: Self.R,
     ) raises:
-        self = Self(reader, blocks=[], parameters=CistemParameters.all())
+        self = Self(reader, blocks=List[Block](), parameters=CistemParameters.all())
 
-    # TODO: can we use Iterable trait here?
     def __init__(
         out self,
-        ref [origin] reader: R,
+        ref [Self.origin] reader: Self.R,
         *,
-        blocks: List[Block],
-        parameters: List[Parameter]
+        blocks: Some[Iterable],
+        parameters: Some[Iterable]
     ) raises:
-        self = Self(reader, KeyableSet[Block](blocks), KeyableSet[Parameter](parameters))
 
-    def __init__(
-        out self,
-        ref [origin] reader: R,
-        var blocks: KeyableSet[Block],
-        var parameters: KeyableSet[Parameter]
-    ) raises:
         self._reader = Pointer(to=reader)
-        self._blocks = blocks^
-        self._parameters = parameters^
+        self._blocks = KeyableSet[Block](blocks)
+        self._parameters = KeyableSet[Parameter](parameters)
+
         self._blocks_present = []
         self._block_reader_indices = {}
-        self._block_readers = MovableList[CistemReader[R, origin]]()
+        self._block_readers = List[Self.CistemReader]()
 
         while True:
 
@@ -56,15 +55,14 @@ struct BlockedReader[
 
             # look up the block
             var block: Block
-            var maybe_block = self._blocks[block_id]
-            if maybe_block is not None:
-                block = maybe_block.value()[]
-            else:
+            try:
+                block = self._blocks[block_id]
+            except KeyError:
                 block = Block.unknown(block_id)
             self._blocks_present.append(block)
 
             # read the cistem metadata (but not the lines) from the block
-            var block_reader = CistemReader(self._reader[], self._parameters.copy())
+            var block_reader = CistemReader(self._reader[], parameters=self._parameters.values())
 
             # skip to the end of the block, so we can read the next one
             block_reader.seek(block_reader.num_lines())
@@ -76,7 +74,7 @@ struct BlockedReader[
     def blocks(ref self) -> ref [origin_of(self._blocks_present)] List[Block]:
         return self._blocks_present
 
-    def seek(mut self, block: Block) raises -> ref [self._block_readers] CistemReader[R, origin]:
+    def seek(mut self, block: Block) raises -> ref [self._block_readers[0]] Self.CistemReader:
 
         # lookup the block
         var maybe_i = self._block_reader_indices.get(block.id)
