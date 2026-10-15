@@ -22,6 +22,7 @@ struct MeanVariance[dim: Int, dtype: DType](
         self.variance += v**2
     
     def normalize(mut self, count: Int):
-        self.mean /= count
-        self.variance /= count
+        var count_dt = Scalar[Self.dtype](count)
+        self.mean /= count_dt
+        self.variance /= count_dt
         self.variance -= self.mean**2

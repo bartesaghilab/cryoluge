@@ -319,10 +319,6 @@ struct Vec[
         result = self + Self(fill=other)
 
     @inline(.always)
-    def __add__(self, other: Int, out result: Self):
-        result = self + Self.V(other)
-
-    @inline(.always)
     def __iadd__(mut self, other: Self):
         comptime for d in range(Self.dim):
             self[d] += other[d]
@@ -330,10 +326,6 @@ struct Vec[
     @inline(.always)
     def __iadd__(mut self, other: Self.V):
         self += Self(fill=other)
-
-    @inline(.always)
-    def __iadd__(mut self, other: Int):
-        self += Self.V(other)
 
     @inline(.always)
     def __sub__(self, other: Self, out result: Self):
@@ -346,10 +338,6 @@ struct Vec[
         result = self - Self(fill=other)
 
     @inline(.always)
-    def __sub__(self, other: Int, out result: Self):
-        result = self - Self.V(other)
-
-    @inline(.always)
     def __isub__(mut self: Self, other: Self):
         comptime for d in range(Self.dim):
             self[d] -= other[d]
@@ -357,10 +345,6 @@ struct Vec[
     @inline(.always)
     def __isub__(mut self: Self, other: Self.V):
         self -= Self(fill=other)
-
-    @inline(.always)
-    def __isub__(mut self: Self, other: Int):
-        self -= Self.V(other)
 
     @inline(.always)
     def __mul__(self, other: Self, out result: Self):
@@ -373,10 +357,6 @@ struct Vec[
         result = self * Self(fill=other)
 
     @inline(.always)
-    def __mul__(self: Self, other: Int, out result: Self):
-        result = self * Self.V(other)
-
-    @inline(.always)
     def __imul__(mut self: Self, other: Self):
         comptime for d in range(Self.dim):
             self[d] *= other[d]
@@ -384,10 +364,6 @@ struct Vec[
     @inline(.always)
     def __imul__(mut self: Self, other: Self.V):
         self *= Self(fill=other)
-
-    @inline(.always)
-    def __imul__(mut self: Self, other: Int):
-        self *= Self.V(other)
 
     @inline(.always)
     def __floordiv__(self: Self, other: Self, out result: Self):
@@ -400,10 +376,6 @@ struct Vec[
         result = self // Self(fill=other)
 
     @inline(.always)
-    def __floordiv__(self: Self, other: Int, out result: Self):
-        result = self // Self.V(other)
-
-    @inline(.always)
     def __ifloordiv__(mut self: Self, other: Self):
         comptime for d in range(Self.dim):
             self[d] //= other[d]
@@ -411,10 +383,6 @@ struct Vec[
     @inline(.always)
     def __ifloordiv__(mut self: Self, other: Self.V):
         self //= Self(fill=other)
-
-    @inline(.always)
-    def __ifloordiv__(mut self: Self, other: Int):
-        self //= Self.V(other)
 
     @inline(.always)
     def __truediv__(self, other: Self, out result: Self):
@@ -427,10 +395,6 @@ struct Vec[
         result = self / Self(fill=other)
 
     @inline(.always)
-    def __truediv__(self, other: Int, out result: Self):
-        result = self / Self.V(other)
-
-    @inline(.always)
     def __itruediv__(mut self, other: Self):
         comptime for d in range(Self.dim):
             self[d] /= other[d]
@@ -438,10 +402,6 @@ struct Vec[
     @inline(.always)
     def __itruediv__(mut self, other: Self.V):
         self /= Self(fill=other)
-
-    @inline(.always)
-    def __itruediv__(mut self, other: Int):
-        self /= Self.V(other)
 
     @inline(.always)
     def __pow__(self: Self, other: Self.V, out result: Self):
