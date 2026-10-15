@@ -55,10 +55,11 @@ struct Matrix[
     ):
         """Constructs a matrix from a list literal in row-major order."""
         comptime assert __literal_size__ == Self.num_elements,
-            t"""
-            Expected Array with {Self.num_elements} element(s) for {Self.rows}x{Self.cols} Matrix,
-            but got {__literal_size__} instead.
-            """
+            String(
+                "Expected Array with ", Self.num_elements, " element(s)",
+                " for ", Self.rows, "x", Self.cols, " Matrix,"
+                ", but got ", __literal_size__, " instead."
+            )
 
         self = Self(uninitialized=True)
         comptime for i in range(__literal_size__):
@@ -67,7 +68,7 @@ struct Matrix[
     @staticmethod
     def _index[row: Int, col: Int]() -> Int:
         comptime assert row >= 0 and row < Self.rows and col >= 0 and col < Self.cols,
-            t"Indices ({row},{col}) out of range [0,{Self.rows})x[0,{Self.cols})"
+            String("Indices (", row, ",", col, ") out of range [0,", Self.rows, ")x[0,", Self.cols, ")")
         return row*Self.cols + col
 
     def _index(self, row: Int, col: Int) -> Int:
@@ -270,7 +271,7 @@ struct Matrix[
 
         # just in case ...
         comptime assert Self.rows == Self.cols,
-            t"Can only transpose a square matrix in place, not {Self.rows}x{Self.cols}"
+            String("Can only transpose a square matrix in place, not ", Self.rows, "x", Self.cols)
 
         comptime for r in range(Self.rows):
             comptime for c in range(r):
@@ -314,7 +315,7 @@ struct Matrix[
         """Multiply a square matrix and a vector (or vectors)."""
 
         comptime assert Self.rows == dim and Self.cols == dim,
-            t"Matrix size ({Self.rows}x{Self.cols}) doesn't match vector size ({dim})"
+            String("Matrix size (", Self.rows, "x", Self.cols, ") doesn't match vector size (", dim, ")")
 
         result = Vec[dim, Self.dtype,vec_slen](uninitialized=True)
         comptime for d in range(dim):
@@ -333,7 +334,7 @@ struct Matrix[
         """Multiply a square matrix (or matrices) and a vector (or vectors)."""
 
         comptime assert Self.rows == dim and Self.cols == dim,
-            t"Matrix size ({Self.rows}x{Self.cols}) doesn't match vector size ({dim})"
+            String("Matrix size (", Self.rows, "x", Self.cols, ") doesn't match vector size (", dim, ")")
 
         result = Vec[dim,Self.dtype,Self.slen](uninitialized=True)
         comptime for d in range(dim):
@@ -371,7 +372,7 @@ struct Matrix[
         """Multiply the transpose of a square matrix and a vector (or vectors)."""
 
         comptime assert Self.rows == dim and Self.cols == dim,
-            t"Matrix size ({Self.rows}x{Self.cols}) doesn't match vector size ({dim})"
+            String("Matrix size (", Self.rows, "x", Self.cols, ") doesn't match vector size (", dim, ")")
 
         result = Vec[dim,Self.dtype,vec_slen](uninitialized=True)
         comptime for d in range(dim):
@@ -390,7 +391,7 @@ struct Matrix[
         """Multiply the transpose of a square matrix (or matrices) and a vector (or vectors)."""
 
         comptime assert Self.rows == dim and Self.cols == dim,
-            t"Matrix size ({Self.rows}x{Self.cols}) doesn't match vector size ({dim})"
+            String("Matrix size (", Self.rows, "x", Self.cols, ") doesn't match vector size (", dim, ")")
 
         result = Vec[dim,Self.dtype,Self.slen](uninitialized=True)
         comptime for d in range(dim):

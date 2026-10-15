@@ -30,7 +30,10 @@ struct KeyableSet[V: Keyable & Copyable & Deinitable](
         # constraints can't quite seem to handle this yet, so use a comptime assert
         comptime iter_elem = I.IteratorType[origin_of(values)].Element
         comptime assert iter_elem == Self.V,
-            t"Expects iterable with element type: {reflect[Self.V].name()}, instead got: {reflect[iter_elem].name()}"
+            String(
+                "Expects iterable with element type: ", reflect[Self.V].name(),
+                ", instead got: ", reflect[iter_elem].name()
+            )
 
         self = Self()
         for var val in values:

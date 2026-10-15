@@ -49,7 +49,7 @@ struct Vec[
         __list_literal__: NoneType = None,
     ):
         comptime assert __literal_size__ == Self.dim,
-            t"Expected Array with {Self.dim} element(s) but got {__literal_size__} instead."
+            String("Expected Array with ", Self.dim, " element(s) but got ", __literal_size__, " instead.")
 
         self = Self(uninitialized=True)
         comptime for i in range(__literal_size__):
@@ -59,7 +59,7 @@ struct Vec[
     @inline(.always)
     def expect_num_arguments[count: Int]():
         comptime assert Self.dim == count,
-            t"Expected {Self.dim} argument(s), but got {count} instead"
+            String("Expected ", Self.dim, " argument(s), but got ", count, " instead")
 
     @inline(.always)
     def __init__(out self, *, x: Self.V):
@@ -93,7 +93,7 @@ struct Vec[
     @inline(.always)
     def expect_at_least_dim[d: Int]():
         comptime assert d <= Self.dim,
-            t"Expected dimension of {d} or more, but dimension was {Self.dim} instead"
+            String("Expected dimension of ", d, " or more, but dimension was ", Self.dim, " instead")
 
     @inline(.always)
     def x(ref self) -> ref [self._values] Self.V:
@@ -199,10 +199,10 @@ struct Vec[
         out result: Self.WithDim[higher_dim]
     ) where higher_dim > 0 and diff_dim > 0:
         comptime assert higher_dim > Self.dim,
-            t"Higher dimension {higher_dim} must be greater than Vec dimension {Self.dim}"
+            String("Higher dimension ", higher_dim, " must be greater than Vec dimension ", Self.dim)
         comptime exp_diff_dim = higher_dim - Self.dim
         comptime assert diff_dim == exp_diff_dim,
-            t"Lifting dimension {diff_dim} must be {exp_diff_dim}"
+            String("Lifting dimension ", diff_dim, " must be ", exp_diff_dim)
 
         result = Self.WithDim[higher_dim](uninitialized=True)
         comptime for d in range(Self.dim):

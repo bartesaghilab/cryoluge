@@ -9,4 +9,4 @@ def unimplemented_dimension[dim: Int]() -> Never:
 
 def expect_at_least_dim[obs: Int, exp: Int]():
     comptime assert obs >= exp,
-        t"Expected dimension at least {exp}, but got dimension {obs} instead"
+        String("Expected dimension at least ", exp, ", but got dimension ", obs, " instead")
