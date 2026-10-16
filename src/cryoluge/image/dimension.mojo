@@ -1,97 +1,107 @@
 
-from os import abort
-from sys.info import size_of
-from complex import ComplexFloat32
-from memory import bitcast, memcpy
+from std.sys.info import size_of
+from std.memory import bitcast
 
-from cryoluge.lang import debug_assert_with_stack
-from cryoluge.math import Vec, unrecognized_dimension, expect_at_least_rank
-from cryoluge.math.error import err, err_rel, err_abs, is_err_small, ErrFn
-from cryoluge.io import FileReader, Endian, ByteBuffer
+from cryoluge.math import Vec
+from cryoluge.math.dimension import unimplemented_dimension, expect_at_least_dim
+from cryoluge.io import ByteBuffer, unsafe_span_bitcast
 
 
 struct DimensionalBuffer[
     dim: Int,
-    T: Copyable & Movable
+    T: Copyable & Deinitable
 ](
     Copyable,
     Movable
 ):
-    var _sizes: Self.Vec[Int]
-    var _strides: Self.Vec[Int]
+    var _sizes: Self.Vec[.int]
+    var _strides: Self.Vec[.int]
     """the element strides, not the byte strides"""
     var _buf: ByteBuffer
 
-    comptime Vec = Vec[dim,_]
-    comptime _elem_size = size_of[T]()
+    comptime Vec = Vec[Self.dim,_]
+    comptime _elem_size = size_of[Self.T]()
 
-    def __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
+    def __init__(out self, sizes: Self.Vec[.int], *, alignment: Optional[Int] = None):
         """WARNING: produces un-initialized memory."""
         self._sizes = sizes.copy()
-        @parameter
-        if dim == 1:
+        comptime if Self.dim == 1:
             var sx = self._sizes.x()
-            self._strides = Self.Vec[Int](x=1)
+            self._strides = Self.Vec[.int](x=1)
             self._buf = ByteBuffer(sx*Self._elem_size, alignment=alignment)
-        elif dim == 2:
+        elif Self.dim == 2:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
-            self._strides = Self.Vec[Int](x=1, y=sx)
+            self._strides = Self.Vec[.int](x=1, y=sx)
             self._buf = ByteBuffer(sx*sy*Self._elem_size, alignment=alignment)
-        elif dim == 3:
+        elif Self.dim == 3:
             var sx = self._sizes.x()
             var sy = self._sizes.y()
             var sz = self._sizes.z()
-            self._strides = Self.Vec[Int](x=1, y=sx, z=sx*sy)
+            self._strides = Self.Vec[.int](x=1, y=sx, z=sx*sy)
             self._buf = ByteBuffer(sx*sy*sz*Self._elem_size, alignment=alignment)
         else:
-            return unrecognized_dimension[dim,Self]()
+            unimplemented_dimension[Self.dim]()
 
-    def rank(self) -> Int:
-        return dim
+    @inline(.always)
+    def dimension(self) -> Int:
+        return Self.dim
 
+    @inline(.always)
     def num_elements(self) -> Int:
         return self._sizes.product()
 
-    def sizes(self) -> ref [origin_of(self._sizes)] Self.Vec[Int]:
+    @inline(.always)
+    def sizes(self) -> ref [origin_of(self._sizes)] Self.Vec[.int]:
         return self._sizes
 
-    def span_bytes(ref self, *, start: Int = 0) -> Span[Byte, origin_of(self._buf)]:
-        return self._buf.span(start=start)
+    @inline(.always)
+    def span_bytes(
+        ref self,
+        *,
+        start: Int = 0,
+        length: Optional[Int] = None
+    ) -> Span[Byte, origin_of(self._buf._alloc._alloc)]:
+        return self._buf.span(start=start, length=length)
     
-    def span(ref self, *, start: Int = 0) -> Span[T, origin_of(self._buf)]:
-        return Span[T](
-            ptr=self._buf.span(start=size_of[T]()*start)
-                .unsafe_ptr()
-                .bitcast[T](),
-            length=self.num_elements() - start
-        )
+    @inline(.always)
+    def span(
+        ref self,
+        *,
+        start: Int = 0,
+        length: Optional[Int] = None
+    ) -> Span[Self.T, origin_of(self._buf._alloc._alloc)]:
+        return unsafe_span_bitcast[Self.T](self.span_bytes(
+            start=start*Self._elem_size,
+            length=length.map(lambda (l: Int) -> Int: l*Self._elem_size)
+        ))
 
+    @inline(.always)
     def alignment(self) -> Int:
         return self._buf.alignment()
 
-    def _offset(self, i: Self.Vec[Int], out offset: Int):
+    @inline(.always)
+    def offset(self, i: Self.Vec[.int], out offset: Int):
         
-        comptime d_names = InlineArray[String, 3]("x", "y", "z")
+        comptime d_names = ["x", "y", "z"]
 
         offset = 0
 
-        @parameter
-        for d in range(dim):
+        comptime for d in range(Self.dim):
             var coord = i[d]
             var size = self._sizes[d]
-            debug_assert_with_stack(
+            debug_assert(
                 coord >= 0 and coord < size,
-                d_names[d], "=", coord, " out of range [0,", size, ")"
+                materialize[d_names[d]](), "=", coord, " out of range [0,", size, ")"
             )
             offset += coord*self._strides[d]
 
-    def _maybe_offset(self, i: Self.Vec[Int]) -> Optional[Int]:
+    @inline(.always)
+    def maybe_offset(self, i: Self.Vec[.int]) -> Optional[Int]:
 
         var offset: Int = 0
 
-        @parameter
-        for d in range(dim):
+        comptime for d in range(Self.dim):
             var coord = i[d]
             var size = self._sizes[d]
             if coord >= 0 and coord < size:
@@ -102,64 +112,64 @@ struct DimensionalBuffer[
         return offset
 
     @inline(.always)
-    def _check_offset(self, i: Int):
-        debug_assert(
-            i >= 0 and i < self.num_elements(),
-            "i=", i, " out of range [0,", self.num_elements(), ")"
-        )
+    def __getitem__(self, *, i: Int, out v: Self.T):
+        v = self.span(start=i, length=1)[0].copy()
 
     @inline(.always)
-    def __getitem__(self, *, i: Int, out v: T):
-        self._check_offset(i)
-        v = self.span()[i].copy()
+    def __getitem__(self, i: Self.Vec[.int], out v: Self.T):
+        v = self[i=self.offset(i)]
 
-    def __getitem__(self, i: Self.Vec[Int], out v: T):
-        v = self[i=self._offset(i)]
-
-    def __getitem__(self, *, x: Int, out v: T):
-        expect_at_least_rank[dim, 1]()
+    @inline(.always)
+    def __getitem__(self, *, x: Int, out v: Self.T):
+        expect_at_least_dim[Self.dim, 1]()
         v = self[Self.Vec(x=x)]
 
-    def __getitem__(self, *, x: Int, y: Int, out v: T):
-        expect_at_least_rank[dim, 2]()
+    @inline(.always)
+    def __getitem__(self, *, x: Int, y: Int, out v: Self.T):
+        expect_at_least_dim[Self.dim, 2]()
         v = self[Self.Vec(x=x, y=y)]
 
-    def __getitem__(self, *, x: Int, y: Int, z: Int, out v: T):
-        expect_at_least_rank[dim, 3]()
-        v = self[Self.Vec[Int](x=x, y=y, z=z)]
+    @inline(.always)
+    def __getitem__(self, *, x: Int, y: Int, z: Int, out v: Self.T):
+        expect_at_least_dim[Self.dim, 3]()
+        v = self[Self.Vec[.int](x=x, y=y, z=z)]
 
-    def __setitem__(mut self, *, i: Int, v: T):
-        self._check_offset(i)
-        self.span()[i] = v.copy()
+    @inline(.always)
+    def __setitem__(mut self, *, i: Int, v: Self.T):
+        self.span(start=i, length=1)[0] = v.copy()
 
-    def __setitem__(mut self, i: Self.Vec[Int], v: T):
-        self[i=self._offset(i)] = v
+    @inline(.always)
+    def __setitem__(mut self, i: Self.Vec[.int], v: Self.T):
+        self[i=self.offset(i)] = v
 
-    def __setitem__(mut self, *, x: Int, v: T):
-        expect_at_least_rank[dim, 1]()
-        self[Self.Vec[Int](x=x)] = v
+    @inline(.always)
+    def __setitem__(mut self, *, x: Int, v: Self.T):
+        expect_at_least_dim[Self.dim, 1]()
+        self[Self.Vec[.int](x=x)] = v
 
-    def __setitem__(mut self, *, x: Int, y: Int, v: T):
-        expect_at_least_rank[dim, 2]()
-        self[Self.Vec[Int](x=x, y=y)] = v
+    @inline(.always)
+    def __setitem__(mut self, *, x: Int, y: Int, v: Self.T):
+        expect_at_least_dim[Self.dim, 2]()
+        self[Self.Vec[.int](x=x, y=y)] = v
 
-    def __setitem__(mut self, *, x: Int, y: Int, z: Int, v: T):
-        expect_at_least_rank[dim, 3]()
-        self[Self.Vec[Int](x=x, y=y, z=z)] = v
+    @inline(.always)
+    def __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.T):
+        expect_at_least_dim[Self.dim, 3]()
+        self[Self.Vec[.int](x=x, y=y, z=z)] = v
 
-    def get(self, i: Self.Vec[Int]) -> Optional[T]:
-        var offset = self._maybe_offset(i)
+    @inline(.always)
+    def get(self, i: Self.Vec[.int]) -> Optional[Self.T]:
+        var offset = self.maybe_offset(i)
         if offset is None:
             return None
         return self[i=offset.value()]
 
     @inline(.always)
-    def get[*, or_else: T](self, i: Self.Vec[Int], out v: T):
+    def get[*, or_else: Self.T](self, i: Self.Vec[.int], out v: Self.T):
 
         var offset: Int = 0
 
-        @parameter
-        for d in range(dim):
+        comptime for d in range(Self.dim):
             if i[d] >= 0 and i[d] < self._sizes[d]:
                 offset += i[d]*self._strides[d]
             else:
@@ -168,280 +178,5 @@ struct DimensionalBuffer[
 
         v = self[i=offset]
 
-    def iterate[
-        func: def (i: Self.Vec[Int]) capturing
-    ](self):
-        self.sizes().iterate_over_sizes[func]()
-
-    # TEMP
-    def assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
-        self: DimensionalBuffer[dim,Scalar[dtype]],
-        msg: String,
-        sizes: Self.Vec[Int],
-        head: InlineArray[Scalar[dtype], samples],
-        tail: InlineArray[Scalar[dtype], samples],
-        hash: UInt64,
-        *,
-        verbose: Bool = False,
-        eps: Scalar[dtype] = 1e-5
-    ):
-
-        # check the sizes
-        debug_assert(
-            self.sizes() == sizes,
-            msg, ": expected sizes=", sizes, ", but got sizes=", self.sizes()
-        )
-
-        # check the samples
-        debug_assert(
-            self.num_elements() >= 3,
-            msg, ": buffer too small for ", samples, " samples"
-        )
-        var obs_head = self._sample[samples](0)
-        var obs_tail = self._sample[samples](self.num_elements() - samples)
-        var err_head = err[dtype,err_fn](obs_head, head)
-        var err_tail = err[dtype,err_fn](obs_tail, tail)
-        debug_assert(
-            is_err_small(err_head, eps=eps) and is_err_small(err_tail, eps=eps),
-            msg, ": Samples don't match!:",
-            "\n\thead obs = ", self._render_samples(obs_head),
-            "\n\thead exp = ", self._render_samples(head),
-            "\n\thead err = ", self._render_samples(err_head),
-            "\n\ttail obs = ", self._render_samples(obs_tail),
-            "\n\ttail exp = ", self._render_samples(tail),
-            "\n\ttail err = ", self._render_samples(err_tail),
-        )
-
-        # check the hash
-        var obs_hash: UInt64 = 0
-        for i in range(self.num_elements()):
-            obs_hash *= 37
-            obs_hash += UInt64(bitcast[DType.uint32](self[i=i]))
-        debug_assert(
-            obs_hash == hash,
-            msg, ": Hash mismatch: obs=", obs_hash, ", exp=", hash
-        )
-
-        if verbose:
-            print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
-
-    # TEMP
-    def assert_info[samples: Int, dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
-        self: DimensionalBuffer[dim,ComplexScalar[dtype]],
-        msg: String,
-        sizes: Self.Vec[Int],
-        head: InlineArray[ComplexScalar[dtype], samples],
-        tail: InlineArray[ComplexScalar[dtype], samples],
-        hash: UInt64,
-        *,
-        verbose: Bool = False,
-        eps: Scalar[dtype] = 1e-5
-    ):
-
-        # check the sizes
-        debug_assert(
-            self.sizes() == sizes,
-            msg, ": expected sizes=", sizes, ", but got sizes=", self.sizes()
-        )
-
-        # check the samples
-        debug_assert(
-            self.num_elements() >= 3,
-            msg, ": buffer too small for ", samples, " samples"
-        )
-        var obs_head = self._sample[samples](0)
-        var obs_tail = self._sample[samples](self.num_elements() - samples)
-        var err_head = err[dtype,err_fn](obs_head, head)
-        var err_tail = err[dtype,err_fn](obs_tail, tail)
-        debug_assert(
-            is_err_small(err_head, eps=eps) and is_err_small(err_tail, eps=eps),
-            msg, ": Samples don't match!:",
-            "\n\thead obs = ", self._render_samples(obs_head),
-            "\n\thead exp = ", self._render_samples(head),
-            "\n\thead err = ", self._render_samples(err_head),
-            "\n\ttail obs = ", self._render_samples(obs_tail),
-            "\n\ttail exp = ", self._render_samples(tail),
-            "\n\ttail err = ", self._render_samples(err_tail),
-        )
-
-        # check the hash
-        var obs_hash: UInt64 = 0
-        for i in range(self.num_elements()):
-            var v = self[i=i]
-            obs_hash *= 37
-            obs_hash += UInt64(bitcast[DType.uint32](v.re))
-            obs_hash *= 37
-            obs_hash += UInt64(bitcast[DType.uint32](v.im))
-        debug_assert(
-            obs_hash == hash,
-            msg, ": Hash mismatch: obs=", obs_hash, ", exp=", hash
-        )
-
-        if verbose:
-            print(String("info OK: ", msg, ": sizes=", sizes, ", hash=", hash))
-
-    def _render_samples[samples: Int, S: Stringable & Copyable & Movable](
-        self: DimensionalBuffer[dim,T],
-        data: InlineArray[S,samples]
-    ) -> String:
-        var msg = "[ "
-        @parameter
-        for s in range(samples):
-            @parameter
-            if s > 0:
-                msg += ",  "
-            msg += String(data[s])
-        msg += " ]"
-        return msg
-
-    def _sample[samples: Int](self, i: Int, out data: InlineArray[T,samples]):
-        data = InlineArray[T,samples](uninitialized=True)
-        @parameter
-        for s in range(samples):
-            data[s] = self[i=i+s]
-
-    # TEMP
-    def assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
-        mut self: DimensionalBuffer[dim,Scalar[dtype]],
-        msg: String,
-        path: String,
-        *,
-        verbose: Bool = False,
-        eps: Scalar[dtype] = 1e-5,
-        overwrite: Bool = False
-    ):
-
-        # read the file
-        var exp_data = List[Scalar[dtype]]()
-        try:
-            with open(path, "r") as f:
-                var reader = FileReader(f)
-                self._assert_sizes(msg, reader)
-                for _ in range(self.num_elements()):
-                    exp_data.append(reader.read_scalar[dtype,Endian.Little]())
-        except:
-            debug_assert(False, msg, ": Failed to open data file")
-
-        # look for mismatched pixels
-        var mismatches = List[Self.Vec[Int]]()
-        var expi = 0
-        @parameter
-        def func(i: Vec[dim,Int]):
-            var obs = self[i=i]
-            var exp = exp_data[expi]
-            expi += 1
-            if not is_err_small(err[dtype,err_fn](obs, exp), eps=eps):
-                mismatches.append(i.copy())
-
-        self.iterate[func]()
-
-        # TEMP: need to use expi to avoid compiler bugs
-        debug_assert(expi == self.num_elements(), msg, ": Iteration didn't finish")
-
-        # report the errors
-        if len(mismatches) > 0:
-            var obs = self[i=mismatches[0]]
-            var exp = exp_data[self._offset(mismatches[0])]
-            var err = err[dtype,err_fn](obs, exp)
-            debug_assert(
-                False,
-                msg, ": Found ", len(mismatches), " mismatched pixels:",
-                "\n\tfirst at ", mismatches[0],
-                "\n\tobs = ", obs,
-                "\n\texp = ", exp,
-                "\n\terr = ", err,
-            )
-
-        if verbose:
-            print(msg, ": sizes=", self.sizes(), " pixels ok!")
-
-        if overwrite:
-            memcpy(
-                src=exp_data.unsafe_ptr(),
-                dest=self.span().unsafe_ptr(),
-                count=self.num_elements()
-            )
-
-    # TEMP
-    def assert_data[dtype: DType, err_fn: ErrFn[dtype] = err_rel[dtype]](
-        mut self: DimensionalBuffer[dim,ComplexScalar[dtype]],
-        msg: String,
-        path: String,
-        *,
-        verbose: Bool = False,
-        eps: Scalar[dtype] = 1e-5,
-        overwrite: Bool = False
-    ):
-
-        # read the file
-        var exp_data = List[ComplexScalar[dtype]]()
-        try:
-            with open(path, "r") as f:
-                var reader = FileReader(f)
-                self._assert_sizes(msg, reader)
-                for _ in range(self.num_elements()):
-                    exp_data.append(ComplexScalar[dtype](
-                        reader.read_scalar[dtype,Endian.Little](),
-                        reader.read_scalar[dtype,Endian.Little]()
-                    ))
-        except:
-            debug_assert(False, msg, ": Failed to open data file")
-
-        # look for mismatched pixels
-        var mismatches = List[Self.Vec[Int]]()
-        var expi = 0
-        @parameter
-        def func(i: Vec[dim,Int]):
-            var obs = self[i=i]
-            var exp = exp_data[expi]
-            expi += 1
-            if not is_err_small(err[dtype,err_fn](obs, exp), eps=eps):
-                mismatches.append(i.copy())
-
-        self.iterate[func]()
-
-        # TEMP: need to use expi to avoid compiler bugs
-        debug_assert(expi == self.num_elements(), msg, ": Iteration didn't finish")
-
-        # report the errors
-        if len(mismatches) > 0:
-            var obs = self[i=mismatches[0]]
-            var exp = exp_data[self._offset(mismatches[0])]
-            var err = err[dtype,err_fn](obs, exp)
-            debug_assert(
-                False,
-                msg, ": Found ", len(mismatches), " mismatched pixels:",
-                "\n\tfirst at ", mismatches[0],
-                "\n\tobs = ", obs,
-                "\n\texp = ", exp,
-                "\n\terr = ", err,
-            )
-
-        if verbose:
-            print(msg, ": sizes=", self.sizes(), " pixels ok!")
-
-        if overwrite:
-            memcpy(
-                src=exp_data.unsafe_ptr(),
-                dest=self.span().unsafe_ptr(),
-                count=self.num_elements()
-            )
-
-    def _assert_sizes(
-        self,
-        msg: String,
-        mut reader: FileReader
-    ) raises:
-        var rank = reader.read_i32[Endian.Little]()
-        debug_assert(
-            rank == dim,
-            msg, ": Expected rank ", rank, " but image has rank ", dim
-        )
-        var sizes = Self.Vec[Int](uninitialized=True)
-        @parameter
-        for d in range(dim):
-            sizes[d] = Int(reader.read_i32[Endian.Little]())
-        debug_assert(
-            self.sizes() == sizes,
-            msg, ": Expected sizes ", sizes, " but image has sizes ", self.sizes()
-        )
+    def iterate(self, func: Some[def (i: Self.Vec[.int])]):
+        self.sizes().iterate_over_sizes(func)

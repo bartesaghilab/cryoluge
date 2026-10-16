@@ -1,4 +1,6 @@
 
+from std.sys import size_of
+
 from .buffers import *
 from .endian import *
 from .binary_writer import *
@@ -16,4 +18,16 @@ def as_byte_span[
     return Span(
         unsafe_ptr=Pointer(to=v).unsafe_bitcast[Byte](),
         length=size_of[dtype]()
+    )
+
+
+def unsafe_span_bitcast[
+    T: AnyType,
+    origin: Origin
+](span: Span[Byte,origin]) -> Span[T,origin]:
+    return Span[T](
+        unsafe_ptr=span
+            .unsafe_ptr()
+            .unsafe_bitcast[T](),
+        length=len(span)//size_of[T]()
     )

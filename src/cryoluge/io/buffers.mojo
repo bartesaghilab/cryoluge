@@ -2,7 +2,7 @@
 from std.memory import alloc, dealloc, Layout, Allocation
 
 
-struct ByteBuffer(Movable):
+struct ByteBuffer(Movable, Copyable):
     var _alloc: Allocation[Byte]
 
     def __init__(out self, size: Int, *, alignment: Optional[Int] = None):
@@ -60,19 +60,16 @@ struct ByteBuffer(Movable):
         length: Optional[Int] = None
     ) -> Span[Byte, origin_of(self._alloc._alloc)]:
 
+        var span_len = length.or_else(self.length() - start)
+
         # safety first
         debug_assert(
-            start >= 0 and start <= self.length(),
-            "Invalid span start: start=", start, ", length=", self.length()
+            start >= 0 and span_len >= 0 and start + span_len <= self.length(),
+            "Invalid span: start=", start, ", length=", span_len, ", buf length=", self.length()
         )
-        if length is not None:
-            debug_assert(
-                length.value() >= 0 and start + length.value() <= self.length(),
-                "Invalid span length: start=", start, ", length=", length.value(), ", buf length=", self.length()
-            )
 
         return self._alloc.unsafe_span()
             .unsafe_subspan(
                 offset=start,
-                length=length.or_else(self.length() - start)
+                length=span_len
             )

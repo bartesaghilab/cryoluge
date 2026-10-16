@@ -35,13 +35,15 @@ def main() raises:
     suite.add_module[cryoluge_tests.cistem.blocked_reader.tests]()
     suite.add_module[cryoluge_tests.cistem.blocked_writer.tests]()
 
+    suite.add_module[cryoluge_tests.image.image.tests]()
+    suite.add_module[cryoluge_tests.image.complex_image.tests]()
+    # TODO
+    # suite.add_module[cryoluge_tests.image.resolution_statistics.tests]()
+
     # TEMP
     # try:
         
         # TODO
-
-        # suite._register_tests[cryoluge_tests.image.complex_image.funcs]()
-        # suite._register_tests[cryoluge_tests.image.resolution_statistics.funcs]()
 
         # suite._register_tests[cryoluge_tests.fft.coords.funcs]()
         # suite._register_tests[cryoluge_tests.fft.fft.funcs]()

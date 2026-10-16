@@ -1,18 +1,18 @@
 
-from testing import assert_equal
-from complex import ComplexFloat32
+from std.testing import assert_equal
+from std.complex import ComplexFloat32
 
 from cryoluge.math import Vec
-from cryoluge.image import Image, ComplexImage
+from cryoluge.image import ComplexImage
+
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
-comptime funcs = __functions_in_module()
-
-
-def test_multiply_4():
+def test_multiply_4() raises:
     # should be evenly-divisible by one vector instruction, with no draining
 
-    var fourier = ComplexImage[1,DType.float32](Vec[1](x=4))
+    var fourier = ComplexImage[1,.float32]([4], uninitialized=True)
 
     fourier[x=0] = ComplexFloat32(1.0, 2.0)
     fourier[x=1] = ComplexFloat32(3.0, 4.0)
@@ -27,10 +27,10 @@ def test_multiply_4():
     assert_equal(fourier[x=3], ComplexFloat32(21.0, 24.0))
 
 
-def test_multiply_5():
+def test_multiply_5() raises:
     # should require one vector instruction, and drain with one scalar instruction
 
-    var fourier = ComplexImage[1,DType.float32](Vec[1](x=5))
+    var fourier = ComplexImage[1,.float32]([5], uninitialized=True)
 
     fourier[x=0] = ComplexFloat32(1.0, 2.0)
     fourier[x=1] = ComplexFloat32(3.0, 4.0)
@@ -47,20 +47,18 @@ def test_multiply_5():
     assert_equal(fourier[x=4], ComplexFloat32(27.0, 30.0))
 
 
-def test_multiply_max():
+def test_multiply_max() raises:
     # should require one vector instruction, with no draining
 
-    comptime max_width = ComplexImage[1,DType.float32].pixel_vec_max_width
-    var fourier = ComplexImage[1,DType.float32](Vec[1](x=max_width))
+    comptime max_width = ComplexImage[1,.float32].pixel_vec_max_slen
+    var fourier = ComplexImage[1,.float32]([max_width], uninitialized=True)
 
-    @parameter
-    for i in range(max_width):
-        var f: Float32 = (i + 1)*2
+    comptime for i in range(max_width):
+        var f = (Float32(i) + 1)*2
         fourier[x=i] = ComplexFloat32(f - 1, f)
     
     fourier.multiply(3.0)
 
-    @parameter
-    for i in range(max_width):
-        var f: Float32 = (i + 1)*2
+    comptime for i in range(max_width):
+        var f = (Float32(i) + 1)*2
         assert_equal(fourier[x=i], ComplexFloat32((f - 1)*3, f*3))

@@ -11,8 +11,7 @@ channels = [
 ]
 
 [dependencies]
-# TEMP: use nightly for now, since many things aren't working correctly in the 25.5 stable release
-#       see releases here: https://prefix.dev/channels/max-nightly/packages/mojo
+# see releases here: https://prefix.dev/channels/max-nightly/packages/mojo
 mojo = "==1.1.0"
 
 [tasks]
@@ -22,7 +21,12 @@ build_dir = "rm -rf build 2> /dev/null; mkdir -p build"
 cmd = "mojo precompile -o build/cryoluge.mojoc src/cryoluge"
 depends-on = ["build_dir"]
 
-[tasks.test]
-cmd = "mojo run -I build -D ASSERT=all --debug-level line-tables test/suite.mojo"
+[tasks.build_test]
+cmd = "mojo build -I build -D ASSERT=all --debug-level line-tables -o build/cryoluge_test test/suite.mojo"
+# NOTE: `--debug-level full` is VERY slow to compile! don't use it unless you really need it
 depends-on = ["build_pkg"]
-# NOTE: `mojo test` doesn't seem to support `-flag=value` syntax, only `-flag value`
+
+[tasks.test]
+cmd = "build/cryoluge_test"
+env = { MODULAR_DEBUG = "stack-trace-on-error" }
+depends-on = ["build_test"]

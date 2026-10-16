@@ -91,3 +91,11 @@ def pack[
         splice[slen_src](result, i*slen_src, cs[i])
     # TODO: maybe future versions of mojo will let us run this loop at compile time
     #       then we can use SIMD.insert()
+
+
+@inline(.always)
+def splat[dtype: DType, //, slen: SIMDLength](v: ComplexSIMD[dtype,1]) -> ComplexSIMD[dtype,slen]:
+    return ComplexSIMD[dtype,slen](
+        re = SIMD[dtype,slen](v.re),
+        im = SIMD[dtype,slen](v.im)
+    )

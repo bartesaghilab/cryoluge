@@ -1,29 +1,36 @@
 
-from complex import ComplexSIMD
-from algorithm import vectorize
-from sys import simd_width_of
+from std.complex import ComplexSIMD
+from std.algorithm import vectorize
+from std.sys import simd_width_of
 
 from cryoluge.io import ByteBuffer
-from cryoluge.math import ComplexScalar
+from cryoluge.math import Vec, ComplexScalar
 from cryoluge.math.error import ErrFn, err_rel
+from cryoluge.image.dimension import DimensionalBuffer
+from cryoluge.math import complex
 
 
 struct ComplexImage[
     dim: Int,
     dtype: DType
 ](Copyable, Movable):
-    var _buf: DimensionalBuffer[dim,Self.PixelType]
+    var _buf: DimensionalBuffer[Self.dim,Self.PixelType]
 
-    comptime Vec = Vec[dim,_]
-    comptime PixelType = ComplexScalar[dtype]
-    comptime PixelVec = ComplexSIMD[dtype,_]
-    comptime ScalarType = Scalar[dtype]
-    comptime ScalarVec = SIMD[dtype,_]
-    comptime pixel_vec_max_width = simd_width_of[dtype]()
+    comptime Vec = Vec[Self.dim,_]
+    comptime PixelType = ComplexScalar[Self.dtype]
+    comptime PixelVec = ComplexSIMD[Self.dtype,_]
+    comptime ScalarType = Scalar[Self.dtype]
+    comptime ScalarVec = SIMD[Self.dtype,_]
+    comptime pixel_vec_max_slen = simd_width_of[Self.dtype]()
 
-    def __init__(out self, sizes: Self.Vec[Int], *, alignment: Optional[Int] = None):
-        """WARNING: produces un-initialized memory."""
-        self._buf = DimensionalBuffer[dim,Self.PixelType](sizes, alignment=alignment)
+    def __init__(
+        out self,
+        sizes: Self.Vec[.int],
+        *,
+        uninitialized: Bool,
+        alignment: Optional[Int] = None
+    ):
+        self._buf = DimensionalBuffer[Self.dim,Self.PixelType](sizes, alignment=alignment)
         # NOTE: This implementation uses an interleaved ordering for complex components.
         #       ie, Array-of-Structures (AoS):
         #         real_0, imag_0, real_1, imag_1, ...
@@ -45,167 +52,183 @@ struct ComplexImage[
         #       so AoS layout works best here.
         #       But, as with all things HPC, we should benchmark and be sure.
         #       For what it's worth, fftw uses the AoS layout, so that's probably good enough for us too.
+    
+    def __init__(
+        out self,
+        sizes: Self.Vec[.int],
+        *,
+        fill: Self.PixelType,
+        alignment: Optional[Int] = None
+    ):
+        self = Self(sizes, uninitialized=True, alignment=alignment)
+        self.fill(fill)
 
-    def rank(self) -> Int:
-        return self._buf.rank()
+    @inline(.always)
+    def dimension(self) -> Int:
+        return self._buf.dimension()
 
+    @inline(.always)
     def num_pixels(self) -> Int:
         return self._buf.num_elements()
 
-    def sizes(self) -> ref [origin_of(self._buf._sizes)] Self.Vec[Int]:
+    @inline(.always)
+    def sizes(self) -> ref [origin_of(self._buf._sizes)] Self.Vec[.int]:
         return self._buf.sizes()
 
-    def span(ref self, *, start: Int = 0) -> Span[Self.PixelType, origin_of(self._buf._buf)]:
-        return self._buf.span(start=start)
+    @inline(.always)
+    def span_bytes(
+        ref self,
+        *,
+        start: Int = 0,
+        length: Optional[Int] = None
+    ) -> Span[Byte, origin_of(self._buf._buf._alloc._alloc)]:
+        return self._buf.span_bytes(start=start, length=length)
 
-    def span_bytes(ref self) -> Span[Byte, origin_of(self._buf._buf)]:
-        return self._buf.span_bytes()
+    @inline(.always)
+    def span(
+        ref self,
+        *,
+        start: Int = 0,
+        length: Optional[Int] = None
+    ) -> Span[Self.PixelType, origin_of(self._buf._buf._alloc._alloc)]:
+        return self._buf.span(start=start, length=length)
 
+    @inline(.always)
     def alignment(self) -> Int:
         return self._buf.alignment()
 
+    @inline(.always)
     def __getitem__(self, *, i: Int, out v: Self.PixelType):
         v = self._buf[i=i]
 
-    def __getitem__(self, i: Self.Vec[Int], out v: Self.PixelType):
+    @inline(.always)
+    def __getitem__(self, i: Self.Vec[.int], out v: Self.PixelType):
         v = self._buf[i]
 
+    @inline(.always)
     def __getitem__(self, *, x: Int, out v: Self.PixelType):
         v = self._buf[x=x]
 
+    @inline(.always)
     def __getitem__(self, *, x: Int, y: Int, out v: Self.PixelType):
         v = self._buf[x=x, y=y]
 
+    @inline(.always)
     def __getitem__(self, *, x: Int, y: Int, z: Int, out v: Self.PixelType):
         v = self._buf[x=x, y=y, z=z]
 
+    @inline(.always)
     def __setitem__(mut self, *, i: Int, v: Self.PixelType):
         self._buf[i=i] = v
 
-    def __setitem__(mut self, i: Self.Vec[Int], v: Self.PixelType):
+    @inline(.always)
+    def __setitem__(mut self, i: Self.Vec[.int], v: Self.PixelType):
         self._buf[i] = v
 
+    @inline(.always)
     def __setitem__(mut self, *, x: Int, v: Self.PixelType):
         self._buf[x=x] = v
 
+    @inline(.always)
     def __setitem__(mut self, *, x: Int, y: Int, v: Self.PixelType):
         self._buf[x=x, y=y] = v
 
+    @inline(.always)
     def __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
         self._buf[x=x, y=y, z=z] = v
 
-    def get(self, i: Self.Vec[Int]) -> Optional[Self.PixelType]:
+    @inline(.always)
+    def get(self, i: Self.Vec[.int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
 
     @inline(.always)
-    def get[*, or_else: Self.PixelType](self, i: Self.Vec[Int], out v: Self.PixelType):
+    def get[*, or_else: Self.PixelType](self, i: Self.Vec[.int], out v: Self.PixelType):
         v = self._buf.get[or_else=or_else](i)
 
-    def iterate[
-        func: def (i: Self.Vec[Int]) capturing
-    ](self):
-        self._buf.iterate[func]()
+    def iterate(self, func: Some[def (i: Self.Vec[.int])]):
+        self._buf.iterate(func)
 
-    # TEMP: for comparing to images in other programs
-    def assert_info[samples: Int](
-        self: ComplexImage[dim,DType.float32],
-        msg: String,
-        sizes: Self.Vec[Int],
-        head: InlineArray[ComplexFloat32, samples],
-        tail: InlineArray[ComplexFloat32, samples],
-        hash: UInt64,
-        *,
-        verbose: Bool = False,
-        eps: Float32 = 1e-5
-    ):
-        self._buf.assert_info(msg, sizes, head, tail, hash, verbose=verbose, eps=eps)
-
-    # TEMP
-    def assert_data[err_fn: ErrFn[dtype] = err_rel[dtype]](
-        mut self,
-        msg: String,
-        path: String,
-        *,
-        verbose: Bool = False,
-        eps: Scalar[dtype] = 1e-5,
-        overwrite: Bool = False
-    ) raises:
-        self._buf.assert_data[dtype,err_fn](msg, path, verbose=verbose, eps=eps, overwrite=overwrite)
-
-    def _check_vector_offset[width: Int](self, offset: Int):
-        var bound = self.num_pixels() - width
-        debug_assert(
-            offset < bound,
-            "offset ", offset, " out of range [0,", bound, ")"
-        )
-
-    def _load[width: Int](self, offset: Int, out v: Self.PixelVec[width]):
+    @inline(.always)
+    def load[slen: SIMDLength](self, offset: Int, out v: Self.PixelVec[slen]):
 
         # load the interleaved data
-        # NOTE: mojo's compiler is smart enough to handle vector operations
-        #       on sizes larger than the machine limits, as long as it's a power of 2
-        var interleaved = self.span(start=offset)
+        var interleaved = self.span(start=offset, length=Int(slen))
             .unsafe_ptr()
-            .bitcast[Self.ScalarType]()
-            .load[width=width*2]()
+            .unsafe_bitcast[Self.ScalarType]()
+            .unsafe_load[slen*2]()
+            # NOTE: mojo's compiler is smart enough to handle vector operations
+            #       on sizes larger than the machine limits, as long as it's a power of 2
 
         # de-interleave
         var (real, imag) = interleaved.deinterleave()
 
         # build the complex vector
-        v = Self.PixelVec[width](
-            re = rebind[Self.ScalarVec[width]](real),
-            im = rebind[Self.ScalarVec[width]](imag)
+        v = Self.PixelVec[slen](
+            re = rebind[Self.ScalarVec[slen]](real),
+            im = rebind[Self.ScalarVec[slen]](imag)
         )
 
-    # TEMP
-    def _load[width: Int](self, *, i: Vec[dim,Int], out v: Self.PixelVec[width]):
-        v = self._load[width](self._buf._offset(i))
+    @inline(.always)
+    def load[slen: SIMDLength](self, *, i: Self.Vec[.int], out v: Self.PixelVec[slen]):
+        v = self.load[slen](self._buf.offset(i))
 
-    def _store[width: Int](mut self, offset: Int, v: Self.PixelVec[width]):
+    @inline(.always)
+    def store[slen: SIMDLength](mut self, offset: Int, v: Self.PixelVec[slen]):
 
         # interleave
-        var interleaved = v.re.interleave(v.im)
+        var interleaved = rebind[Self.ScalarVec[slen*2]]( v.re.interleave(v.im) )
 
         # store the interleaved data
-        self.span(start=offset)
+        self.span(start=offset, length=Int(slen))
             .unsafe_ptr()
-            .bitcast[Self.ScalarType]()
-            .store[width=width*2](rebind[Self.ScalarVec[width*2]](interleaved))
-        
-    def pixels_read[
-        func: def[width: Int](Self.PixelVec[width]) capturing,
-        width: Int = Self.pixel_vec_max_width
-    ](ref self):
+            .unsafe_bitcast[Self.ScalarType]()
+            .unsafe_store[slen*2](interleaved)
 
-        @parameter
-        def loader[width: Int](offset: Int):
-            var v = self._load[width](offset)
-            func[width](v)
+    def pixels_read[slen: SIMDLength = Self.pixel_vec_max_slen](
+        self,
+        func: Some[def[slen: SIMDLength](Self.PixelVec[slen])]
+    ):
+        @inline(.always)
+        def func2[slen: Int](offset: Int) {self, func}:
+            var v = self.load[slen](offset)
+            func[slen](v)
 
-        vectorize[loader, width](self.num_pixels())
+        vectorize[slen](self.num_pixels(), func2)
+   
+    def pixels_write[slen: SIMDLength = Self.pixel_vec_max_slen](
+        mut self,
+        func: Some[def[slen: SIMDLength](out p: Self.PixelVec[slen])]
+    ):
+        @inline(.always)
+        def func2[slen: Int](offset: Int) {mut self, func}:
+            var v = func[slen]()
+            self.store[slen](offset, v)
 
-    def pixels_read_write[
-        func: def[width: Int](mut p: Self.PixelVec[width]) capturing,
-        width: Int = Self.pixel_vec_max_width
-    ](mut self):
+        vectorize[slen](self.num_pixels(), func2)
 
-        @parameter
-        def loader[width: Int](offset: Int):
-            var v = self._load[width](offset)
-            func[width](v)
-            self._store[width](offset, v)
+    def pixels_read_write[slen: SIMDLength = Self.pixel_vec_max_slen](
+        mut self,
+        func: Some[def[slen: SIMDLength](mut p: Self.PixelVec[slen])]
+    ):
+        @inline(.always)
+        def func2[slen: Int](offset: Int) {mut self, func}:
+            var v = self.load[slen](offset)
+            func[slen](v)
+            self.store[slen](offset, v)
 
-        vectorize[loader, width](self.num_pixels())
+        vectorize[slen](self.num_pixels(), func2)
 
-    # TODO: move these function to struct extension functions? when that gets released?
+    def fill(mut self, v: Self.PixelType):
 
-    def multiply[
-        width: Int = Self.pixel_vec_max_width
-    ](mut self, factor: Self.ScalarType):
+        @inline(.always)
+        def func[slen: SIMDLength](out p: Self.PixelVec[slen]) {v}:
+            p = complex.splat[slen](v)
 
-        @parameter
-        def func[width: Int](mut p: Self.PixelVec[width]):
+        self.pixels_write(func)
+    
+    def multiply[slen: SIMDLength = Self.pixel_vec_max_slen](mut self, factor: Self.ScalarType):
+
+        def func[slen: SIMDLength](mut p: Self.PixelVec[slen]) {factor}:
             p *= factor
 
-        self.pixels_read_write[func, width]()
+        self.pixels_read_write[slen](func)
