@@ -3,7 +3,6 @@ from std.math import sqrt, floor, ceil
 from std.utils.numerics import isnan
 
 from cryoluge.math import round, sinc, Matrix
-from cryoluge.math.dimension import unimplemented_dimension
 
 
 struct Vec[
@@ -124,6 +123,14 @@ struct Vec[
         return self._values[d]
 
     @inline(.always)
+    def __setitem_param__[d: SIMDLength](mut self, v: Self.V):
+        self._values[d] = v
+
+    @inline(.always)
+    def __setitem__(mut self, d: Int, v: Self.V):
+        self._values[d] = v
+
+    @inline(.always)
     def __getitem_param__[*, slice: Int](
         self,
         *,
@@ -175,12 +182,24 @@ struct Vec[
     # TODO: shuffle?
 
     @inline(.always)
-    def project[count: Int](self, out result: Self.WithDim[count])
-        where count > 0 and count <= Self.dim:
+    def project[count: Int](self, out result: Self.WithDim[count]):
+
+        comptime assert count > 0 and count <= Self.dim,
+            String("invalid count ", count, ", should be in (0,", Self.dim, "]")
 
         result = Self.WithDim[count](uninitialized=True)
         comptime for d in range(count):
             result[d] = self[d]
+
+    @inline(.always)
+    def project_last[count: Int](self, out result: Self.WithDim[count]):
+
+        comptime assert count > 0 and count <= Self.dim,
+            String("invalid count ", count, ", should be in (0,", Self.dim, "]")
+
+        result = Self.WithDim[count](uninitialized=True)
+        comptime for d in range(count):
+            result[d] = self[Self.dim + d - count]
 
     @inline(.always)
     def project_d[d: Int](self, out result: Self.WithDim[1])
@@ -245,6 +264,28 @@ struct Vec[
         where Self.dim == 3:
 
         result = self.lift[4](Self.WithDim[1]([w]))
+
+    @inline(.always)
+    def lift_front[
+        diff_dim: Int,
+        //,
+        higher_dim: Int
+    ](
+        self,
+        v: Self.WithDim[diff_dim],
+        out result: Self.WithDim[higher_dim]
+    ) where higher_dim > 0 and diff_dim > 0:
+        comptime assert higher_dim > Self.dim,
+            String("Higher dimension ", higher_dim, " must be greater than Vec dimension ", Self.dim)
+        comptime exp_diff_dim = higher_dim - Self.dim
+        comptime assert diff_dim == exp_diff_dim,
+            String("Lifting dimension ", diff_dim, " must be ", exp_diff_dim)
+
+        result = Self.WithDim[higher_dim](uninitialized=True)
+        comptime for d in range(diff_dim):
+            result[d] = v[d]
+        comptime for d in range(Self.dim):
+            result[diff_dim + d] = self[d]
 
     @inline(.always)
     def has_nan(self, out result: SIMD[.bool,Self.slen])
@@ -319,6 +360,10 @@ struct Vec[
         result = self + Self(fill=other)
 
     @inline(.always)
+    def __radd__(self, other: Self.V, out result: Self):
+        result = Self(fill=other) + self
+
+    @inline(.always)
     def __iadd__(mut self, other: Self):
         comptime for d in range(Self.dim):
             self[d] += other[d]
@@ -336,6 +381,10 @@ struct Vec[
     @inline(.always)
     def __sub__(self, other: Self.V, out result: Self):
         result = self - Self(fill=other)
+
+    @inline(.always)
+    def __rsub__(self, other: Self.V, out result: Self):
+        result = Self(fill=other) - self
 
     @inline(.always)
     def __isub__(mut self: Self, other: Self):
@@ -357,6 +406,10 @@ struct Vec[
         result = self * Self(fill=other)
 
     @inline(.always)
+    def __rmul__(self: Self, other: Self.V, out result: Self):
+        result = Self(fill=other) * self
+
+    @inline(.always)
     def __imul__(mut self: Self, other: Self):
         comptime for d in range(Self.dim):
             self[d] *= other[d]
@@ -376,6 +429,10 @@ struct Vec[
         result = self // Self(fill=other)
 
     @inline(.always)
+    def __rfloordiv__(self: Self, other: Self.V, out result: Self):
+        result = Self(fill=other) // self
+
+    @inline(.always)
     def __ifloordiv__(mut self: Self, other: Self):
         comptime for d in range(Self.dim):
             self[d] //= other[d]
@@ -393,6 +450,10 @@ struct Vec[
     @inline(.always)
     def __truediv__(self, other: Self.V, out result: Self):
         result = self / Self(fill=other)
+
+    @inline(.always)
+    def __rtruediv__(self, other: Self.V, out result: Self):
+        result = Self(fill=other) / self
 
     @inline(.always)
     def __itruediv__(mut self, other: Self):
@@ -714,35 +775,3 @@ struct Vec[
     @inline(.always)
     def map_dtype[_dtype: DType](self, out result: Self.WithDType[_dtype]):
         result = self.map(lambda (v: Self.V) -> SIMD[_dtype,Self.slen]: SIMD[_dtype,Self.slen](v))
-
-    def iterate_over_sizes[l: Int = 0](
-        self,
-        f: Some[def (i: Self)]
-    ) where Self.dtype == .int:
-
-        comptime if Self.dim == 1:
-            
-            for _x in range(self.x()[l]):
-                var x = rebind[Self.V](_x)
-                f([x])
-
-        elif Self.dim == 2:
-            
-            for _y in range(self.y()[l]):
-                var y = rebind[Self.V](_y)
-                for _x in range(self.x()[l]):
-                    var x = rebind[Self.V](_x)
-                    f([x, y])
-
-        elif Self.dim == 3:
-
-            for _z in range(self.z()[l]):
-                var z = rebind[Self.V](_z)
-                for _y in range(self.y()[l]):
-                    var y = rebind[Self.V](_y)
-                    for _x in range(self.x()[l]):
-                        var x = rebind[Self.V](_x)
-                        f([x, y, z])
-
-        else:
-            unimplemented_dimension[Self.dim]()

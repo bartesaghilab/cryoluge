@@ -3,13 +3,16 @@ from std.sys import simd_width_of
 from std.algorithm import vectorize
 
 from cryoluge.math import Vec
+from cryoluge.math.dimension import DimensionalIterator
 from cryoluge.image.dimension import DimensionalBuffer
 
 
 struct Image[
     dim: Int,
     dtype: DType
-](Copyable, Movable):
+](Copyable, Movable)
+    where dim > 0:
+    
     var _buf: DimensionalBuffer[Self.dim,Self.PixelType]
 
     comptime Vec = Vec[Self.dim,_]
@@ -79,18 +82,6 @@ struct Image[
         v = self._buf[i]
 
     @inline(.always)
-    def __getitem__(self, *, x: Int, out v: Self.PixelType):
-        v = self._buf[x=x]
-
-    @inline(.always)
-    def __getitem__(self, *, x: Int, y: Int, out v: Self.PixelType):
-        v = self._buf[x=x, y=y]
-
-    @inline(.always)
-    def __getitem__(self, *, x: Int, y: Int, z: Int, out v: Self.PixelType):
-        v = self._buf[x=x, y=y, z=z]
-
-    @inline(.always)
     def __setitem__(mut self, *, i: Int, v: Self.PixelType):
         self._buf[i=i] = v
 
@@ -99,23 +90,11 @@ struct Image[
         self._buf[i] = v
 
     @inline(.always)
-    def __setitem__(mut self, *, x: Int, v: Self.PixelType):
-        self._buf[x=x] = v
-
-    @inline(.always)
-    def __setitem__(mut self, *, x: Int, y: Int, v: Self.PixelType):
-        self._buf[x=x, y=y] = v
-
-    @inline(.always)
-    def __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
-        self._buf[x=x, y=y, z=z] = v
-
-    @inline(.always)
     def get(self, i: Self.Vec[.int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
 
-    def iterate(self, func: Some[def (i: Self.Vec[.int])]):
-        self._buf.iterate(func)
+    def pixels(self) -> ImageIterator[Self.dim, Self.dtype]:
+        return ImageIterator[Self.dim,Self.dtype](self._buf, self.num_pixels())
 
     @inline(.always)
     def offset(self, i: Self.Vec[.int]) -> Int:
@@ -145,60 +124,30 @@ struct Image[
     def store[slen: SIMDLength](mut self, i: Self.Vec[.int], v: Self.PixelVec[slen]):
         self.store[slen](self.offset(i), v)
 
-    def pixels_read[slen: SIMDLength = Self.pixel_vec_max_slen](
-        self,
-        func: Some[def[slen: SIMDLength](Self.PixelVec[slen])]
-    ):
-        @inline(.always)
-        def func2[slen: Int](offset: Int) {self, func}:
-            var v = self.load[slen](offset)
-            func[slen](v)
-
-        vectorize[slen](self.num_pixels(), func2)
-
-    def pixels_write[slen: SIMDLength = Self.pixel_vec_max_slen](
-        mut self,
-        func: Some[def[slen: SIMDLength](out p: Self.PixelVec[slen])]
-    ):
-        @inline(.always)
-        def func2[slen: Int](offset: Int) {mut self, func}:
-            var v = func[slen]()
-            self.store[slen](offset, v)
-
-        vectorize[slen](self.num_pixels(), func2)
-
-    def pixels_read_write[slen: SIMDLength = Self.pixel_vec_max_slen](
-        mut self,
-        func: Some[def[slen: SIMDLength](mut p: Self.PixelVec[slen])]
-    ):
-        @inline(.always)
-        def func2[slen: Int](offset: Int) {mut self, func}:
-            var v = self.load[slen](offset)
-            func[slen](v)
-            self.store[slen](offset, v)
-
-        vectorize[slen](self.num_pixels(), func2)
-
     def fill(mut self, v: Self.PixelType):
 
         @inline(.always)
-        def func[slen: SIMDLength](out p: Self.PixelVec[slen]) {v}:
-            p = v
+        def func[slen: SIMDLength](offset: Int) {mut self, v}:
+            self.store[slen](offset, v)
 
-        self.pixels_write(func)
+        self.pixels().vectorize(func)
     
-    def copy(self, *, center: Self.Vec[.int], padding: Self.PixelType, mut to: Self):
+    def copy(
+        self,
+        *,
+        center: Self.Vec[.int],
+        padding: Self.PixelType,
+        mut to: Self
+    ):
 
         var to_center = to.sizes()//2
 
         @inline(.always)
-        def func(i: Self.Vec[.int]) {self, center, padding, mut to, to_center}:
+        def func(i: Vec[Self.dim,.int]) {self, center, padding, mut to, to_center}:
             to[i] = self.get(i + center - to_center).or_else(padding)
 
-        # looks like this causes pointer aliasing =(
-        # to.iterate(func)
-        # so copy the sizes instead
-        to.sizes().copy().iterate_over_sizes(func)
+        to.pixels().iterate(func)
+        # TODO: vectorize?
 
     # TODO: masking ...
 
@@ -326,3 +275,56 @@ struct Image[
     #     # TEMP: extend lifetimes of captures vars to work around compiler bug
     #     _ = min
     #     _ = max
+
+
+struct ImageIterator[dim: Int, dtype: DType](
+    Movable
+) where dim > 0:
+
+    var _iter: DimensionalIterator[Self.dim]
+    var _num_pixels: Int
+
+    comptime max_slen = simd_width_of[Self.dtype]()
+
+    def __init__(out self, buf: DimensionalBuffer[Self.dim,_], num_pixels: Int):
+        self._iter = buf.elements()
+        self._num_pixels = num_pixels
+
+    def iterate(
+        self,
+        func: Some[def (i: Vec[Self.dim,.int])]
+    ):
+        self._iter.iterate(func)
+    
+    def vectorize[slen: SIMDLength = Self.max_slen](
+        self,
+        func: Some[def[slen: SIMDLength](index: Int)]
+    ):
+        @inline(.always)
+        def func2[slen: Int](offset: Int) {func}:
+            func[slen](offset)
+
+        vectorize[slen](self._num_pixels, func2)
+
+    def vectorize[slen: SIMDLength = Self.max_slen](
+        self,
+        func: Some[def[slen: SIMDLength](i: Vec[Self.dim,.int])]
+    ) where Self.dim > 0:
+        """
+        Iterates over the outer dimensions (eg, yz) and yields pixel vectors over the first (eg, x) dimension.
+        """
+
+        @inline(.always)
+        def outer_dims(outer_indices: Vec[Self.dim - 1, .int]) {self, func}:
+
+            @inline(.always)
+            def inner_dim[slen: Int](offset: Int) {func, outer_indices}:
+                var indices = outer_indices.lift_front[Self.dim](Vec[1](x=offset))
+                func[slen](indices)
+
+            # then vectorize the first dimension, eg, x
+            vectorize[slen](self._iter._sizes[0], inner_dim)
+
+        # iterate over the outer dimensions first, eg, yz
+        DimensionalIterator(self._iter._sizes.project_last[Self.dim - 1]())
+            .iterate(outer_dims)

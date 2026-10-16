@@ -1,44 +1,54 @@
 
-from math import pi, cos, sin, floor
+from std.math import pi, cos, sin, floor
 
 from cryoluge.math import Vec, ComplexScalar, Matrix
 from cryoluge.image import ComplexImage
-from cryoluge.ctf import CTF
+from cryoluge.fft.coords import FFTCoords
 
 
 struct FFTImage[
     dim: Int,
     dtype: DType
-](Copyable, Movable):
+](Copyable, Movable)
+    where dim > 0:
     """
     A thin wrapper around ComplexImage that remembers the real sizes,
     to enable coordinate transfomrations between real-space and fourier-space.
     """
 
-    var sizes_real: Vec[dim,Int]
-    var complex: ComplexImage[dim,dtype]
+    var sizes_real: Vec[Self.dim,.int]
+    var complex: ComplexImage[Self.dim, Self.dtype]
 
-    comptime Vec = ComplexImage[dim,dtype].Vec
-    comptime PixelType = ComplexImage[dim,dtype].PixelType
-    comptime PixelVec = ComplexImage[dim,dtype].PixelVec
-    comptime ScalarType = ComplexImage[dim,dtype].ScalarType
-    comptime ScalarVec = ComplexImage[dim,dtype].ScalarVec
+    comptime Vec = ComplexImage[Self.dim, Self.dtype].Vec
+    comptime PixelType = ComplexImage[Self.dim, Self.dtype].PixelType
+    comptime PixelVec = ComplexImage[Self.dim, Self.dtype].PixelVec
+    comptime ScalarType = ComplexImage[Self.dim, Self.dtype].ScalarType
+    comptime ScalarVec = ComplexImage[Self.dim, Self.dtype].ScalarVec
 
-    def __init__(out self, sizes_real: Self.Vec[Int], *, alignment: Optional[Int] = None):
-        """WARNING: produces un-initialized memory."""
+    def __init__(
+        out self,
+        sizes_real: Self.Vec[.int],
+        *,
+        uninitialized: Bool,
+        alignment: Optional[Int] = None
+    ):
         self.sizes_real = sizes_real.copy()
         var fft_coords = FFTCoords(sizes_real)
-        self.complex = ComplexImage[dim,dtype](fft_coords.sizes_fourier(), alignment=alignment)
+        self.complex = ComplexImage[Self.dim,Self.dtype](
+            fft_coords.sizes_fourier(),
+            uninitialized=True,
+            alignment=alignment
+        )
 
-    def __init__(out self, *, of: Image[dim,dtype], alignment: Optional[Int] = None):
-        """WARNING: produces un-initialized memory."""
-        ref real = of
-        self = Self(real.sizes(), alignment=alignment)
-
-    def coords(self) -> FFTCoords[dim]:
+    def coords(self) -> FFTCoords[Self.dim]:
         return FFTCoords(self.sizes_real)
 
-    def crop(self, *, mut to: Self, out_of_range: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)):
+    def crop(
+        self,
+        *,
+        mut to: Self,
+        out_of_range: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0)
+    ):
         ref dst = to
         ref src = self
 
@@ -46,28 +56,20 @@ struct FFTImage[
         var coords_src = src.coords()
 
         # sample into the dst image
-        @parameter
-        def sample(i_dst: Self.Vec[Int]):
+        def func(i_dst: Self.Vec[.int]) {src, coords_src, mut dst, coords_dst, out_of_range}:
             var i_src = coords_src.maybe_f2i(coords_dst.i2f(i_dst))
             if i_src is not None:
                 dst.complex[i_dst] = src.complex[i_src.value()]
             else:
                 dst.complex[i_dst] = out_of_range
 
-        dst.complex.iterate[sample]()
-
-        # TEMP: need to extend lifetimes to avoid compiler bug
-        _ = dst
-        _ = src
-        _ = coords_dst
-        _ = coords_src
-        _ = out_of_range
+        dst.complex.pixels().iterate(func)
 
     def find(
         self,
         *,
-        f: Self.Vec[Int],
-        out v: Optional[ComplexScalar[dtype]]
+        f: Self.Vec[.int],
+        out v: Optional[ComplexScalar[Self.dtype]]
     ):
         var i = self.coords().maybe_f2i(f)
         if i is None:
@@ -77,11 +79,11 @@ struct FFTImage[
             if v is not None and self.coords().needs_conjugation(f=f):
                 v = v.value().conj()
 
-    def get[*, or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0)](
+    def get[*, or_else: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0)](
         self,
         *,
-        f: Self.Vec[Int],
-        out v: ComplexScalar[dtype]
+        f: Self.Vec[.int],
+        out v: ComplexScalar[Self.dtype]
     ):
         # NOTE: manually inlining all the FFTCoords operations here and simplifying
         #       can't seem to beat the compiler's optimizations, so go mojo! =D
@@ -95,30 +97,28 @@ struct FFTImage[
 
     def get[
         *,
-        or_else: ComplexScalar[dtype] = ComplexScalar[dtype](0, 0),
+        or_else: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0),
         dtype_coords: DType = DType.float32
     ](
         self,
         *,
-        f_lerp: Self.Vec[Scalar[dtype_coords]],
-        out pixel: ComplexScalar[dtype]
+        f_lerp: Vec[Self.dim,dtype_coords],
+        out pixel: ComplexScalar[Self.dtype]
     ):
         # discretize the frequency coordinates, and keep track of distances
-        var start = Vec[dim,Int](uninitialized=True)
-        var dists = Vec[dim,Scalar[dtype_coords]](uninitialized=True)
-        @parameter
-        for d in range(dim):
+        var start = Self.Vec[.int](uninitialized=True)
+        var dists = Vec[Self.dim,dtype_coords](uninitialized=True)
+        comptime for d in range(Self.dim):
             var floor = floor(f_lerp[d])
             start[d] = Int(floor)
             dists[d] = f_lerp[d] - floor
 
-        pixel = ComplexScalar[dtype](0, 0)
+        pixel = ComplexScalar[Self.dtype](0, 0)
 
-        @parameter
-        for delta in Delta[dim,dtype_coords].build():
+        comptime for delta in Delta[Self.dim,dtype_coords].build():
             var f_sample = start + materialize[delta.pos]()
             var v = self.get[or_else=or_else](f=f_sample)
-            var weight = Scalar[dtype]((dists*materialize[delta.dir]() + materialize[delta.pos_f]()).product())
+            var weight = Scalar[Self.dtype]((dists*materialize[delta.dir]() + materialize[delta.pos_f]()).product())
             pixel = pixel + v*weight
 
 
@@ -130,21 +130,20 @@ struct Delta[
     Copyable,
     Movable,
     Equatable,
-    Writable,
-    Stringable
+    Writable
 ):
     var d: Int
-    var pos: Vec[dim,Int]
+    var pos: Vec[Self.dim, .int]
     """[0], unless flipped, then 1@d."""
-    var pos_f: Vec[dim,Scalar[dtype]]
+    var pos_f: Vec[Self.dim, Self.dtype]
     """[1], unless flipped, then 0@d."""
-    var dir: Vec[dim,Scalar[dtype]]
+    var dir: Vec[Self.dim, Self.dtype]
     """[-1], unless flipped, then 1@d."""
 
     @staticmethod
-    def build(out deltas: List[Delta[dim,dtype]]):
-        deltas = [Delta[dim,dtype]()]
-        for d in range(dim):
+    def build(out deltas: List[Self]):
+        deltas = [Self()]
+        for d in range(Self.dim):
             for i in range(len(deltas)):
                 var delta = deltas[i].copy()
                 delta.d = d
@@ -153,22 +152,22 @@ struct Delta[
 
     @staticmethod
     def dir_pos[num_samples: Int](
-        deltas: List[Delta[dim,dtype]],
-        out dir_pos: Tuple[SIMD[dtype,num_samples], SIMD[dtype,num_samples]]
+        deltas: List[Self],
+        out dir_pos: Tuple[SIMD[Self.dtype,num_samples], SIMD[Self.dtype,num_samples]]
     ):
-        var dir = SIMD[dtype,num_samples](0)
-        var pos = SIMD[dtype,num_samples](0)
+        var dir = SIMD[Self.dtype,num_samples](0)
+        var pos = SIMD[Self.dtype,num_samples](0)
         for s in range(num_samples):
             ref delta = deltas[s]
             dir[s] = delta.dir[delta.d]
-            pos[s] = delta.pos[delta.d]
+            pos[s] = Scalar[Self.dtype](delta.pos[delta.d])
         dir_pos = (dir, pos)
 
     def __init__(out self):
         self.d = 0
-        self.pos = Vec[dim,Int](fill=0)
-        self.pos_f = Vec[dim,Scalar[dtype]](fill=1)
-        self.dir = Vec[dim,Scalar[dtype]](fill=-1)
+        self.pos = Vec[Self.dim, .int](fill=0)
+        self.pos_f = Vec[Self.dim, Self.dtype](fill=1)
+        self.dir = Vec[Self.dim, Self.dtype](fill=-1)
 
     def flip(mut self):
         self.pos[self.d] = 1
@@ -180,6 +179,3 @@ struct Delta[
 
     def write_to[W: Writer](self, mut writer: W):
         writer.write("Delta[pos=", self.pos, ", pos_f=", self.pos_f, ", dir=", self.dir, "]")
-
-    def __str__(self) -> String:
-        return String.write(self)

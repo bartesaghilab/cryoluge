@@ -4,8 +4,9 @@ from std.algorithm import vectorize
 from std.sys import simd_width_of
 
 from cryoluge.io import ByteBuffer
-from cryoluge.math import Vec, ComplexScalar
-from cryoluge.math.error import ErrFn, err_rel
+from cryoluge.math import Vec, ComplexScalar, ladder
+from cryoluge.math.dimension import DimensionalIterator
+from cryoluge.image.image import ImageIterator
 from cryoluge.image.dimension import DimensionalBuffer
 from cryoluge.math import complex
 
@@ -13,7 +14,9 @@ from cryoluge.math import complex
 struct ComplexImage[
     dim: Int,
     dtype: DType
-](Copyable, Movable):
+](Copyable, Movable)
+    where dim > 0:
+
     var _buf: DimensionalBuffer[Self.dim,Self.PixelType]
 
     comptime Vec = Vec[Self.dim,_]
@@ -106,36 +109,12 @@ struct ComplexImage[
         v = self._buf[i]
 
     @inline(.always)
-    def __getitem__(self, *, x: Int, out v: Self.PixelType):
-        v = self._buf[x=x]
-
-    @inline(.always)
-    def __getitem__(self, *, x: Int, y: Int, out v: Self.PixelType):
-        v = self._buf[x=x, y=y]
-
-    @inline(.always)
-    def __getitem__(self, *, x: Int, y: Int, z: Int, out v: Self.PixelType):
-        v = self._buf[x=x, y=y, z=z]
-
-    @inline(.always)
     def __setitem__(mut self, *, i: Int, v: Self.PixelType):
         self._buf[i=i] = v
 
     @inline(.always)
     def __setitem__(mut self, i: Self.Vec[.int], v: Self.PixelType):
         self._buf[i] = v
-
-    @inline(.always)
-    def __setitem__(mut self, *, x: Int, v: Self.PixelType):
-        self._buf[x=x] = v
-
-    @inline(.always)
-    def __setitem__(mut self, *, x: Int, y: Int, v: Self.PixelType):
-        self._buf[x=x, y=y] = v
-
-    @inline(.always)
-    def __setitem__(mut self, *, x: Int, y: Int, z: Int, v: Self.PixelType):
-        self._buf[x=x, y=y, z=z] = v
 
     @inline(.always)
     def get(self, i: Self.Vec[.int]) -> Optional[Self.PixelType]:
@@ -145,8 +124,8 @@ struct ComplexImage[
     def get[*, or_else: Self.PixelType](self, i: Self.Vec[.int], out v: Self.PixelType):
         v = self._buf.get[or_else=or_else](i)
 
-    def iterate(self, func: Some[def (i: Self.Vec[.int])]):
-        self._buf.iterate(func)
+    def pixels(self) -> ImageIterator[Self.dim, Self.dtype]:
+        return ImageIterator[Self.dim,Self.dtype](self._buf, self.num_pixels())
 
     @inline(.always)
     def load[slen: SIMDLength](self, offset: Int, out v: Self.PixelVec[slen]):
@@ -184,51 +163,19 @@ struct ComplexImage[
             .unsafe_bitcast[Self.ScalarType]()
             .unsafe_store[slen*2](interleaved)
 
-    def pixels_read[slen: SIMDLength = Self.pixel_vec_max_slen](
-        self,
-        func: Some[def[slen: SIMDLength](Self.PixelVec[slen])]
-    ):
-        @inline(.always)
-        def func2[slen: Int](offset: Int) {self, func}:
-            var v = self.load[slen](offset)
-            func[slen](v)
-
-        vectorize[slen](self.num_pixels(), func2)
-   
-    def pixels_write[slen: SIMDLength = Self.pixel_vec_max_slen](
-        mut self,
-        func: Some[def[slen: SIMDLength](out p: Self.PixelVec[slen])]
-    ):
-        @inline(.always)
-        def func2[slen: Int](offset: Int) {mut self, func}:
-            var v = func[slen]()
-            self.store[slen](offset, v)
-
-        vectorize[slen](self.num_pixels(), func2)
-
-    def pixels_read_write[slen: SIMDLength = Self.pixel_vec_max_slen](
-        mut self,
-        func: Some[def[slen: SIMDLength](mut p: Self.PixelVec[slen])]
-    ):
-        @inline(.always)
-        def func2[slen: Int](offset: Int) {mut self, func}:
-            var v = self.load[slen](offset)
-            func[slen](v)
-            self.store[slen](offset, v)
-
-        vectorize[slen](self.num_pixels(), func2)
-
     def fill(mut self, v: Self.PixelType):
 
         @inline(.always)
-        def func[slen: SIMDLength](out p: Self.PixelVec[slen]) {v}:
-            p = complex.splat[slen](v)
+        def func[slen: SIMDLength](offset: Int) {mut self, v}:
+            self.store[slen](offset, complex.splat[slen](v))
 
-        self.pixels_write(func)
+        self.pixels().vectorize(func)
     
     def multiply[slen: SIMDLength = Self.pixel_vec_max_slen](mut self, factor: Self.ScalarType):
 
-        def func[slen: SIMDLength](mut p: Self.PixelVec[slen]) {factor}:
+        def func[slen: SIMDLength](offset: Int) {mut self, factor}:
+            var p = self.load[slen](offset)
             p *= factor
+            self.store[slen](offset, p)
 
-        self.pixels_read_write[slen](func)
+        self.pixels().vectorize[slen](func)

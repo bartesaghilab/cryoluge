@@ -1,23 +1,24 @@
 
-from complex import ComplexScalar
-from testing import assert_equal
+from std.complex import ComplexScalar
+from std.testing import assert_equal
 
 from cryoluge.math import Vec
 from cryoluge.math.error import err_abs
 from cryoluge.fft import FFTImage
 from cryoluge.test import assert_equal_float
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float32
 comptime err_fn = err_abs[dtype]
 comptime Cx = ComplexScalar[dtype]
 
 
-def test_frequency_lookups_1d():
+def test_frequency_lookups_1d() raises:
 
-    var img = FFTImage[1,dtype](Vec[1](x=3))
+    var img = FFTImage[1,dtype](Vec[1](x=3), uninitialized=True)
 
     assert_equal(img.complex.sizes(), Vec[1](x=2))
 
@@ -34,9 +35,9 @@ def test_frequency_lookups_1d():
     assert_equal(img.get(f=Vec[1](x=2)),  Cx(0, 0))
 
 
-def test_frequency_lookups_2d():
+def test_frequency_lookups_2d() raises:
         
-    var img = FFTImage[2,dtype](Vec[2](x=3, y=3))
+    var img = FFTImage[2,dtype](Vec[2](x=3, y=3), uninitialized=True)
 
     assert_equal(img.complex.sizes(), Vec[2](x=2, y=3))
 

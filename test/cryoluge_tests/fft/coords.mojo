@@ -1,16 +1,16 @@
 
-from testing import assert_equal, assert_true
-from builtin._location import __call_location, _SourceLocation
+from std.testing import assert_equal, assert_true
+from std.reflection import call_location, SourceLocation
 
 from cryoluge.lang import LexicalScope
 from cryoluge.image import Vec
 from cryoluge.fft import FFTCoords, FFTCoordsFull
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
 
-
-def test_coords():
+def test_coords() raises:
 
     # 1D tests
 
@@ -148,7 +148,7 @@ def test_coords():
         assert_equal(coords.i2f(Vec[3](x=0, y=0, z=4)), Vec[3](x=0, y=0, z=-1))
 
 
-def test_coords_contiguous():
+def test_coords_contiguous() raises:
 
     # 2D tests
 
@@ -300,7 +300,7 @@ def test_coords_contiguous():
         assert_i(coords.maybe_f2i_contiguous(Vec[2](x=4, y=4)), None)
 
 
-def test_coords_full():
+def test_coords_full() raises:
 
     # 1D tests
 
@@ -389,11 +389,11 @@ def test_coords_full():
 
 @inline(.always)
 def assert_i[dim: Int, //](
-    obs: Optional[Vec[dim,Int]],
-    exp: Optional[Vec[dim,Int]],
+    obs: Optional[Vec[dim,.int]],
+    exp: Optional[Vec[dim,.int]],
     *,
-    location: Optional[_SourceLocation] = None
-):
+    location: Optional[SourceLocation] = None
+) raises:
     var matches: Bool
     if obs is None:
         if exp is None:
@@ -412,5 +412,5 @@ def assert_i[dim: Int, //](
             "\tobserved: ", String(obs.value()) if obs is not None else "(none)", "\n",
             "\texpected: ", String(exp.value()) if exp is not None else "(none)"
         ),
-        location=location.or_else(__call_location())
+        location=location.or_else(call_location())
     )

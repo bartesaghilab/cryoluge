@@ -14,17 +14,17 @@ def test_multiply_4() raises:
 
     var fourier = ComplexImage[1,.float32]([4], uninitialized=True)
 
-    fourier[x=0] = ComplexFloat32(1.0, 2.0)
-    fourier[x=1] = ComplexFloat32(3.0, 4.0)
-    fourier[x=2] = ComplexFloat32(5.0, 6.0)
-    fourier[x=3] = ComplexFloat32(7.0, 8.0)
+    fourier[[0]] = ComplexFloat32(1.0, 2.0)
+    fourier[[1]] = ComplexFloat32(3.0, 4.0)
+    fourier[[2]] = ComplexFloat32(5.0, 6.0)
+    fourier[[3]] = ComplexFloat32(7.0, 8.0)
 
     fourier.multiply[4](3.0)
 
-    assert_equal(fourier[x=0], ComplexFloat32( 3.0,  6.0))
-    assert_equal(fourier[x=1], ComplexFloat32( 9.0, 12.0))
-    assert_equal(fourier[x=2], ComplexFloat32(15.0, 18.0))
-    assert_equal(fourier[x=3], ComplexFloat32(21.0, 24.0))
+    assert_equal(fourier[[0]], ComplexFloat32( 3.0,  6.0))
+    assert_equal(fourier[[1]], ComplexFloat32( 9.0, 12.0))
+    assert_equal(fourier[[2]], ComplexFloat32(15.0, 18.0))
+    assert_equal(fourier[[3]], ComplexFloat32(21.0, 24.0))
 
 
 def test_multiply_5() raises:
@@ -32,19 +32,19 @@ def test_multiply_5() raises:
 
     var fourier = ComplexImage[1,.float32]([5], uninitialized=True)
 
-    fourier[x=0] = ComplexFloat32(1.0, 2.0)
-    fourier[x=1] = ComplexFloat32(3.0, 4.0)
-    fourier[x=2] = ComplexFloat32(5.0, 6.0)
-    fourier[x=3] = ComplexFloat32(7.0, 8.0)
-    fourier[x=4] = ComplexFloat32(9.0, 10.0)
+    fourier[[0]] = ComplexFloat32(1.0, 2.0)
+    fourier[[1]] = ComplexFloat32(3.0, 4.0)
+    fourier[[2]] = ComplexFloat32(5.0, 6.0)
+    fourier[[3]] = ComplexFloat32(7.0, 8.0)
+    fourier[[4]] = ComplexFloat32(9.0, 10.0)
 
     fourier.multiply[4](3.0)
 
-    assert_equal(fourier[x=0], ComplexFloat32( 3.0,  6.0))
-    assert_equal(fourier[x=1], ComplexFloat32( 9.0, 12.0))
-    assert_equal(fourier[x=2], ComplexFloat32(15.0, 18.0))
-    assert_equal(fourier[x=3], ComplexFloat32(21.0, 24.0))
-    assert_equal(fourier[x=4], ComplexFloat32(27.0, 30.0))
+    assert_equal(fourier[[0]], ComplexFloat32( 3.0,  6.0))
+    assert_equal(fourier[[1]], ComplexFloat32( 9.0, 12.0))
+    assert_equal(fourier[[2]], ComplexFloat32(15.0, 18.0))
+    assert_equal(fourier[[3]], ComplexFloat32(21.0, 24.0))
+    assert_equal(fourier[[4]], ComplexFloat32(27.0, 30.0))
 
 
 def test_multiply_max() raises:
@@ -55,10 +55,10 @@ def test_multiply_max() raises:
 
     comptime for i in range(max_width):
         var f = (Float32(i) + 1)*2
-        fourier[x=i] = ComplexFloat32(f - 1, f)
+        fourier[[i]] = ComplexFloat32(f - 1, f)
     
     fourier.multiply(3.0)
 
     comptime for i in range(max_width):
         var f = (Float32(i) + 1)*2
-        assert_equal(fourier[x=i], ComplexFloat32((f - 1)*3, f*3))
+        assert_equal(fourier[[i]], ComplexFloat32((f - 1)*3, f*3))

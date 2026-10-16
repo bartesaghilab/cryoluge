@@ -3,7 +3,7 @@ from std.sys.info import size_of
 from std.memory import bitcast
 
 from cryoluge.math import Vec
-from cryoluge.math.dimension import unimplemented_dimension, expect_at_least_dim
+from cryoluge.math.dimension import unimplemented_dimension, expect_at_least_dim, DimensionalIterator
 from cryoluge.io import ByteBuffer, unsafe_span_bitcast
 
 
@@ -112,6 +112,22 @@ struct DimensionalBuffer[
         return offset
 
     @inline(.always)
+    def coords(self, offset: Int, out indices: Self.Vec[.int]):
+
+        debug_assert(
+            offset >= 0 and offset < self.num_elements(),
+            "offset ", offset, " out of range [0,", self.num_elements(), ")"
+        )
+
+        indices = Self.Vec[.int](uninitialized=True)
+
+        var ofs = offset
+        comptime for d in range(Self.dim - 1, -1, -1):
+            var i = ofs // self._strides[d]
+            ofs -= i*self._strides[d]
+            indices[d] = i
+
+    @inline(.always)
     def __getitem__(self, *, i: Int, out v: Self.T):
         v = self.span(start=i, length=1)[0].copy()
 
@@ -178,5 +194,6 @@ struct DimensionalBuffer[
 
         v = self[i=offset]
 
-    def iterate(self, func: Some[def (i: Self.Vec[.int])]):
-        self.sizes().iterate_over_sizes(func)
+    @inline(.always)
+    def elements(self) -> DimensionalIterator[Self.dim]:
+        return DimensionalIterator(self.sizes().copy())

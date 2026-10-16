@@ -1,6 +1,7 @@
 
 from .coords import *
-from .fftw import *
-from .image import *
 from .domain import *
-from .interpolation import *
+from .image import *
+# TEMP
+# from .fftw import *
+# from .interpolation import *

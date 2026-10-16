@@ -40,29 +40,23 @@ def main() raises:
     # TODO
     # suite.add_module[cryoluge_tests.image.resolution_statistics.tests]()
 
-    # TEMP
-    # try:
-        
-        # TODO
+    suite.add_module[cryoluge_tests.fft.coords.tests]()
+    suite.add_module[cryoluge_tests.fft.image.tests]()
 
-        # suite._register_tests[cryoluge_tests.fft.coords.funcs]()
-        # suite._register_tests[cryoluge_tests.fft.fft.funcs]()
-        # suite._register_tests[cryoluge_tests.fft.image.funcs]()
-        # suite._register_tests[cryoluge_tests.fft.interpolation.funcs]()
+    # TODO
 
-        # suite._register_tests[cryoluge_tests.mrc.mrc_reader.funcs]()
+    # suite._register_tests[cryoluge_tests.fft.fft.funcs]()
+    # suite._register_tests[cryoluge_tests.fft.interpolation.funcs]()
 
-        # suite._register_tests[cryoluge_tests.optimization.golden_section.funcs]()
-        # suite._register_tests[cryoluge_tests.optimization.brent.funcs]()
-        # suite._register_tests[cryoluge_tests.optimization.ccd.funcs]()
-        # suite._register_tests[cryoluge_tests.optimization.powell.funcs]()
+    # suite._register_tests[cryoluge_tests.mrc.mrc_reader.funcs]()
 
-        # suite._register_tests[cryoluge_tests.sync.mutex.funcs]()
-        # suite._register_tests[cryoluge_tests.sync.affinity.funcs]()
+    # suite._register_tests[cryoluge_tests.optimization.golden_section.funcs]()
+    # suite._register_tests[cryoluge_tests.optimization.brent.funcs]()
+    # suite._register_tests[cryoluge_tests.optimization.ccd.funcs]()
+    # suite._register_tests[cryoluge_tests.optimization.powell.funcs]()
 
-    # except e:
-    #     suite^.abandon()
-    #     raise e
+    # suite._register_tests[cryoluge_tests.sync.mutex.funcs]()
+    # suite._register_tests[cryoluge_tests.sync.affinity.funcs]()
 
     print("Running tests ...")
     suite^.run()
