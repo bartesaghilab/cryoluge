@@ -3,7 +3,6 @@ from std.complex import ComplexSIMD
 from std.algorithm import vectorize
 from std.sys import simd_width_of
 
-from cryoluge.io import ByteBuffer
 from cryoluge.math import Vec, ComplexScalar, ladder
 from cryoluge.math.dimension import DimensionalIterator
 from cryoluge.image.image import ImageIterator
@@ -84,7 +83,7 @@ struct ComplexImage[
         *,
         start: Int = 0,
         length: Optional[Int] = None
-    ) -> Span[Byte, origin_of(self._buf._buf._alloc._alloc)]:
+    ) -> Span[Byte,origin_of(self._buf._buf)]:
         return self._buf.span_bytes(start=start, length=length)
 
     @inline(.always)
@@ -93,11 +92,11 @@ struct ComplexImage[
         *,
         start: Int = 0,
         length: Optional[Int] = None
-    ) -> Span[Self.PixelType, origin_of(self._buf._buf._alloc._alloc)]:
+    ) -> Span[Self.PixelType,origin_of(self._buf._buf)]:
         return self._buf.span(start=start, length=length)
 
     @inline(.always)
-    def alignment(self) -> Int:
+    def alignment(self) -> Optional[Int]:
         return self._buf.alignment()
 
     @inline(.always)

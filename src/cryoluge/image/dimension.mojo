@@ -1,6 +1,6 @@
 
 from std.sys.info import size_of
-from std.memory import bitcast
+from std.memory import bitcast, Alignment
 
 from cryoluge.math import Vec
 from cryoluge.math.dimension import unimplemented_dimension, expect_at_least_dim, DimensionalIterator
@@ -61,7 +61,7 @@ struct DimensionalBuffer[
         *,
         start: Int = 0,
         length: Optional[Int] = None
-    ) -> Span[Byte, origin_of(self._buf._alloc._alloc)]:
+    ) -> Span[Byte,origin_of(self._buf)]:
         return self._buf.span(start=start, length=length)
     
     @inline(.always)
@@ -70,14 +70,14 @@ struct DimensionalBuffer[
         *,
         start: Int = 0,
         length: Optional[Int] = None
-    ) -> Span[Self.T, origin_of(self._buf._alloc._alloc)]:
+    ) -> Span[Self.T,origin_of(self._buf)]:
         return unsafe_span_bitcast[Self.T](self.span_bytes(
             start=start*Self._elem_size,
             length=length.map(lambda (l: Int) -> Int: l*Self._elem_size)
         ))
 
     @inline(.always)
-    def alignment(self) -> Int:
+    def alignment(self) -> Optional[Int]:
         return self._buf.alignment()
 
     @inline(.always)

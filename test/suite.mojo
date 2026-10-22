@@ -43,6 +43,9 @@ def main() raises:
     suite.add_module[cryoluge_tests.fft.coords.tests]()
     suite.add_module[cryoluge_tests.fft.image.tests]()
 
+    suite.add_module[cryoluge_tests.sync.mutex.tests]()
+    # suite._register_tests[cryoluge_tests.sync.affinity.funcs]()
+
     # TODO
 
     # suite._register_tests[cryoluge_tests.fft.fft.funcs]()
@@ -54,9 +57,6 @@ def main() raises:
     # suite._register_tests[cryoluge_tests.optimization.brent.funcs]()
     # suite._register_tests[cryoluge_tests.optimization.ccd.funcs]()
     # suite._register_tests[cryoluge_tests.optimization.powell.funcs]()
-
-    # suite._register_tests[cryoluge_tests.sync.mutex.funcs]()
-    # suite._register_tests[cryoluge_tests.sync.affinity.funcs]()
 
     print("Running tests ...")
     suite^.run()

@@ -1,40 +1,43 @@
 
-from std.memory import alloc, dealloc, Layout, Allocation
+from std.memory.alloc import unsafe_alloc
 
 
 struct ByteBuffer(Movable, Copyable):
-    var _alloc: Allocation[Byte]
+    var _p: Pointer[Byte,MutUntrackedOrigin]
+    var _size: Int
+    var _alignment: Optional[Int]
 
     def __init__(out self, size: Int, *, alignment: Optional[Int] = None):
         debug_assert(size >= 0, "Size can't be negative: ", size)
-
-        var layout: Layout[Byte]
-        if alignment is not None:
-            layout = Layout[Byte](count=size, alignment=alignment.value())
+        # NOTE: the new Layout system removed support for runtime alignments =(
+        #       so go back to unsafe_alloc() for now
+        self._size = size
+        self._alignment = alignment
+        if alignment is None:
+            self._p = unsafe_alloc[Byte](size)
         else:
-            # use the default alignment
-            layout = Layout[Byte](count=size)
-
-        self._alloc = alloc(layout)
-
+            self._p = unsafe_alloc[Byte](size, alignment=alignment.value())
+    
     def __deinit__(deinit self):
-        dealloc(self._alloc^)
+        self._p.unsafe_free()
 
     def __init__(out self, *, copy: Self):
-        self._alloc = alloc(copy._alloc.layout())
+        self = Self(copy._size, alignment=copy._alignment)
         self.span().copy_from(copy.span())
 
     @inline(.always)
     def length(self) -> Int:
-        return self._alloc.layout().count()
+        return self._size
 
     @inline(.always)
-    def alignment(self) -> Int:
-        return self._alloc.layout().alignment()
+    def alignment(self) -> Optional[Int]:
+        return self._alignment
 
     @inline(.always)
-    def unsafe_ptr(ref self) -> Pointer[Byte,origin_of(self._alloc._alloc)]:
-        return self._alloc.unsafe_ptr()
+    def unsafe_ptr[origin: Origin](ref[origin] self) -> Pointer[Byte,origin]:
+        return self._p
+            .unsafe_mut_cast[origin.mut]()
+            .unsafe_origin_cast[origin]()
 
     @inline(.always)
     def _check_index(self, i: Int):
@@ -54,11 +57,11 @@ struct ByteBuffer(Movable, Copyable):
         self.unsafe_ptr()[unsafe_offset=i] = b
 
     @inline(.always)
-    def span[origin: Origin](ref [origin] self,
+    def span[origin: Origin](ref[origin] self,
         *,
         start: Int = 0,
         length: Optional[Int] = None
-    ) -> Span[Byte, origin_of(self._alloc._alloc)]:
+    ) -> Span[Byte,origin]:
 
         var span_len = length.or_else(self.length() - start)
 
@@ -68,7 +71,7 @@ struct ByteBuffer(Movable, Copyable):
             "Invalid span: start=", start, ", length=", span_len, ", buf length=", self.length()
         )
 
-        return self._alloc.unsafe_span()
+        return Span[Byte](unsafe_ptr=self.unsafe_ptr(), length=self._size)
             .unsafe_subspan(
                 offset=start,
                 length=span_len

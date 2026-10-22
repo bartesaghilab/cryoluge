@@ -70,18 +70,19 @@ struct TestSuite(
         self._mods.reverse()
         while len(self._mods) > 0:
             var mod = self._mods.pop()
-            results.append(mod^.run())
+            var result = mod^.run()
+            print(result)
+            results.append(result^)
 
         # need to explicitly deinit the mods list to make the compiler happy,
         # even though the list is empty now
         self._mods^.deinit_with(_ModuleTests.abandon)
 
-        # show the failures
+        # count the failures
         var num_failures = 0
         for result in results:
             if result.failed():
                 num_failures += 1
-            print(result)
 
         print()
         if num_failures > 0:
@@ -170,3 +171,8 @@ struct _ModuleResult(
                 writer.write("\n", self.report.value())
         else:
             writer.write(" ✅ ", self.location)
+            if self.report is not None:
+                ref report = self.report.value()
+                var ms = report.total_duration_ns/1_000_000
+                if ms > 1:
+                    writer.write("  [in ", ms, " ms]")

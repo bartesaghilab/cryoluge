@@ -1,6 +1,7 @@
 
-from std.io import FileDescriptor
+from std.io import RawFileDescriptor
 from std.os import SEEK_CUR, SEEK_SET
+from std.ffi import c_int
 
 from cryoluge.io.buffers import ByteBuffer
 from cryoluge.io.binary_reader import BinaryReader
@@ -75,14 +76,14 @@ struct OwnedFileReader(
 
 @fieldwise_init
 struct _Inner(Movable):
-    var _fd: FileDescriptor
-    var _buf: ByteBuffer
+    var _fd: RawFileDescriptor
+    var _buf: ByteBuffer[]
     var _pos: Int
     var _limit: Int
     var _offset: Int
 
     def __init__(out self, fh: FileHandle, buf_size: Int):
-        self._fd = FileDescriptor(fh._get_raw_fd())
+        self._fd = RawFileDescriptor(c_int(fh.handle))
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
         self._buf = ByteBuffer(buf_size)
         self._pos = 0

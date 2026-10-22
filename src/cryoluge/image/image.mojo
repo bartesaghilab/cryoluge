@@ -29,7 +29,7 @@ struct Image[
         uninitialized: Bool,
         alignment: Optional[Int] = None
     ):
-        self._buf = DimensionalBuffer[Self.dim,Self.PixelType](sizes, alignment=alignment)
+        self._buf = DimensionalBuffer[Self.dim,Self.PixelType](sizes)
 
     def __init__(
         out self,
@@ -59,7 +59,7 @@ struct Image[
         *,
         start: Int = 0,
         length: Optional[Int] = None
-    ) -> Span[Byte, origin_of(self._buf._buf._alloc._alloc)]:
+    ) -> Span[Byte,origin_of(self._buf._buf)]:
         return self._buf.span_bytes(start=start, length=length)
 
     @inline(.always)
@@ -68,11 +68,11 @@ struct Image[
         *,
         start: Int = 0,
         length: Optional[Int] = None
-    ) -> Span[Self.PixelType, origin_of(self._buf._buf._alloc._alloc)]:
+    ) -> Span[Self.PixelType,origin_of(self._buf._buf)]:
         return self._buf.span(start=start, length=length)
 
     @inline(.always)
-    def alignment(self) -> Int:
+    def alignment(self) -> Optional[Int]:
         return self._buf.alignment()
 
     @inline(.always)

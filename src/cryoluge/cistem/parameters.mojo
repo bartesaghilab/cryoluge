@@ -1,6 +1,6 @@
 
 from std.sys import size_of
-from std.hashlib import Hasher
+from std.hash import Hasher
 
 from cryoluge.collections import Keyable
 

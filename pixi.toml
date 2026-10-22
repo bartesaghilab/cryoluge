@@ -12,7 +12,9 @@ channels = [
 
 [dependencies]
 # see releases here: https://prefix.dev/channels/max-nightly/packages/mojo
-mojo = "==1.1.0"
+mojo = "==1.2.0"
+# TODO: enable max when the compiler stops crashing long enough to compile closures for the Mutex
+# max = "==26.7"  # only needed for parallelize() to test Mutex
 
 [tasks]
 build_dir = "rm -rf build 2> /dev/null; mkdir -p build"

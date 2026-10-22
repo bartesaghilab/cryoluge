@@ -1,5 +1,5 @@
 
-from std.hashlib import Hasher
+from std.hash import Hasher
 
 from cryoluge.collections import Keyable
 

@@ -1,6 +1,6 @@
 
 from std.collections.dict import _DictValueIter
-from std.hashlib import default_hasher
+from std.hash import default_hasher
 
 
 trait Keyable:

@@ -58,7 +58,7 @@ struct OwnedBytesWriter(BinaryWriter, Movable):
     def bytes_remaining(self) -> Int:
         return self._inner.bytes_remaining(self._buf.span())
         
-    def span_written(self) -> Span[Byte,origin_of(self._buf._alloc._alloc)]:
+    def span_written(self) -> Span[Byte,origin_of(self._buf)]:
         return self._inner.span_written(self._buf.span())
 
     def reset(mut self):

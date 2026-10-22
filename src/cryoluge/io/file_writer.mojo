@@ -1,5 +1,6 @@
 
-from std.io import FileDescriptor
+from std.io import RawFileDescriptor
+from std.ffi import c_int
 
 from cryoluge.io.buffers import ByteBuffer
 from cryoluge.io.binary_writer import BinaryWriter
@@ -11,11 +12,11 @@ struct FileWriter(
     BinaryWriter,
     Movable
 ):
-    var _fd: FileDescriptor
+    var _fd: RawFileDescriptor
     var _buf: OwnedBytesWriter
 
     def __init__(out self, fh: FileHandle, *, buf_size: Int = 16*1024) raises:
-        self._fd = FileDescriptor(fh._get_raw_fd())
+        self._fd = RawFileDescriptor(c_int(fh.handle))
         # NOTE: _get_raw_fd() is an internal function, and therefore probably unstable?
         self._buf = OwnedBytesWriter(ByteBuffer(buf_size))
 
