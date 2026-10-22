@@ -1,10 +1,12 @@
 
 from std.sys import simd_width_of
 from std.algorithm import vectorize
+from std.math import sqrt
 
 from cryoluge.math import Vec
 from cryoluge.math.dimension import DimensionalIterator
 from cryoluge.image.dimension import DimensionalBuffer
+from cryoluge.image.mask import MaskReal, MaskFourier, AllMask
 
 
 struct Image[
@@ -149,132 +151,116 @@ struct Image[
         to.pixels().iterate(func)
         # TODO: vectorize?
 
-    # TODO: masking ...
+    def mean(self) -> Scalar[Self.dtype]:
+        """Returns the mean of the entire image."""
+        return self.mean(mask = AllMask())
 
-    # def mean(self) -> Scalar[Self.dtype]:
-    #     """Returns the mean of the entire image."""
-    #     return self.mean(mask = AllMask())
+    def mean[M: MaskReal, //](
+        self,
+        *,
+        mask: M
+    ) -> Scalar[Self.dtype]:
+        """Returns the mean of the masked region."""
 
-    # def mean[
-    #     M: MaskReal, //
-    # ](
-    #     self,
-    #     *,
-    #     mask: M
-    # ) -> Scalar[dtype]:
-    #     """Returns the mean of the masked region."""
+        var sum: Float64 = 0
+        var num_pixels_matched: Int = 0
 
-    #     var sum: Float64 = 0
-    #     var num_pixels_matched: Int = 0
+        # TODO: any chance we can vectorize this?
 
-    #     # TODO: any chance we can vectorize this?
+        def func(i: Self.Vec[.int]) {self, mask, mut num_pixels_matched, mut sum}:
+            if mask.includes(i, self.sizes()):
+                num_pixels_matched += 1
+                sum += Float64(self[i])
 
-    #     @parameter
-    #     def func(i: Self.Vec[.int]):
-    #         if mask.includes(i, self.sizes()):
-    #             num_pixels_matched += 1
-    #             sum += Float64(self[i])
+        self.pixels().iterate(func)
 
-    #     self.iterate[func]()
+        # since we can't divide by zero
+        if num_pixels_matched <= 0:
+            return 0
 
-    #     # since we can't divide by zero
-    #     if num_pixels_matched <= 0:
-    #         return 0
+        return Scalar[Self.dtype](sum/Float64(num_pixels_matched))
 
-    #     return Scalar[dtype](sum/Float64(num_pixels_matched))
+    def mean_variance(self) -> Tuple[Scalar[Self.dtype], Scalar[Self.dtype]]:
+        """Returns the mean and variance of the entire image."""
+        return self.mean_variance(mask = AllMask())
 
-    # def mean_variance(self) -> Tuple[Scalar[dtype], Scalar[dtype]]:
-    #     """Returns the mean and variance of the entire image."""
-    #     return self.mean_variance(mask = AllMask())
+    def mean_variance[M: MaskReal, //](
+        self,
+        *,
+        mask: M
+    ) -> Tuple[Scalar[Self.dtype], Scalar[Self.dtype]]:
+        """Returns the mean and variance of the masked region."""
 
-    # def mean_variance[
-    #     M: MaskReal, //
-    # ](
-    #     self,
-    #     *,
-    #     mask: M
-    # ) -> Tuple[Scalar[dtype], Scalar[dtype]]:
-    #     """Returns the mean and variance of the masked region."""
+        var sum: Float64 = 0
+        var sum_of_squares: Float64 = 0
+        var num_pixels_matched: Int = 0
 
-    #     var sum: Float64 = 0
-    #     var sum_of_squares: Float64 = 0
-    #     var num_pixels_matched: Int = 0
+        # TODO: any chance we can vectorize this?
 
-    #     # TODO: any chance we can vectorize this?
+        def func(i: Self.Vec[.int]) {self, mask, mut num_pixels_matched, mut sum, mut sum_of_squares}:
+            if mask.includes(i, self.sizes()):
+                num_pixels_matched += 1
+                var p = Float64(self[i])
+                sum += p
+                p *= p
+                sum_of_squares += p
 
-    #     @parameter
-    #     def func(i: Self.Vec[.int]):
-    #         if mask.includes(i, self.sizes()):
-    #             num_pixels_matched += 1
-    #             var p = Float64(self[i])
-    #             sum += p
-    #             p *= p
-    #             sum_of_squares += p
+        self.pixels().iterate(func)
 
-    #     self.iterate[func]()
+        # since we can't divide by zero
+        if num_pixels_matched <= 0:
+            return (0, 0)
 
-    #     # since we can't divide by zero
-    #     if num_pixels_matched <= 0:
-    #         return (0, 0)
+        var n = Float64(num_pixels_matched)
+        var mean = Scalar[Self.dtype](sum/n)
+        var variance = abs(Scalar[Self.dtype]( sum_of_squares/n - (sum/n)**2 ))
+        return (mean, variance)
 
-    #     var n = Float64(num_pixels_matched)
-    #     var mean = Scalar[dtype](sum/n)
-    #     var variance = abs(Scalar[dtype]( sum_of_squares/n - (sum/n)**2 ))
-    #     return (mean, variance)
+    def range(self) -> Tuple[Scalar[Self.dtype],Scalar[Self.dtype]]:
+        return self.range(mask=AllMask())
 
-    # def range(self) -> Tuple[Scalar[dtype],Scalar[dtype]]:
-    #     return self.range(mask=AllMask())
-
-    # def range[
-    #     M: MaskReal, //
-    # ](
-    #     self,
-    #     *,
-    #     mask: M
-    # ) -> Tuple[Scalar[dtype],Scalar[dtype]]:
+    def range[M: MaskReal, //](
+        self,
+        *,
+        mask: M
+    ) -> Tuple[Scalar[Self.dtype],Scalar[Self.dtype]]:
         
-    #     var min = Scalar[dtype].MAX
-    #     var max = Scalar[dtype].MIN
+        var min = Scalar[Self.dtype].MAX
+        var max = Scalar[Self.dtype].MIN
 
-    #     # TODO: vectorize?
-    #     @parameter
-    #     def func(i: Self.Vec[.int]):
-    #         if mask.includes(i, self.sizes()):
-    #             var p = self[i]
-    #             if p < min:
-    #                 min = p
-    #             elif p > max:
-    #                 max = p
+        # TODO: vectorize?
+        def func(i: Self.Vec[.int]) {self, mask, mut min, mut max}:
+            if mask.includes(i, self.sizes()):
+                var p = self[i]
+                if p < min:
+                    min = p
+                elif p > max:
+                    max = p
         
-    #     self.iterate[func]()
+        self.pixels().iterate(func)
 
-    #     return (min, max)
+        return (min, max)
 
-    # def replace_outliers(
-    #     mut self,
-    #     *,
-    #     mean: Scalar[dtype],
-    #     variance: Scalar[dtype],
-    #     gt_sigmas: Scalar[dtype],
-    #     replace_with: Scalar[dtype]
-    # ):
-    #     """Replaces pixels with sigma (relative to `mean` and `variance`) greater than `gt_sigmas` with `replace_with`."""
+    def replace_outliers(
+        mut self,
+        *,
+        mean: Scalar[Self.dtype],
+        variance: Scalar[Self.dtype],
+        gt_sigmas: Scalar[Self.dtype],
+        replace_with: Scalar[Self.dtype]
+    ):
+        """Replaces pixels with sigma (relative to `mean` and `variance`) greater than `gt_sigmas` with `replace_with`."""
 
-    #     var stddev = sqrt(variance)
-    #     var max = mean + gt_sigmas*stddev
-    #     var min = mean - gt_sigmas*stddev
+        var stddev = sqrt(variance)
+        var max = mean + gt_sigmas*stddev
+        var min = mean - gt_sigmas*stddev
 
-    #     @parameter
-    #     def func(i: Self.Vec[.int]):
-    #         var p = self[i]
-    #         if p > max or p < min:
-    #             self[i] = replace_with
+        def func(i: Self.Vec[.int]) {mut self, min, max, replace_with}:
+            var p = self[i]
+            if p > max or p < min:
+                self[i] = replace_with
 
-    #     self.iterate[func]()
-            
-    #     # TEMP: extend lifetimes of captures vars to work around compiler bug
-    #     _ = min
-    #     _ = max
+        self.pixels().iterate(func)
 
 
 struct ImageIterator[dim: Int, dtype: DType](

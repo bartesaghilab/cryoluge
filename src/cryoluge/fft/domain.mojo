@@ -19,3 +19,8 @@ struct CoordDomain(
 
     def write_to[W: Writer](self, mut writer: W):
         writer.write(self.name)
+
+
+def expect_domain[exp: CoordDomain, obs: CoordDomain]():
+    comptime assert exp == obs,
+            String("Expected ", exp, " domain, but got ", obs, " instead")
