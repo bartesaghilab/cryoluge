@@ -1,15 +1,16 @@
 
-from testing import assert_equal
+from std.testing import assert_equal
 
 from cryoluge.image.analysis import ResolutionStatistics
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
 
 comptime dtype = DType.float64
 
 
-def test_read():
+def test_read() raises:
 
     var stats = ResolutionStatistics[dtype]()
 

@@ -1,21 +1,26 @@
 
+from std.complex import ComplexScalar
+
 from cryoluge.math import Vec
 from cryoluge.math.units import Px
+from cryoluge.image.operators.phase_shift import PhaseShiftOperator
+from cryoluge.fft import FFTImage
 
 
-struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Int]:
+struct SwapRealSpaceQuadrantsOperator[dim: Int, dtype: DType]
+    where dim > 0 and dtype.is_floating_point():
 
-    var phase_shift_op: PhaseShiftOperator[dtype,dim]
+    var phase_shift_op: PhaseShiftOperator[Self.dim,Self.dtype]
 
     @staticmethod
-    def shifts(sizes_real: Vec[dim,Int], out result: Vec[dim,Px[dtype]]):
-        result = sizes_real.map_scalar[dtype]().map_unit[Px.utype]()/2
+    def shifts(sizes_real: Vec[Self.dim,.int], out result: Px[Vec[Self.dim,Self.dtype]]):
+        result = Px(sizes_real.map_dtype[Self.dtype]()/2)
 
     def __init__(
         out self,
-        sizes_real: Vec[dim,Int]
+        sizes_real: Vec[Self.dim,.int]
     ):
-        self.phase_shift_op = PhaseShiftOperator[dtype](
+        self.phase_shift_op = PhaseShiftOperator[Self.dim,Self.dtype](
             sizes_real=sizes_real.copy(),
             shifts=Self.shifts(sizes_real)
         )
@@ -23,24 +28,20 @@ struct SwapRealSpaceQuadrantsOperator[dtype: DType, dim: Int]:
     def eval(
         self,
         *,
-        f: Vec[dim,Int],
-        v: ComplexScalar[dtype],
-        out result: ComplexScalar[dtype]
+        f: Vec[Self.dim,.int],
+        v: ComplexScalar[Self.dtype],
+        out result: ComplexScalar[Self.dtype]
     ):
         result = self.phase_shift_op.eval(f=f, v=v)
 
     def apply(
         self,
-        mut img: FFTImage[dim,dtype]
+        mut img: FFTImage[Self.dim,Self.dtype]
     ):
         var coords = img.coords()
 
-        @parameter
-        def func(i: Vec[dim,Int]):
+        def func(i: Vec[Self.dim,.int]) {self, coords, mut img}:
             var f = coords.i2f(i)
             img.complex[i=i] = self.eval(f=f, v=img.complex[i=i])
 
-        img.complex.iterate[func]()
-
-        # TEMP: extend lifetimes to work around compiler bug
-        _ = coords
+        img.complex.pixels().iterate(func)

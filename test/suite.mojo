@@ -20,6 +20,7 @@ def main() raises:
     suite.add_module[cryoluge_tests.math.matrix.tests]()
     suite.add_module[cryoluge_tests.math.rand.tests]()
     suite.add_module[cryoluge_tests.math.box.tests]()
+    suite.add_module[cryoluge_tests.math.units.tests]()
 
     suite.add_module[cryoluge_tests.collections.keyable_set.tests]()
 
@@ -37,8 +38,7 @@ def main() raises:
 
     suite.add_module[cryoluge_tests.image.image.tests]()
     suite.add_module[cryoluge_tests.image.complex_image.tests]()
-    # TODO
-    # suite.add_module[cryoluge_tests.image.resolution_statistics.tests]()
+    suite.add_module[cryoluge_tests.image.resolution_statistics.tests]()
 
     suite.add_module[cryoluge_tests.fft.coords.tests]()
     suite.add_module[cryoluge_tests.fft.image.tests]()

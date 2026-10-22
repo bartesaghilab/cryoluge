@@ -344,6 +344,12 @@ struct Vec[
     # math things
 
     @inline(.always)
+    def __pos__(self, out result: Self):
+        result = Self(uninitialized=True)
+        comptime for d in range(Self.dim):
+            result[d] = +self[d]
+
+    @inline(.always)
     def __neg__(self, out result: Self):
         result = Self(uninitialized=True)
         comptime for d in range(Self.dim):
@@ -552,7 +558,7 @@ struct Vec[
         ])
 
     @inline(.always)
-    def len2(self: Self, out result: Self.V):
+    def len2(self, out result: Self.V):
         # NOTE: this returns a higher-precision result than the inner product, for some reason
         #       `x**2` is probably higher-precision than `x*x`
         result = (self**2).sum()

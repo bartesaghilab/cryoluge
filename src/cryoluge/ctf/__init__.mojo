@@ -10,42 +10,39 @@ from cryoluge.fft import FFTCoords
 struct CTF[dtype: DType](
     Copyable,
     Movable
-):
-    var wavelength_px: Px[Self.dtype]
-    var spherical_aberration_px: Px[Self.dtype]
-    var astigmatism_azimuth_rad: Rad[Self.dtype]
-    var pixel_size: Ang[Self.dtype]
-    var additional_phase_shift_rad: Rad[Self.dtype]
-    var amplitude_contrast_term_rad: Rad[Self.dtype]
-    var beam_tilt_azimuth_rad: Rad[Self.dtype]
-    var particle_shift_azimuth_rad: Rad[Self.dtype]
+) where dtype.is_floating_point():
+
+    var wavelength_px: Px[Scalar[Self.dtype]]
+    var spherical_aberration_px: Px[Scalar[Self.dtype]]
+    var astigmatism_azimuth_rad: Rad[Scalar[Self.dtype]]
+    var pixel_size: Ang[Scalar[Self.dtype]]
+    var additional_phase_shift_rad: Rad[Scalar[Self.dtype]]
+    var amplitude_contrast_term_rad: Rad[Scalar[Self.dtype]]
+    var beam_tilt_azimuth_rad: Rad[Scalar[Self.dtype]]
+    var particle_shift_azimuth_rad: Rad[Scalar[Self.dtype]]
     var low_resolution_contrast: Scalar[Self.dtype]  # TODO: does this have a unit?
     var _sawl2: Scalar[Self.dtype]
     var _sawl3: Scalar[Self.dtype]
     var _defocus_half_sum: Scalar[Self.dtype]
     var _defocus_half_diff: Scalar[Self.dtype]
-    var _extra_rotation: Rad[Self.dtype]
-    var _beam_tilt_rad: Rad[Self.dtype]
+    var _extra_rotation: Rad[Scalar[Self.dtype]]
+    var _beam_tilt_rad: Rad[Scalar[Self.dtype]]
     var _particle_shift_px: Scalar[Self.dtype]
 
     def __init__(
         out self,
         *,
-        acceleration_voltage_kv: Scalar[dtype],
-        spherical_aberration_mm: MM[dtype],
-        amplitude_contrast: Scalar[dtype],  # TODO: does this have a unit?
-        defocus_a: Vec[2,Ang[dtype]],
-        astigmatism_azimuth_rad: Rad[dtype],
-        pixel_size: Ang[dtype],
-        additional_phase_shift_rad: Rad[dtype],
-        beam_tilt_rad: Vec[2,Rad[dtype]],
-        particle_shift_a: Vec[2,Ang[dtype]],
-        low_resolution_contrast: Scalar[dtype] = 0
+        acceleration_voltage_kv: Scalar[Self.dtype],
+        spherical_aberration_mm: MM[Scalar[Self.dtype]],
+        amplitude_contrast: Scalar[Self.dtype],  # TODO: does this have a unit?
+        defocus_a: Ang[Vec[2,Self.dtype]],
+        astigmatism_azimuth_rad: Rad[Scalar[Self.dtype]],
+        pixel_size: Ang[Scalar[Self.dtype]],
+        additional_phase_shift_rad: Rad[Scalar[Self.dtype]],
+        beam_tilt_rad: Rad[Vec[2,Self.dtype]],
+        particle_shift_a: Ang[Vec[2,Self.dtype]],
+        low_resolution_contrast: Scalar[Self.dtype] = 0
     ):
-        @parameter
-        def to_px(a: Ang[dtype]) -> Px[dtype]:
-            return a.to_px(pixel_size)
-
         self.wavelength_px = _acceleration_voltage_to_wavelength_a(acceleration_voltage_kv).to_px(pixel_size)
         self.spherical_aberration_px = spherical_aberration_mm.to_ang().to_px(pixel_size)
 
@@ -55,20 +52,20 @@ struct CTF[dtype: DType](
 
         # handle amplitude contrast
         if abs(amplitude_contrast - 1) < 1e-3:
-            self.amplitude_contrast_term_rad = pi[dtype]/2
+            self.amplitude_contrast_term_rad = pi[Self.dtype]/2
         else:
             self.amplitude_contrast_term_rad = Rad(atan(amplitude_contrast / sqrt(1 - amplitude_contrast**2)))
 
         # handle beam tilt
         if beam_tilt_rad.x() < 1e-4 and beam_tilt_rad.y() < 1e-4:
-            self.beam_tilt_azimuth_rad = Rad[dtype](0)
+            self.beam_tilt_azimuth_rad = Rad(Scalar[Self.dtype](0))
         else:
             self.beam_tilt_azimuth_rad = Rad(atan2(beam_tilt_rad.y().value, beam_tilt_rad.x().value))
 
         # handle particle shift
-        var particle_shift_px = particle_shift_a.map[mapper=to_px]()
+        var particle_shift_px = particle_shift_a.to_px(pixel_size)
         if particle_shift_px.x() < 1e-4 and particle_shift_px.y() < 1e-4:
-            self.particle_shift_azimuth_rad = Rad[dtype](0)
+            self.particle_shift_azimuth_rad = Rad[Scalar[Self.dtype]](0)
         else:
             self.particle_shift_azimuth_rad = Rad(atan2(particle_shift_px.x().value, particle_shift_px.y().value))
 
@@ -77,31 +74,31 @@ struct CTF[dtype: DType](
         # pre-compute some other terms and factors
 
         self._sawl2 = (self.spherical_aberration_px * self.wavelength_px**2).value
-        self._sawl3 = self._sawl2*self.wavelength_px.value*pi[dtype].value/2
+        self._sawl3 = self._sawl2*self.wavelength_px.value*pi[Self.dtype].value/2
 
-        var defocus_px = defocus_a.map[mapper=to_px]().map_value()
-        self._defocus_half_sum = 0.5*(defocus_px.x() + defocus_px.y()) * self.wavelength_px.value*pi[dtype].value
-        self._defocus_half_diff = 0.5*(defocus_px.x() - defocus_px.y()) * self.wavelength_px.value*pi[dtype].value
+        var defocus_px = defocus_a.to_px(pixel_size)
+        self._defocus_half_sum = (0.5*(defocus_px.x() + defocus_px.y())*self.wavelength_px).value * pi[Self.dtype].value
+        self._defocus_half_diff = (0.5*(defocus_px.x() - defocus_px.y())*self.wavelength_px).value * pi[Self.dtype].value
 
         self._extra_rotation = self.additional_phase_shift_rad + self.amplitude_contrast_term_rad
-        self._beam_tilt_rad = beam_tilt_rad.len() * pi[dtype]*2
-        self._particle_shift_px = particle_shift_px.len().value * pi[dtype].value*2
+        self._beam_tilt_rad = beam_tilt_rad.len() * pi[Self.dtype]*2
+        self._particle_shift_px = particle_shift_px.len().value * pi[Self.dtype].value*2
 
     def azimuth(
         self,
         *,
-        f_norm: Vec[2,Scalar[dtype]],
-        out result: Rad[dtype]
+        f_norm: Vec[2,Self.dtype],
+        out result: Rad[Scalar[Self.dtype]]
     ):
-        result = Rad[dtype](0)
+        result = Rad[Scalar[Self.dtype]](0)
         if f_norm.x() != 0 or f_norm.y() != 0:
             result = Rad(atan2(f_norm.y(), f_norm.x()))
 
     def eval(
         self,
         *,
-        f_norm: Vec[2,Scalar[dtype]],
-        out result: Scalar[dtype]
+        f_norm: Vec[2,Self.dtype],
+        out result: Scalar[Self.dtype]
     ):
         result = self.eval(
             azimuth=self.azimuth(f_norm=f_norm),
@@ -111,15 +108,15 @@ struct CTF[dtype: DType](
     def eval(
         self,
         *,
-        azimuth: Rad[dtype],
-        freq_norm2: Scalar[dtype],
-        out result: Scalar[dtype]
+        azimuth: Rad[Scalar[Self.dtype]],
+        freq_norm2: Scalar[Self.dtype],
+        out result: Scalar[Self.dtype]
     ):
         var angle = 2*(azimuth - self.astigmatism_azimuth_rad)
         var phase_shift_rad = self._extra_rotation
             + freq_norm2*(self._defocus_half_sum + self._defocus_half_diff*angle.cos() - self._sawl3*freq_norm2)
 
-        comptime threshold = 2*pi[dtype]
+        comptime threshold = 2*pi[Self.dtype]
         if phase_shift_rad > threshold:
             phase_shift_rad += self.low_resolution_contrast*(1 - phase_shift_rad/threshold)
 
@@ -128,8 +125,8 @@ struct CTF[dtype: DType](
     def eval_beam_tilt_phase_shift(
         self,
         *,
-        f_norm: Vec[2,Scalar[dtype]],
-        out result: ComplexScalar[dtype]
+        f_norm: Vec[2,Self.dtype],
+        out result: ComplexScalar[Self.dtype]
     ):
         var freq_norm2 = f_norm.len2()
         result = self.eval_beam_tilt_phase_shift(
@@ -141,25 +138,25 @@ struct CTF[dtype: DType](
     def eval_beam_tilt_phase_shift(
         self,
         *,
-        azimuth: Rad[dtype],
-        freq_norm2: Scalar[dtype],
-        freq_norm: Scalar[dtype],
-        out result: ComplexScalar[dtype]
+        azimuth: Rad[Scalar[Self.dtype]],
+        freq_norm2: Scalar[Self.dtype],
+        freq_norm: Scalar[Self.dtype],
+        out result: ComplexScalar[Self.dtype]
     ):
         if self._beam_tilt_rad.value == 0 and self._particle_shift_px == 0:
-            result = ComplexScalar[dtype](1, 0)
+            result = ComplexScalar[Self.dtype](1, 0)
 
         var beam_tilt_rad = self._beam_tilt_rad*(azimuth - self.beam_tilt_azimuth_rad).cos()
         var particle_shift_px = self._particle_shift_px*(azimuth - self.particle_shift_azimuth_rad).cos()
 
         var phase_shift_rad = freq_norm*(beam_tilt_rad*self._sawl2*freq_norm2 - particle_shift_px)
 
-        result = ComplexScalar[dtype](phase_shift_rad.cos(), phase_shift_rad.sin())
+        result = ComplexScalar[Self.dtype](phase_shift_rad.cos(), phase_shift_rad.sin())
 
 
 def _acceleration_voltage_to_wavelength_a[dtype: DType](
     acceleration_voltage_kv: Scalar[dtype],
-    out wavelength_a: Ang[dtype]
+    out wavelength_a: Ang[Scalar[dtype]]
 ):
     var acceleration_voltage_v = 1000*acceleration_voltage_kv
     wavelength_a = Ang(12.2639 / sqrt(acceleration_voltage_v + 0.97845e-6*acceleration_voltage_v**2))

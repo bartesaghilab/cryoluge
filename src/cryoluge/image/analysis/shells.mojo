@@ -1,5 +1,5 @@
 
-from math import sqrt
+from std.math import sqrt
 
 from cryoluge.math import Vec
 from cryoluge.fft import FFTCoords
@@ -49,7 +49,7 @@ struct FourierShells[dim: Int](
         out shelli: Int
     ):
         """Returns the index of the Fourier shell at the given normalized frequency."""
-        shelli = Int(freq_norm*self.count_at_unity)
+        shelli = Int(freq_norm*Scalar[dtype](self.count_at_unity))
     
     def shelli[dtype: DType](
         self,
@@ -66,7 +66,7 @@ struct FourierShells[dim: Int](
         out freq: Scalar[dtype]
     ):
         """Returns the low normalized frequency boundary of the given shell."""
-        freq = Scalar[dtype](shelli)/self.count_at_unity
+        freq = Scalar[dtype](shelli)/Scalar[dtype](self.count_at_unity)
 
     def freq_norm_hi[dtype: DType](
         self,
@@ -78,7 +78,7 @@ struct FourierShells[dim: Int](
 
     def freq_norm_max[dtype: DType](self, out freq_norm_max: Scalar[dtype]):
         """Returns the normalized frequency at the corner of Fourier space farthest from the center."""
-        freq_norm_max = sqrt(Scalar[dtype](dim))/2
+        freq_norm_max = sqrt(Scalar[dtype](Self.dim))/2
     
     def shelli_max(self, out shelli_max: Int):
         """Returns the index of the Fourier shell at the corner of Fourier space farthest from the center."""

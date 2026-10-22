@@ -1,4 +1,6 @@
 
+from std.math import sqrt
+
 from cryoluge.math.units import Ang
 
 
@@ -7,10 +9,10 @@ from cryoluge.math.units import Ang
 
 
 struct ResolutionStatistics[dtype: DType]:
-    var records: List[ResolutionStatisticsRecord[dtype]]
+    var records: List[ResolutionStatisticsRecord[Self.dtype]]
 
     def __init__(out self):
-        self.records = []
+        self.records = List[ResolutionStatisticsRecord[Self.dtype]]()
 
     def read(mut self, *, contents: String) raises:
 
@@ -22,18 +24,16 @@ struct ResolutionStatistics[dtype: DType]:
             linei += 1
 
             # skip blank lines
-            if len(line) <= 0:
+            if line.byte_length() <= 0:
                 continue
 
             # skip comment lines
-            # NOTE: String.__getitem__() splits on byte boundaries
-            #       (ie, is only valid for ASCII-encoded strings),
-            #       but we're checking for ASCII 'C' at the first position, so it's safe
-            if line[0] == "C":
+            var codepoints = line.codepoints()
+            if codepoints.__next__() == Codepoint.ord("C"):
                 continue
 
             # parse the columns
-            var cols = [w for w in line.split(" ") if len(w) > 0]
+            var cols = [w for w in line.split(" ") if w.byte_length() > 0]
 
             # skip empty lines
             if len(cols) <= 0:
@@ -43,14 +43,14 @@ struct ResolutionStatistics[dtype: DType]:
                 raise Error("Too few columns (", len(cols), ") on line ", linei)
 
             self.records.append(ResolutionStatisticsRecord(
-                shell = Scalar[dtype](atof(cols[0])),
-                resolution = Ang[dtype](atof(cols[1])),
-                ring_radius = Ang[dtype](atof(cols[2])),
-                fsc = Scalar[dtype](atof(cols[3])),
-                particle_fsc = Scalar[dtype](atof(cols[4])),
+                shell = Scalar[Self.dtype](atof(cols[0])),
+                resolution = Ang(Scalar[Self.dtype]( atof(cols[1]) )),
+                ring_radius = Ang(Scalar[Self.dtype]( atof(cols[2]))),
+                fsc = Scalar[Self.dtype](atof(cols[3])),
+                particle_fsc = Scalar[Self.dtype](atof(cols[4])),
                 # NOTE: remove the sqrt from SSNR colums by squaring
-                particle_ssnr = Scalar[dtype](atof(cols[5])**2),
-                reconstruction_ssnr = Scalar[dtype](atof(cols[6])**2)
+                particle_ssnr = Scalar[Self.dtype](atof(cols[5])**2),
+                reconstruction_ssnr = Scalar[Self.dtype](atof(cols[6])**2)
             ))
 
     def read(mut self, *, path: String) raises:
@@ -67,7 +67,7 @@ struct ResolutionStatistics[dtype: DType]:
 
         # estimate an initial capacity for the string
         # doesn't have to be perfect
-        s = String(capacity=len(self.records)*7*15)
+        s = String(capacity_bytes=len(self.records)*7*15)
 
         # render the comments, if any
         for comment in comments:
@@ -105,10 +105,10 @@ struct ResolutionStatisticsRecord[dtype: DType](
     Copyable,
     Movable
 ):
-    var shell: Scalar[dtype]  # colum 1
-    var resolution: Ang[dtype]  # column 2
-    var ring_radius: Ang[dtype]  # column 3
-    var fsc: Scalar[dtype]  # column 4
-    var particle_fsc: Scalar[dtype]  # column 5
-    var particle_ssnr: Scalar[dtype]  # column 6
-    var reconstruction_ssnr: Scalar[dtype]  # column 7
+    var shell: Scalar[Self.dtype]  # colum 1
+    var resolution: Ang[Scalar[Self.dtype]]  # column 2
+    var ring_radius: Ang[Scalar[Self.dtype]]  # column 3
+    var fsc: Scalar[Self.dtype]  # column 4
+    var particle_fsc: Scalar[Self.dtype]  # column 5
+    var particle_ssnr: Scalar[Self.dtype]  # column 6
+    var reconstruction_ssnr: Scalar[Self.dtype]  # column 7

@@ -1,4 +1,7 @@
 
+from std.complex import ComplexScalar
+
+from cryoluge.math import Vec
 from cryoluge.image import ComplexImage
 
 
@@ -23,14 +26,14 @@ struct PhaseFlipOperator:
     ):
         var sign = Int(ctf > 0) - Int(ctf < 0)
         # NOTE: mojo True casts to 1 and False to 0
-        result = v*sign
+        result = v*Scalar[dtype](sign)
 
     def apply[dim: Int, dtype: DType](
         self,
         mut image: ComplexImage[dim,dtype]
-    ):
-        @parameter
-        def func(i: Vec[dim,Int]):
+    ) where dim > 0:
+
+        def func(i: Vec[dim,.int]) {self, mut image}:
             image[i=i] = self.eval(image[i=i])
 
-        image.iterate[func]()
+        image.pixels().iterate(func)

@@ -8,6 +8,7 @@ from . import vec
 from . import matrix
 from . import rand
 from . import box
+from . import units
 
 
 from cryoluge_testlib import ModuleTests, TestLocation
