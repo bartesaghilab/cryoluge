@@ -1,11 +1,13 @@
 
+from std.sys import Endian
+
 from cryoluge.io import ByteBuffer, BinaryWriter, BytesWriter, BinaryReader, Endian
 from cryoluge.lang import intcast_i32
 from cryoluge.cistem.parameters import Parameter, CistemParameters
 from cryoluge.cistem.reader import CistemReader
 
 
-comptime endian = Endian.Little
+comptime endian = Endian.little
 
 
 struct CistemWriter[

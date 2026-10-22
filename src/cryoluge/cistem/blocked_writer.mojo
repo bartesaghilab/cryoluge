@@ -1,11 +1,13 @@
 
+from std.sys import Endian
+
 from cryoluge.io import Endian, BinaryWriter
 from cryoluge.cistem.parameters import Parameter
 from cryoluge.cistem.blocks import Block
 from cryoluge.cistem.writer import CistemWriter
 
 
-comptime endian = Endian.Little
+comptime endian = Endian.little
 
 
 @fieldwise_init

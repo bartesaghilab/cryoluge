@@ -1,12 +1,13 @@
 
 from std.collections import Set
+from std.sys import Endian
 
 from cryoluge.collections import KeyableSet
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian
 from cryoluge.cistem.parameters import Parameter, ParameterType, CistemParameters
 
 
-comptime endian = Endian.Little
+comptime endian = Endian.little
 
 
 struct CistemReader[

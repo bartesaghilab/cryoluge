@@ -1,12 +1,14 @@
 
+from std.sys import Endian
+
 from cryoluge.collections import KeyableSet
-from cryoluge.io import BinaryReader, Endian
+from cryoluge.io import BinaryReader
 from cryoluge.cistem.parameters import Parameter, CistemParameters
 from cryoluge.cistem.blocks import Block
 from cryoluge.cistem.reader import CistemReader
 
 
-comptime endian = Endian.Little
+comptime endian = Endian.little
 
 
 struct BlockedReader[
