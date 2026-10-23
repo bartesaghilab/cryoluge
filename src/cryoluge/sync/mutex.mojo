@@ -1,103 +1,89 @@
 
-from os.atomic import Atomic, Consistency
-from memory import alloc, UnsafePointer
-from time import sleep
+from std.atomic import Atomic
+from std.memory import alloc, dealloc, Layout, Allocation
+from std.time import sleep
 
 
-struct Mutex[
-    T: AnyType & Movable = NoneType
-](
+struct Mutex[T: Movable & Deinitable = NoneType](
     Movable
 ):
-    var _ptr: Self._Ptr
-    var _item: T
+    var _alloc: Allocation[Int]
+    var _item: Self.T
 
-    alias _Val = Scalar[DType.int]
-    alias unlocked = Self._Val(0)
-    alias locked = Self._Val(1)
+    comptime _unlocked = 0
+    comptime _locked = 1
 
-    alias _Ptr = UnsafePointer[Self._Val,MutOrigin.external]
+    def __init__(out self)
+        where Self.T == NoneType:
 
-    def __init__(out self: Mutex[NoneType]):
-        self = Mutex[NoneType](None)
+        self = rebind_var[Self]( Mutex(None) )
 
-    def __init__(out self, var item: T):
+    def __init__(out self, var item: Self.T):
 
         # init the atomic value to unlocked
-        self._ptr = alloc[Self._Val](1)
-        self._ptr[] = Self.unlocked
+        self._alloc = alloc(Layout[Int](count=1))
+        self._alloc.unsafe_ptr()[] = Self._unlocked
 
         self._item = item^
+
+    def __deinit__(deinit self):
+        dealloc(self._alloc^)
+
+    def unwrap(deinit self, out item: Self.T):
+        dealloc(self._alloc^)
+        item = self._item^
+
+    def _unsafe_ptr(self) -> Pointer[Int,origin_of(self._alloc._alloc).unsafe_mut_cast[True]()]:
+        return self._alloc.unsafe_ptr()
+            .unsafe_mut_cast[True]()
 
     # TODO: can we relax any of the consistencies to get better optimization?
     # TODO: implement thread parking and signaling instead of doing spin,sleep waits?
 
     def lock[wait_ms: Int = 0](
         self,
-        out guard: MutexGuard[T,MutOrigin.cast_from[origin_of(self._item)]]
+        out guard: MutexGuard[Self.T, origin_of(self).unsafe_mut_cast[True]()]
     ):
         while True:
 
             # try to set the atomic to the locked state, but only if it's currently unlocked
-            var expected = Self.unlocked
-            var exchanged = Atomic.compare_exchange[
-                failure_ordering = Consistency.SEQUENTIAL,
-                success_ordering = Consistency.SEQUENTIAL
-            ](
-                ptr = self._ptr,
+            var expected = Self._unlocked
+            var exchanged = Atomic.compare_exchange(
+                ptr = self._unsafe_ptr(),
+                # SAFETY: the atomic function will make sure only one caller mutates the pointer
                 expected = expected,
-                desired = Self.locked
+                desired = Self._locked
             )
             if exchanged:
                 # we have the lock now!
-                var p_item = UnsafePointer(to=self._item)
-                    .unsafe_mut_cast[True]()
-                    # SAFETY: we can mutate the item only while holding the lock
-                return MutexGuard[T](self._ptr, p_item[])
+                return MutexGuard[Self.T, origin_of(self).unsafe_mut_cast[True]()](
+                    _mutex = Pointer(to=self).unsafe_mut_cast[True]()
+                )
+                # SAFETY: only one guard can hold the lock, so the Mutex is safe to mutate
             else:
                 # don't have the lock yet: try again
                 if wait_ms != 0:
                     sleep(sec=Float64(wait_ms)/Float64(1000))
 
-    def __del__(deinit self):
-        self._ptr.free()
 
-    def unwrap(deinit self, out item: T):
-        item = self._item^
-
-
+@fieldwise_init
 struct MutexGuard[
-    T: AnyType & Movable,
-    item_origin: Origin[mut=True]
+    T: Movable & Deinitable,
+    origin_mutex: Origin[mut=True]
 ]:
-    var _ptr: Mutex._Ptr
-    var _item: Pointer[T,item_origin]
-
-    def __init__(
-        out self,
-        ptr: Mutex._Ptr,
-        ref [item_origin] item: T
-    ):
-        self._ptr = ptr
-        self._item = Pointer(to=item)
-
-    def __del__(deinit self):
-        # set the atomic to unlocked
-        Atomic.store[
-            ordering = Consistency.SEQUENTIAL
-        ](
-            ptr = self._ptr,
-            value = Mutex.unlocked
+    var _mutex: Pointer[Mutex[Self.T], Self.origin_mutex]
+    
+    def __deinit__(deinit self):
+        Atomic.store(
+            self._mutex[]._unsafe_ptr(),
+            # SAFETY: the atomic function will make sure only one caller mutates the pointer
+            Mutex._unlocked
         )
 
-    # NOTE: this doesn't work, possibly due to a compiler bug?
-    #       the returned reference is always immutable
-    #       despite both origins being explicity mutable =(
-    # def __enter__(mut self) -> ref [item_origin] T:
-    #     return self._item[]
-
-    def __enter__(self) -> Pointer[T,item_origin]:
-        return self._item
+    # NOTE: can't return a reference here, since contexts want to return by var,
+    #       so return a pointer instead
+    def __enter__(mut self) -> Pointer[Self.T, origin_of(self._mutex[]._item)]:
+        return Pointer(to=self._mutex[]._item)
 
     def __exit__(self):
         # nothing to do

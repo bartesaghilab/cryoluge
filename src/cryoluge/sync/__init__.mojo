@@ -1,7 +1,7 @@
 
-from sys.ffi import external_call
-from python import Python
-from python._cpython import GILReleased, GILAcquired
+from std.ffi import external_call
+from std.python import Python
+from std.python._cpython import GILReleased, GILAcquired
 
 from .mutex import Mutex
 from .affinity import Cpus, Cpu, VirtualCore, VirtualCoreSet
