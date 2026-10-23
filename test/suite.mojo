@@ -42,13 +42,12 @@ def main() raises:
 
     suite.add_module[cryoluge_tests.fft.coords.tests]()
     suite.add_module[cryoluge_tests.fft.image.tests]()
+    suite.add_module[cryoluge_tests.fft.fft.tests]()
 
     suite.add_module[cryoluge_tests.sync.mutex.tests]()
-    # suite._register_tests[cryoluge_tests.sync.affinity.funcs]()
+    suite.add_module[cryoluge_tests.sync.affinity.tests]()
 
     # TODO
-
-    # suite._register_tests[cryoluge_tests.fft.fft.funcs]()
     # suite._register_tests[cryoluge_tests.fft.interpolation.funcs]()
 
     # suite._register_tests[cryoluge_tests.mrc.mrc_reader.funcs]()

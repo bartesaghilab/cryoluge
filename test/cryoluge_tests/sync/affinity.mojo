@@ -1,25 +1,25 @@
 
-from testing import assert_equal
+from std.testing import assert_equal
 
 from cryoluge.sync import Cpus, VirtualCoreSet
 
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
-comptime funcs = __functions_in_module()
 
-
-def test_get_all():
+def test_get_all() raises:
     var cpus = Cpus.get_all()
-    print(cpus)
+    _ = String(cpus)
     # just don't crash
 
 
-def test_get_allowed():
+def test_get_allowed() raises:
     var cpus = Cpus.get_allowed()
-    print(cpus)
+    _ = String(cpus)
     # just don't crash
 
 
-def test_set_get_affinity():
+def test_set_get_affinity() raises:
 
     try:
         # set to just a couple cores
@@ -33,7 +33,7 @@ def test_set_get_affinity():
         VirtualCoreSet(Cpus.get_allowed().virtual_cores()).set_affinity()
 
 
-def test_partition_vcores():
+def test_partition_vcores() raises:
 
     var cpus = Cpus.get_all()
     var all_vcores = cpus.virtual_cores()

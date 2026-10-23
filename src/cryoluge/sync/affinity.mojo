@@ -1,7 +1,9 @@
 
-from collections import BitSet
-from sys import size_of, num_logical_cores
-from sys.ffi import external_call, get_errno
+from std.collections import BitSet
+from std.sys import size_of, num_logical_cores
+from std.ffi import external_call, get_errno
+
+from cryoluge.sync import process_id
 
 
 @fieldwise_init
@@ -9,7 +11,6 @@ struct Cpus(
     Movable,
     Copyable,
     Writable,
-    Stringable,
     Sized
 ):
     var cpus: List[Cpu]
@@ -108,7 +109,7 @@ struct Cpus(
     def __len__(self) -> Int:
         return len(self.cpus)
 
-    def __getitem__(self, i: Int) -> ref [self.cpus] Cpu:
+    def __getitem__(self, i: Int) -> ref [self.cpus[i]] Cpu:
         return self.cpus[i]
 
     def index_of(self, *, cpu_id: Int) -> Optional[Int]:
@@ -166,16 +167,12 @@ struct Cpus(
     def write_to[W: Writer](self, mut writer: W):
         writer.write('\n'.join(self.cpus))
 
-    def __str__(self) -> String:
-        return String.write(self)
-
 
 @fieldwise_init
 struct Cpu(
     Movable,
     Copyable,
-    Writable,
-    Stringable
+    Writable
 ):
     var cpu_id: Int
     var physical_cores: List[PhysicalCore]
@@ -218,16 +215,12 @@ struct Cpu(
             ', physical_cores=[\n  ', ",\n  ".join(self.physical_cores), '\n]',
         ']')
 
-    def __str__(self) -> String:
-        return String.write(self)
-
 
 @fieldwise_init
 struct PhysicalCore(
     Movable,
     Copyable,
-    Writable,
-    Stringable
+    Writable
 ):
     var cpu_id: Int
     var physical_id: Int
@@ -247,16 +240,12 @@ struct PhysicalCore(
             ', virtual_cores=[', ', '.join(self.virtual_cores), ']'
         ']')
 
-    def __str__(self) -> String:
-        return String.write(self)
-
 
 @fieldwise_init
 struct VirtualCore(
     Movable,
     ImplicitlyCopyable,
     Writable,
-    Stringable,
     Equatable
 ):
     var cpu_id: Int
@@ -274,12 +263,13 @@ struct VirtualCore(
         with open(String("/proc/", process_id(), "/status"), "r") as f:
             for line in f.read().split('\n'):
                 comptime prefix = "Cpus_allowed_list:"
+                comptime prefix_len = prefix.count_codepoints()
                 if line.startswith(prefix):
 
                     # lines look like: `0-4,9` and `0-2,7,12-14`
-                    parts = line[len(prefix):].strip().split(',')
+                    var parts = line[codepoint=prefix_len:].strip().split(',')
                     for part in parts:
-                        nums = part.split('-')
+                        var nums = part.split('-')
                         if len(nums) == 1:
                             virtual_ids.append(Int(nums[0]))
                         elif len(nums) == 2:
@@ -298,9 +288,6 @@ struct VirtualCore(
             ', vir=', self.virtual_id,
         ']')
 
-    def __str__(self) -> String:
-        return String.write(self)
-
     def __eq__(self, other: Self) -> Bool:
         return self.cpu_id == other.cpu_id
             and self.physical_id == other.physical_id
@@ -310,14 +297,13 @@ struct VirtualCore(
 struct VirtualCoreSet(
     Movable,
     Copyable,
-    Writable,
-    Stringable
+    Writable
 ):
     var _mask: BitSet[Self._num_logical_cores]
 
     comptime _num_logical_cores = 1024
     # mask size must be known at compile time, and be at least as large as the one the kernel uses
-    comptime _bitset_size = size_of[InlineArray[Int64, BitSet[Self._num_logical_cores]._words_size]]()
+    comptime _bitset_size = size_of[Array[Int64, BitSet[Self._num_logical_cores]._words_size]]()
 
     def __init__(out self):
         self._mask = BitSet[Self._num_logical_cores]()
@@ -386,6 +372,3 @@ struct VirtualCoreSet(
 
     def write_to[W: Writer](self, mut writer: W):
         writer.write('VirtualCoreSet[', ', '.join(self.to_virtual_core_ids()), ']')
-
-    def __str__(self) -> String:
-        return String.write(self)

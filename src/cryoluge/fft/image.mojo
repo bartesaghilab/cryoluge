@@ -2,7 +2,7 @@
 from std.math import pi, cos, sin, floor
 
 from cryoluge.math import Vec, ComplexScalar, Matrix
-from cryoluge.image import ComplexImage
+from cryoluge.image import Image, ComplexImage
 from cryoluge.fft.coords import FFTCoords
 
 
@@ -39,6 +39,32 @@ struct FFTImage[
             uninitialized=True,
             alignment=alignment
         )
+
+    def __init__(
+        out self,
+        sizes_real: Self.Vec[.int],
+        *,
+        fill: Self.PixelType,
+        alignment: Optional[Int] = None
+    ):
+        self = Self(sizes_real, uninitialized=True, alignment=alignment)
+        self.complex.fill(fill)
+
+    def __init__(
+        out self,
+        real: Image[Self.dim,Self.dtype],
+        *,
+        uninitialized: Bool
+    ):
+        self = Self(real.sizes(), uninitialized=uninitialized, alignment=real.alignment())
+
+    def __init__(
+        out self,
+        real: Image[Self.dim,Self.dtype],
+        *,
+        fill: Self.PixelType
+    ):
+        self = Self(real.sizes(), fill=fill, alignment=real.alignment())
 
     def coords(self) -> FFTCoords[Self.dim]:
         return FFTCoords(self.sizes_real)

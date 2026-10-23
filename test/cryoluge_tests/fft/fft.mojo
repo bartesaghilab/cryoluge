@@ -1,101 +1,95 @@
 
-from testing import assert_equal
-from complex import ComplexFloat32
+from std.testing import assert_equal
+from std.complex import ComplexFloat32
 
 from cryoluge.image import Image, Vec
-from cryoluge.fft import FFTPlan, FFTPlans, FFTImage
+from cryoluge.fft import FFTW, FFTImage
 
-
-comptime funcs = __functions_in_module()
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
 # NOTE: all expected FFT values computed by fftw in C++,
 #       so we should get the same thing here, right?
 
 
-def test_1d_f32_r2c():
+def test_1d_f32_r2c() raises:
 
-    var real = Image[1,DType.float32](sx=4)
-    var fourier = FFTImage(of=real)
+    var real = Image[1,.float32]([4], uninitialized=True)
+    var fourier = FFTImage(real, uninitialized=True)
 
-    real[x=0] = 1.0
-    real[x=1] = 2.0
-    real[x=2] = 3.0
-    real[x=3] = 4.0
+    real[[0]] = 1.0
+    real[[1]] = 2.0
+    real[[2]] = 3.0
+    real[[3]] = 4.0
 
-    var fft = FFTPlan.R2C(real=real, fourier=fourier)
-    fft(real=real, fourier=fourier)
+    var fftw = FFTW[.float32]()
+    var plans = fftw.plans(real=real, fourier=fourier)
+    plans.r2c(real=real, fourier=fourier)
 
-    assert_equal(fourier.complex[x=0], ComplexFloat32( 2.5, 0.0))
-    assert_equal(fourier.complex[x=1], ComplexFloat32(-0.5, 0.5))
-    assert_equal(fourier.complex[x=2], ComplexFloat32(-0.5, 0.0))
-
-
-def test_1d_f32_c2r():
-
-    var real = Image[1,DType.float32](sx=4)
-    var fourier = FFTImage(of=real)
-
-    fourier.complex[x=0] = ComplexFloat32( 2.5, 0.0)
-    fourier.complex[x=1] = ComplexFloat32(-0.5, 0.5)
-    fourier.complex[x=2] = ComplexFloat32(-0.5, 0.0)
-
-    var fft = FFTPlan.C2R(real=real, fourier=fourier)
-    fft(real=real, fourier=fourier)
-
-    assert_equal(real[x=0], 1.0)
-    assert_equal(real[x=1], 2.0)
-    assert_equal(real[x=2], 3.0)
-    assert_equal(real[x=3], 4.0)
+    assert_equal(fourier.complex[[0]], ComplexFloat32( 2.5, 0.0))
+    assert_equal(fourier.complex[[1]], ComplexFloat32(-0.5, 0.5))
+    assert_equal(fourier.complex[[2]], ComplexFloat32(-0.5, 0.0))
 
 
-def test_2d_f32_r2c():
+def test_1d_f32_c2r() raises:
 
-    var real = Image[2,DType.float32](sx=2, sy=2)
-    var fourier = FFTImage(of=real)
+    var real = Image[1, .float32]([4], uninitialized=True)
+    var fourier = FFTImage(real, uninitialized=True)
 
-    real[x=0, y=0] = 1.0
-    real[x=0, y=1] = 2.0
-    real[x=1, y=0] = 3.0
-    real[x=1, y=1] = 4.0
+    fourier.complex[[0]] = ComplexFloat32( 2.5, 0.0)
+    fourier.complex[[1]] = ComplexFloat32(-0.5, 0.5)
+    fourier.complex[[2]] = ComplexFloat32(-0.5, 0.0)
 
-    var fft = FFTPlan.R2C(real=real, fourier=fourier)
-    fft(real=real, fourier=fourier)
+    var fftw = FFTW[.float32]()
+    var plans = fftw.plans(real=real, fourier=fourier)
+    plans.c2r(real=real, fourier=fourier)
 
-    assert_equal(fourier.complex[x=0, y=0], ComplexFloat32( 2.5, 0.0))
-    assert_equal(fourier.complex[x=0, y=1], ComplexFloat32(-0.5, 0.0))
-    assert_equal(fourier.complex[x=1, y=0], ComplexFloat32(-1.0, 0.0))
-    assert_equal(fourier.complex[x=1, y=1], ComplexFloat32( 0.0, 0.0))
+    assert_equal(real[[0]], 1.0)
+    assert_equal(real[[1]], 2.0)
+    assert_equal(real[[2]], 3.0)
+    assert_equal(real[[3]], 4.0)
 
 
-def test_2d_f32_c2r():
+def test_2d_f32_r2c() raises:
 
-    var real = Image[2,DType.float32](sx=2, sy=2)
-    var fourier = FFTImage(of=real)
+    var real = Image[2, .float32]([2, 2], uninitialized=True)
+    var fourier = FFTImage(real, uninitialized=True)
 
-    fourier.complex[x=0, y=0] = ComplexFloat32( 2.5, 0.0)
-    fourier.complex[x=0, y=1] = ComplexFloat32(-0.5, 0.0)
-    fourier.complex[x=1, y=0] = ComplexFloat32(-1.0, 0.0)
-    fourier.complex[x=1, y=1] = ComplexFloat32( 0.0, 0.0)
+    real[[0, 0]] = 1.0
+    real[[0, 1]] = 2.0
+    real[[1, 0]] = 3.0
+    real[[1, 1]] = 4.0
 
-    var fft = FFTPlan.C2R(real=real, fourier=fourier)
-    fft(real=real, fourier=fourier)
+    var fftw = FFTW[.float32]()
+    var plans = fftw.plans(real=real, fourier=fourier)
+    plans.r2c(real=real, fourier=fourier)
 
-    assert_equal(real[x=0, y=0], 1.0)
-    assert_equal(real[x=0, y=1], 2.0)
-    assert_equal(real[x=1, y=0], 3.0)
-    assert_equal(real[x=1, y=1], 4.0)
+    assert_equal(fourier.complex[[0, 0]], ComplexFloat32( 2.5, 0.0))
+    assert_equal(fourier.complex[[0, 1]], ComplexFloat32(-0.5, 0.0))
+    assert_equal(fourier.complex[[1, 0]], ComplexFloat32(-1.0, 0.0))
+    assert_equal(fourier.complex[[1, 1]], ComplexFloat32( 0.0, 0.0))
+
+
+def test_2d_f32_c2r() raises:
+
+    var real = Image[2, .float32]([2, 2], uninitialized=True)
+    var fourier = FFTImage(real, uninitialized=True)
+
+    fourier.complex[[0, 0]] = ComplexFloat32( 2.5, 0.0)
+    fourier.complex[[0, 1]] = ComplexFloat32(-0.5, 0.0)
+    fourier.complex[[1, 0]] = ComplexFloat32(-1.0, 0.0)
+    fourier.complex[[1, 1]] = ComplexFloat32( 0.0, 0.0)
+
+    var fftw = FFTW[.float32]()
+    var plans = fftw.plans(real=real, fourier=fourier)
+    plans.c2r(real=real, fourier=fourier)
+
+    assert_equal(real[[0, 0]], 1.0)
+    assert_equal(real[[0, 1]], 2.0)
+    assert_equal(real[[1, 0]], 3.0)
+    assert_equal(real[[1, 1]], 4.0)
 
 
 # TODO: test larger 2d transforms
 # TODO: test 3d transforms
-
-
-def test_1d_plans():
-
-    # just make sure we don't trip any asserts, for now
-    var plans = FFTPlans[1,DType.float32](Vec[1](x=32))
-    var real = plans.alloc_real()
-    real.fill(0)
-    var fourier = plans.alloc_fourier()
-    plans.r2c(real=real, fourier=fourier)
