@@ -48,12 +48,12 @@ def main() raises:
     suite.add_module[cryoluge_tests.sync.mutex.tests]()
     suite.add_module[cryoluge_tests.sync.affinity.tests]()
 
-    # suite._register_tests[cryoluge_tests.mrc.mrc_reader.funcs]()
+    suite.add_module[cryoluge_tests.mrc.mrc_reader.tests]()
 
-    # suite._register_tests[cryoluge_tests.optimization.golden_section.funcs]()
-    # suite._register_tests[cryoluge_tests.optimization.brent.funcs]()
-    # suite._register_tests[cryoluge_tests.optimization.ccd.funcs]()
-    # suite._register_tests[cryoluge_tests.optimization.powell.funcs]()
+    suite.add_module[cryoluge_tests.optimization.golden_section.tests]()
+    suite.add_module[cryoluge_tests.optimization.brent.tests]()
+    suite.add_module[cryoluge_tests.optimization.ccd.tests]()
+    suite.add_module[cryoluge_tests.optimization.powell.tests]()
 
     print("Running tests ...")
     suite^.run()

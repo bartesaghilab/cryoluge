@@ -1,5 +1,5 @@
 
-from testing import assert_equal, assert_true, assert_false
+from std.testing import assert_equal, assert_true, assert_false
 
 from cryoluge.math import Vec
 from cryoluge.math.error import err_abs
@@ -7,54 +7,54 @@ from cryoluge.optimization import ObjectiveInfo, Coord, Value, golden_section, G
 
 from cryoluge.test import assert_equal_float
 
-
-comptime funcs = __functions_in_module()
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
 comptime dtype = DType.float32
 comptime err_fn = err_abs[dtype]
 
 
-def test_quadratic():
+def test_quadratic() raises:
 
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
         dim = 1
     )
-    @parameter
     def f(x: Coord[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x - 5)**2 + 42 )
 
-    var result = golden_section[f](
+    var result = golden_section[info](
+        objective = f,
         x_min = -10,
         x_max = 10,
         min_interval_width = 1e-2
     )
     # NOTE: due to f32 precision and taking the square, the best we can do is 2 digits of precision
 
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.x), 5, eps=1e-2)
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.fx), 42, eps=1e-2)
+    assert_equal_float(err_fn, rebind[Scalar[dtype]](result.x), 5, eps=1e-2)
+    assert_equal_float(err_fn, rebind[Scalar[dtype]](result.fx), 42, eps=1e-2)
 
 
-def test_line_search():
+def test_line_search() raises:
 
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
         dim = 1
     )
-    @parameter
     def f(x: Coord[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x - 5)**2 + 42 )
 
     var result = GoldenSectionLineSearch[dtype](
         min_interval_width = 1e-2
-    ).minimize[line=f](
+    ).minimize[info](
+        objective = f,
         x_start = 0,
         x_min = -10,
         x_max = 10
     )
 
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.x), 5, eps=1e-2)
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.fx), 42, eps=1e-2)
+    assert_equal_float(err_fn, rebind[Scalar[dtype]](result.x), 5, eps=1e-2)
+    assert_equal_float(err_fn, rebind[Scalar[dtype]](result.fx), 42, eps=1e-2)

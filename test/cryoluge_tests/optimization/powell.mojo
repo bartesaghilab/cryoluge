@@ -7,26 +7,26 @@ from cryoluge.optimization import ObjectiveInfo, Coord, Coords, Value, BrentLine
 
 from cryoluge.test import assert_equal_float
 
-
-comptime funcs = __functions_in_module()
+from cryoluge_testlib import ModuleTests, TestLocation
+comptime tests = ModuleTests(__functions_in_module(), lambda () -> TestLocation: TestLocation())
 
 
 comptime dtype = DType.float32
 comptime err_fn = err_abs[dtype]
 
 
-def test_quadratic():
+def test_quadratic() raises:
 
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
         dim = 1
     )
-    @parameter
     def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 5)**2 + 42 )
 
-    var result = powell[f](
+    var result = powell[info](
+        objective = f,
         line_search = BrentLineSearch(
             max_iterations = 10,
             min_interval_width = 1e-2
@@ -39,24 +39,24 @@ def test_quadratic():
     )
     # NOTE: due to f32 precision and taking the square, the best we can do is 2 digits of precision
 
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.x), 5, eps=1e-2)
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.fx), 42, eps=1e-2)
+    assert_equal_float(err_fn, rebind[Vec[1,dtype]](result.x), [5], eps=1e-2)
+    assert_equal_float(err_fn, rebind[Scalar[dtype]](result.fx), 42, eps=1e-2)
 
 
-def test_biquadratic():
+def test_biquadratic() raises:
 
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
         dim = 2
     )
-    @parameter
     def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 3)*(x[1] + 4) + (x[0] - 5)**2 + (x[1] + 7)**2 - 9 )
         # NOTE: add some rotation to the paraboloid, so we make Powell's method actually
         #       search along the extra direction
 
-    var result = powell[f](
+    var result = powell[info](
+        objective = f,
         line_search = BrentLineSearch(
             max_iterations = 10,
             min_interval_width = 1e-2
@@ -69,19 +69,17 @@ def test_biquadratic():
     )
     # NOTE: due to f32 precision and taking the square, the best we can do is 2 digits of precision
 
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.x[0]), 7.66, eps=1e-2)
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.x[1]), -9.33, eps=1e-2)
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.fx), -21.33, eps=1e-2)
+    assert_equal_float(err_fn, rebind[Vec[2,dtype]](result.x), [7.66, -9.33], eps=1e-2)
+    assert_equal_float(err_fn, rebind[Scalar[dtype]](result.fx), -21.33, eps=1e-2)
 
 
-def test_minimizer():
+def test_minimizer() raises:
 
     comptime info = ObjectiveInfo(
         dtype_coord = dtype,
         dtype_value = dtype,
         dim = 2
     )
-    @parameter
     def f(x: Coords[info], out fx: Value[info]):
         fx = rebind[Value[info]]( (x[0] - 3)*(x[1] + 4) + (x[0] - 5)**2 + (x[1] + 7)**2 - 9 )
 
@@ -92,13 +90,13 @@ def test_minimizer():
         ),
         max_iterations = 10,
         value_threshold = 1e-2
-    ).minimize[objective=f](
+    ).minimize[info](
+        objective = f,
         x_start = Coords[info](fill=0),
         x_min = Coords[info](fill=-10),
         x_max = Coords[info](fill=10)
     )
     # NOTE: due to f32 precision and taking the square, the best we can do is 2 digits of precision
 
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.x[0]), 7.66, eps=1e-2)
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.x[1]), -9.33, eps=1e-2)
-    assert_equal_float[err_fn](rebind[Scalar[dtype]](result.fx), -21.33, eps=1e-2)
+    assert_equal_float(err_fn, rebind[Vec[2,dtype]](result.x), [7.66, -9.33], eps=1e-2)
+    assert_equal_float(err_fn, rebind[Scalar[dtype]](result.fx), -21.33, eps=1e-2)
