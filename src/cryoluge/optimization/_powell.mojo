@@ -1,13 +1,11 @@
 
+from cryoluge.optimization import ObjectiveInfo, Objective, Coords, Coord, Value, LineSearch, Minimizer, OptimizationResult
 
-def powell[
-    info: ObjectiveInfo,
-    LS: LineSearch,
-    //,
-    objective: Objective[info]
-](
+
+def powell[info: ObjectiveInfo](
     *,
-    line_search: LS,
+    objective: Some[Objective[info]],
+    line_search: Some[LineSearch],
     x_start: Coords[info],
     x_min: Coords[info],
     x_max: Coords[info],
@@ -23,8 +21,7 @@ def powell[
 
     # initialize the directions to be the axis-aligned orthonormal basis
     var directions = List[Coords[info]](capacity=info.dim)
-    @parameter
-    for d in range(info.dim):
+    comptime for d in range(info.dim):
         var dir = Coords[info](fill=0)
         dir[d] = Coord[info](1)
         directions.append(dir^)    
@@ -49,8 +46,7 @@ def powell[
         for d in range(info.dim):
             var fx_before_dir = fx_here
 
-            @parameter
-            def line_d(x: Coord[info], out fx: Value[info]):
+            def line_d(x: Coord[info], out fx: Value[info]) {x_here, directions, d, objective}:
                 fx = objective(x_here + directions[d]*x)
 
             # do line search along direction d
@@ -60,7 +56,8 @@ def powell[
                 x_min = x_min,
                 x_max = x_max
             )
-            var line_result = line_search.minimize[line=line_d](
+            var line_result = line_search.minimize(
+                objective = line_d,
                 x_start = Coord[info](0),
                 x_min = xd_min,
                 x_max = xd_max,
@@ -112,12 +109,12 @@ def powell[
             var right = best_improvement*(fx_before_dirs - fx_extrapolated)**2
             if left < right:
 
-                @parameter
-                def line_iter(x: Coord[info], out fx: Value[info]):
+                def line_iter(x: Coord[info], out fx: Value[info]) {x_here, iter_dir, objective}:
                     fx = objective(x_here + iter_dir*x)
 
                 # do line search along the iteration direction
-                var line_result = line_search.minimize[line=line_iter](
+                var line_result = line_search.minimize(
+                    objective = line_iter,
                     x_start = Coord[info](0),
                     x_min = xd_min,
                     x_max = xd_max,
@@ -148,8 +145,7 @@ def _line_bounds[info: ObjectiveInfo](
     var best_t_pos = Coord[info].MAX
     var best_t_neg = Coord[info].MIN
 
-    @parameter
-    for d in range(info.dim):
+    comptime for d in range(info.dim):
 
         # skip dimensions with no movement
         if dir[d] == 0:
@@ -177,28 +173,27 @@ def _line_bounds[info: ObjectiveInfo](
 @fieldwise_init
 struct PowellMinimizer[
     dtype: DType,
-    LS: LineSearch & Copyable & Movable
+    LS: LineSearch & Copyable & Deinitable
 ](
     Copyable,
     Movable,
     Minimizer
 ):
     var max_iterations: Int
-    var value_threshold: Scalar[dtype]
-    var line_search: LS
+    var value_threshold: Scalar[Self.dtype]
+    var line_search: Self.LS
 
-    def minimize[
-        info: ObjectiveInfo,
-        //,
-        objective: Objective[info]
-    ](
+    def minimize[info: ObjectiveInfo](
         self,
+        *,
+        objective: Some[Objective[info]],
         x_start: Coords[info],
         x_min: Coords[info],
         x_max: Coords[info],
         out result: OptimizationResult[info]
     ):
-        result = powell[objective](
+        result = powell(
+            objective = objective,
             line_search = self.line_search,
             x_start = x_start,
             x_min = x_min,

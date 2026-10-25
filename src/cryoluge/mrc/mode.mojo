@@ -4,8 +4,7 @@ struct Mode(
     ImplicitlyCopyable,
     Movable,
     Equatable,
-    Writable,
-    Stringable
+    Writable
 ):
     var value: UInt32
     var name: StaticString
@@ -50,6 +49,3 @@ struct Mode(
 
     def write_to[W: Writer](self, mut writer: W):
         writer.write(self.name, "(", self.value, ")")
-        
-    def __str__(self) -> String:
-        return String.write(self)

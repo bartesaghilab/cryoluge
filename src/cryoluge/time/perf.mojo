@@ -1,12 +1,10 @@
 
-from os import abort
-from time import perf_counter_ns
-
-from cryoluge.collections import MovableList
+from std.os import abort
+from std.time import perf_counter_ns
 
 
-comptime NS = UInt
-"""nanoseconds"""
+comptime NS = Int
+"""Nanoseconds."""
 
 
 def _ns_to_s(ns: NS, out s: Float32):
@@ -37,8 +35,7 @@ struct Timer(
 struct Timed(
     Copyable,
     Movable,
-    Writable,
-    Stringable
+    Writable
 ):
     var elapsed: NS
 
@@ -52,16 +49,12 @@ struct Timed(
     def write_to[W: Writer](self, mut writer: W):
         writer.write("Timer[elapsed=", self.elapsed_s(), " s]")
 
-    def __str__(self) -> String:
-        return String.write(self)
-
 
 @fieldwise_init
 struct Benchmark(
     Copyable,
     Movable,
-    Writable,
-    Stringable
+    Writable
 ):
     var runs: Int
     var timed: Timed
@@ -100,21 +93,17 @@ struct Benchmark(
             "]"
         )
 
-    def __str__(self) -> String:
-        return String.write(self)
-
 
 struct Profiler[*, enabled: Bool = True](
     Movable,
-    Writable,
-    Stringable
+    Writable
 ):
-    var _counters: MovableList[ProfilerCounter[enabled=enabled]]
+    var _counters: List[ProfilerCounter[enabled=Self.enabled]]
     var _lookup: Dict[String,Int]
     var unit: StaticString
 
     def __init__(out self, *, unit: StaticString = 's'):
-        self._counters = MovableList[ProfilerCounter[enabled=enabled]](capacity=64)
+        self._counters = List[ProfilerCounter[enabled=Self.enabled]](capacity=64)
         # NOTE: use a somewhat large initial capacity for the list,
         #       otherwise, creating new counters can invalidate outstanding counter references
         #       when the list resizes
@@ -124,33 +113,29 @@ struct Profiler[*, enabled: Bool = True](
         self._lookup = {}
         self.unit = unit
 
-    def counter(mut self, name: String) -> ref [self._counters[0]] ProfilerCounter[enabled=enabled]:
+    def counter(mut self, name: String) -> ref [self._counters[0]] ProfilerCounter[enabled=Self.enabled]:
         var i = self._lookup.get(name)
         if i is None:
             i = len(self._counters)
-            self._counters.append(ProfilerCounter[enabled=enabled](name, self.unit))
+            self._counters.append(ProfilerCounter[enabled=Self.enabled](name, self.unit))
             self._lookup[name] = i.value()
         return self._counters[i.value()]
 
     def start(mut self, name: String):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             self.counter(name).start()
 
     def stop[*, verbose: Bool = False](mut self, name: String):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             self.counter(name).stop[verbose=verbose]()
         
     def switch[*, verbose: Bool = False](mut self, stop: String, start: String):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             self.stop[verbose=verbose](stop)
             self.start(start)
 
     def write_to[W: Writer](self, mut writer: W):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             writer.write("Profiler[")
             for i in range(len(self._counters)):
                 if i > 0:
@@ -159,19 +144,14 @@ struct Profiler[*, enabled: Bool = True](
                 writer.write(counter.name, "=", _render_elapsed(counter.elapsed_s(), self.unit))
             writer.write("]")
 
-    def __str__(self) -> String:
-        return String.write(self)
-    
     def print(self):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             print(self)
 
 
 struct ProfilerCounter[*, enabled: Bool = True](
     Movable,
-    Writable,
-    Stringable
+    Writable
 ):
     var name: String
     var unit: StaticString
@@ -186,19 +166,16 @@ struct ProfilerCounter[*, enabled: Bool = True](
 
     @inline(.always)
     def start(mut self):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             self._start = now()
 
     @inline(.always)
     def stop[*, verbose: Bool = False](mut self):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             var elapsed = now() - self._start.value()
             self._start = None
             self._elapsed += elapsed
-            @parameter
-            if verbose:
+            comptime if verbose:
                 print("ProfilerCounter[", self.name, ":",
                     "  elapsed=", _render_elapsed(_ns_to_s(elapsed), self.unit),
                     "  total=", _render_elapsed(self.elapsed_s(), self.unit),
@@ -208,14 +185,10 @@ struct ProfilerCounter[*, enabled: Bool = True](
         s = _ns_to_s(self._elapsed)
 
     def write_to[W: Writer](self, mut writer: W):
-        @parameter
-        if enabled:
+        comptime if Self.enabled:
             writer.write("ProfilerCounter[",
                 self.name, "=", _render_elapsed(self.elapsed_s(), self.unit),
             "]")
-
-    def __str__(self) -> String:
-        return String.write(self)
 
 
 def _render_elapsed(elapsed_s: Float32, unit: StaticString) -> String:

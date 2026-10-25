@@ -1,8 +1,10 @@
 
-from sys import size_of
+from std.sys import size_of, Endian
 
 from cryoluge.io import BinaryReader, ByteBuffer, BytesReader, Endian, require_endian, OwnedFileReader
 from cryoluge.image import Image, Vec
+from cryoluge.mrc.mode import Mode
+from cryoluge.mrc.machine_stamp import MachineStamp
 
 
 # MRC file (from the Medical Research Council, in the UK)
@@ -15,19 +17,19 @@ from cryoluge.image import Image, Vec
 comptime _header_size = 1024
 
 # only support little endian MRC files, for now
-comptime _endian = Endian.Little
+comptime _endian = Endian.little
 
 
 struct Reader[
     R: BinaryReader,
     origin: Origin[mut=True]
 ](Movable):
-    var _reader: Pointer[R, origin]
+    var _reader: Pointer[Self.R, Self.origin]
     var _inner: _Inner
 
     def __init__(
         out self,
-        ref [origin] reader: R
+        ref [Self.origin] reader: Self.R
     ) raises:
         self._reader = Pointer(to=reader)
         self._inner = _Inner(self._reader[])
@@ -38,10 +40,10 @@ struct Reader[
     def size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
         return self._inner.size()
 
-    def size_3(self) raises -> Vec[3,Int]:
+    def size_3(self) raises -> Vec[3, .int]:
         return self._inner.size_3()
 
-    def size_2(self) raises -> Vec[2,Int]:
+    def size_2(self) raises -> Vec[2, .int]:
         return self._inner.size_2()
 
     def read_3d[dtype: DType](self, mut img: Image[3,dtype]) raises:
@@ -68,14 +70,14 @@ struct Reader[
 
 
 struct OwnedReader[
-    R: BinaryReader & Movable = OwnedFileReader
+    R: BinaryReader & Movable & Deinitable = OwnedFileReader
 ](Movable):
-    var _reader: R
+    var _reader: Self.R
     var _inner: _Inner
 
     def __init__(
         out self,
-        var reader: R
+        var reader: Self.R
     ) raises:
         self._reader = reader^
         self._inner = _Inner(self._reader)
@@ -90,10 +92,10 @@ struct OwnedReader[
     def size(self) raises -> Tuple[UInt32, UInt32, UInt32]:
         return self._inner.size()
 
-    def size_3(self) raises -> Vec[3,Int]:
+    def size_3(self) raises -> Vec[3, .int]:
         return self._inner.size_3()
 
-    def size_2(self) raises -> Vec[2,Int]:
+    def size_2(self) raises -> Vec[2, .int]:
         return self._inner.size_2()
 
     def read_3d[dtype: DType](mut self, mut img: Image[3,dtype]) raises:
@@ -123,7 +125,7 @@ struct _Inner(Movable):
 
     var _header: ByteBuffer
 
-    def __init__[R: BinaryReader](out self, mut reader: R):
+    def __init__[R: BinaryReader](out self, mut reader: R) raises:
 
         # the pixel read functions currently assume the native byte order matches the file byte order,
         # and we're only supporting little endian (for now),
@@ -154,11 +156,11 @@ struct _Inner(Movable):
         var nz = r.read_u32[_endian]()
         return (nx, ny, nz)
 
-    def size_3(self) raises -> Vec[3,Int]:
+    def size_3(self) raises -> Vec[3, .int]:
         var (sx, sy, sz) = self.size()
         return Vec[3](x=Int(sx), y=Int(sy), z=Int(sz))
 
-    def size_2(self) raises -> Vec[2,Int]:
+    def size_2(self) raises -> Vec[2, .int]:
         var (sx, sy, _) = self.size()
         return Vec[2](x=Int(sx), y=Int(sy))
 
@@ -176,7 +178,7 @@ struct _Inner(Movable):
         var extended_header_size = r.read_u32[_endian]()
 
         # seek to after the header and the extended header to get to the pixels
-        reader.seek_to(_header_size + UInt64(extended_header_size))
+        reader.seek_to(_header_size + Int(extended_header_size))
 
     def read_3d[dtype: DType, R: BinaryReader](self, mut reader: R, mut img: Image[3,dtype]) raises:
         self._check_dtype[dtype]()
@@ -198,7 +200,7 @@ struct _Inner(Movable):
             raise Error("z=", z, " is out of range [0,", sz, ")")
 
         self._seek_pixels(reader)
-        reader.seek_by(Int64(size.x())*Int64(size.y())*Int64(z)*size_of[dtype]())
+        reader.seek_by(size.x()*size.y()*Int(z)*size_of[dtype]())
         reader.read_bytes_exact(img.span_bytes())
 
 
@@ -207,5 +209,5 @@ def _word_offset(word_number: Int) -> Int:
     return (word_number - 1)*4
 
 
-def _unsupported_mode[mode: Mode]():
-    constrained[False, String("Mode not supported: ", mode)]()
+def _unsupported_mode[mode: Mode]() -> Never:
+    comptime assert False, String("Mode not supported: ", mode)

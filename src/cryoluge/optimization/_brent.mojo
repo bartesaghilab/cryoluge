@@ -1,11 +1,12 @@
 
+from std.math import sqrt
 
-def brent[
-    info: ObjectiveInfo,
-    //,
-    objective_line: ObjectiveLine[info]
-](
+from cryoluge.optimization import ObjectiveInfo, ObjectiveLine, Coord, Value, LineSearch, LineSearchResult
+
+
+def brent[info: ObjectiveInfo](
     *,
+    objective: Some[ObjectiveLine[info]],
     x_start: Coord[info],
     x_min: Coord[info],
     x_max: Coord[info],
@@ -30,7 +31,7 @@ def brent[
     if fx_start is not None:
         f_lo = fx_start.value()
     else:
-        f_lo = objective_line(x_lo)
+        f_lo = objective(x_lo)
     var f_mid = f_lo
     var f_hi = f_lo
 
@@ -67,7 +68,7 @@ def brent[
             # print('\t\tparabolic step=', step, 'num=', num, 'denom=', denom)  # DEBUG
 
             # make sure the step is in range
-            x_next = x_lo + step
+            var x_next = x_lo + step
             # print('\t\t\tcheck x=', x_next)  # DEBUG
             if x_next < i_min or x_next > i_max:
 
@@ -84,7 +85,7 @@ def brent[
             # print('\t\tgolden section step=', step)  # DEBUG
 
         var x_next = x_lo + step
-        var f_next = objective_line(x_next)
+        var f_next = objective(x_next)
 
         # print('\t\tnext', 'x=', x_next, 'f=', f_next)  # DEBUG
 
@@ -171,21 +172,20 @@ struct BrentLineSearch[
     LineSearch
 ):
     var max_iterations: Int
-    var min_interval_width: Scalar[dtype]
+    var min_interval_width: Scalar[Self.dtype]
 
-    def minimize[
-        info: ObjectiveInfo,
-        //,
-        line: ObjectiveLine[info]
-    ](
+    def minimize[info: ObjectiveInfo](
         self,
+        *,
+        objective: Some[ObjectiveLine[info]],
         x_start: Coord[info],
         x_min: Coord[info],
         x_max: Coord[info],
         fx_start: Optional[Value[info]] = None,
         out result: LineSearchResult[info]
     ):
-        result = brent[line](
+        result = brent(
+            objective = objective,
             x_start = x_start,
             x_min = x_min,
             x_max = x_max,

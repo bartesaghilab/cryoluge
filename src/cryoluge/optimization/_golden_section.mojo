@@ -1,13 +1,12 @@
 
-from math import sqrt
+from std.math import sqrt
+
+from cryoluge.optimization import ObjectiveInfo, ObjectiveLine, Coord, Value, LineSearch, LineSearchResult
 
 
-def golden_section[
-    info: ObjectiveInfo,
-    //,
-    objective_line: ObjectiveLine[info]
-](
+def golden_section[info: ObjectiveInfo](
     *,
+    objective: Some[ObjectiveLine[info]],
     x_min: Coord[info],
     x_max: Coord[info],
     min_interval_width: Coord[info],
@@ -28,8 +27,8 @@ def golden_section[
     var step = (i_max - i_min)*invphi
     var x_down = i_max - step
     var x_up = i_min + step
-    var f_down = objective_line(x_down)
-    var f_up = objective_line(x_up)
+    var f_down = objective(x_down)
+    var f_up = objective(x_up)
 
     # refine the interval based on the samples
     var next_is_down = f_down < f_up
@@ -49,10 +48,10 @@ def golden_section[
         step = (i_max - i_min)*invphi
         if next_is_down:
             x_down = i_max - step
-            f_down = objective_line(x_down)
+            f_down = objective(x_down)
         else:
             x_up = i_min + step
-            f_up = objective_line(x_up)
+            f_up = objective(x_up)
 
         # update the interval
         next_is_down = f_down < f_up
@@ -69,7 +68,7 @@ def golden_section[
     var x = (i_min + i_max)/2
     result = LineSearchResult[info](
         x = x,
-        fx = objective_line(x)
+        fx = objective(x)
     )
 
 
@@ -81,21 +80,20 @@ struct GoldenSectionLineSearch[
     Movable,
     LineSearch
 ):
-    var min_interval_width: Scalar[dtype]
+    var min_interval_width: Scalar[Self.dtype]
 
-    def minimize[
-        info: ObjectiveInfo,
-        //,
-        line: ObjectiveLine[info]
-    ](
+    def minimize[info: ObjectiveInfo](
         self,
+        *,
+        objective: Some[ObjectiveLine[info]],
         x_start: Coord[info],  # NOTE: not used
         x_min: Coord[info],
         x_max: Coord[info],
         fx_start: Optional[Value[info]] = None,  # NOTE: not used
         out result: LineSearchResult[info]
     ):
-        result = golden_section[line](
+        result = golden_section(
+            objective = objective,
             x_min = x_min,
             x_max = x_max,
             min_interval_width = Coord[info](self.min_interval_width)

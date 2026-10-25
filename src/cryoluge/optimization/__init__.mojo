@@ -18,41 +18,34 @@ struct ObjectiveInfo:
 
 
 comptime Coord[info: ObjectiveInfo] = Scalar[info.dtype_coord]
-comptime Coords[info: ObjectiveInfo] = Vec[info.dim,Coord[info]]
+comptime Coords[info: ObjectiveInfo] = Vec[info.dim,info.dtype_coord]
 comptime Value[info: ObjectiveInfo] = Scalar[info.dtype_value]
 
 
 comptime Objective[info: ObjectiveInfo] = def(
     x: Coords[info],
     out fx: Value[info]
-) capturing
+)
 
 
 @fieldwise_init
 struct OptimizationResult[info: ObjectiveInfo](
     Copyable,
     Movable,
-    Writable,
-    Stringable
+    Writable
 ):
-    var x: Coords[info]
-    var fx: Value[info]
+    var x: Coords[Self.info]
+    var fx: Value[Self.info]
 
     def write_to[W: Writer](self, mut writer: W):
         writer.write('OptimizationResult[x=', self.x, ', fx=', self.fx, ']')
 
-    def __str__(self) -> String:
-        return String.write(self)
-
 
 trait Minimizer:
-    def minimize[
-        info: ObjectiveInfo,
-        //,
-        objective: Objective[info]
-    ](
+    def minimize[info: ObjectiveInfo](
         self,
         *,
+        objective: Some[Objective[info]],
         x_start: Coords[info],
         x_min: Coords[info],
         x_max: Coords[info],
@@ -63,34 +56,27 @@ trait Minimizer:
 comptime ObjectiveLine[info: ObjectiveInfo] = def(
     x: Coord[info],
     out fx: Value[info]
-) capturing
+)
 
 
 @fieldwise_init
 struct LineSearchResult[info: ObjectiveInfo](
     Copyable,
     Movable,
-    Writable,
-    Stringable
+    Writable
 ):
-    var x: Coord[info]
-    var fx: Value[info]
+    var x: Coord[Self.info]
+    var fx: Value[Self.info]
 
     def write_to[W: Writer](self, mut writer: W):
         writer.write('LineSearchResult[x=', self.x, ', fx=', self.fx, ']')
 
-    def __str__(self) -> String:
-        return String.write(self)
-
 
 trait LineSearch:
-    def minimize[
-        info: ObjectiveInfo,
-        //,
-        line: ObjectiveLine[info]
-    ](
+    def minimize[info: ObjectiveInfo](
         self,
         *,
+        objective: Some[ObjectiveLine[info]],
         x_start: Coord[info],
         x_min: Coord[info],
         x_max: Coord[info],

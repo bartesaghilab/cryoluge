@@ -1,13 +1,11 @@
 
+from cryoluge.optimization import ObjectiveInfo, Objective, Coords, Coord, Value, LineSearch, Minimizer, OptimizationResult
 
-def ccd[
-    info: ObjectiveInfo,
-    LS: LineSearch,
-    //,
-    objective: Objective[info]
-](
+
+def ccd[info: ObjectiveInfo](
     *,
-    line_search: LS,
+    objective: Some[Objective[info]],
+    line_search: Some[LineSearch],
     x_start: Coords[info],
     x_min: Coords[info],
     x_max: Coords[info],
@@ -24,15 +22,14 @@ def ccd[
 
     for _ in range(max_iterations):
 
-        @parameter
-        for d in range(info.dim):
+        comptime for d in range(info.dim):
 
-            @parameter
-            def line(x: Coord[info], out fx: Value[info]):
+            def line(x: Coord[info], out fx: Value[info]) {mut x_next, objective}:
                 x_next[d] = x
                 fx = objective(x_next)
 
-            var line_result = line_search.minimize[line=line](
+            var line_result = line_search.minimize(
+                objective = line,
                 x_start = x_here[d],
                 x_min = x_min[d],
                 x_max = x_max[d],
@@ -66,28 +63,27 @@ def ccd[
 @fieldwise_init
 struct CCDMinimizer[
     dtype: DType,
-    LS: LineSearch & Copyable & Movable
+    LS: LineSearch & Copyable & Deinitable
 ](
     Copyable,
     Movable,
     Minimizer
 ):
     var max_iterations: Int
-    var value_threshold: Scalar[dtype]
-    var line_search: LS
+    var value_threshold: Scalar[Self.dtype]
+    var line_search: Self.LS
 
-    def minimize[
-        info: ObjectiveInfo,
-        //,
-        objective: Objective[info]
-    ](
+    def minimize[info: ObjectiveInfo](
         self,
+        *,
+        objective: Some[Objective[info]],
         x_start: Coords[info],
         x_min: Coords[info],
         x_max: Coords[info],
         out result: OptimizationResult[info]
     ):
-        result = ccd[objective](
+        result = ccd(
+            objective = objective,
             line_search = self.line_search,
             x_start = x_start,
             x_min = x_min,
