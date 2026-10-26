@@ -132,14 +132,18 @@ struct CistemWriter[
         self.writer[].write_bytes(self._line_buf.span())
 
     def transform[
-        func: def (CistemReader, mut CistemWriter) capturing raises -> Bool,
         R: BinaryReader,
         reader_origin: Origin[mut=True]
-    ](mut self, mut reader: CistemReader[R,reader_origin], out num_written: Int) raises:
+    ](
+        mut self,
+        mut reader: CistemReader[R,reader_origin],
+        transformer: Some[def (CistemReader, mut CistemWriter) raises -> Bool],
+        out num_written: Int
+    ) raises:
         num_written = 0
         while not reader.eof():
             reader.read_line()
             self.copy_line(reader)
-            if func(reader, self):
+            if transformer(reader, self):
                 self.write_line()
                 num_written += 1

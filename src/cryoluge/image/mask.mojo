@@ -5,7 +5,7 @@ from std.math import pi, sqrt
 from cryoluge.math import Vec, sinc, clamp
 from cryoluge.math.dimension import DimensionalIterator
 from cryoluge.fft import FFTCoords, FFTImage, CoordDomain, expect_domain
-from cryoluge.image import Image
+from cryoluge.image.image import Image
 
 
 # TODO: refactor to use px units?
@@ -189,7 +189,7 @@ struct AnnularMask[
 
     comptime RealInsideInclusive = AnnularMask[CoordDomain.Real, MaskRegion.Inside, True, True, _]
     comptime FourierInsideInclusive = AnnularMask[CoordDomain.Fourier, MaskRegion.Inside, True, True, _]
-    comptime EaseFn = def[dtype_ease: DType, width: Int](SIMD[dtype_ease,width]) -> SIMD[dtype_ease,width]
+    comptime EaseFn = def[dtype_ease: DType, slen: SIMDLength](SIMD[dtype_ease,slen]) -> SIMD[dtype_ease,slen]
 
     def __init__(out self, radius_inner: Scalar[Self.dtype], radius_outer: Scalar[Self.dtype]):
         self.radius_inner = radius_inner
