@@ -124,8 +124,8 @@ struct Rand:
 
 
 struct VecRand[
-    dtype: DType,
-    dim: Int
+    dim: Int,
+    dtype: DType
 ] where dim > 0:
     """
     A utility to easily generate random numbers in multi-dimensional ranges.

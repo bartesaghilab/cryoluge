@@ -604,6 +604,13 @@ struct Unit[
         return Self._from_simd[dtype,slen](abs(s.value))
 
     @inline(.always)
+    def abs[dim: Int, dtype: DType, slen: SIMDLength](self) -> Self
+        where Self.T == Vec[dim,dtype,slen]:
+
+        ref s = self._as_vec[dim,dtype,slen]()
+        return Self._from_vec[dim,dtype,slen](s.value.abs())
+
+    @inline(.always)
     def floor[dtype: DType, slen: SIMDLength](self) -> Self
         where Self.T == SIMD[dtype,slen]:
 

@@ -1,6 +1,6 @@
 
 from cryoluge.math import round
-from cryoluge.math.vec import Vec  # TODO: why can't we import this from `cryoluge.math`?
+from cryoluge.math.vec import Vec
 from cryoluge.math.units import Rad, Deg
 
 
