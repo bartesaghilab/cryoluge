@@ -283,6 +283,9 @@ struct FFTPlans[
     def __deinit__(deinit self):
         self._inner[]._destroy_plan(self._plan_r2c)
         self._inner[]._destroy_plan(self._plan_c2r)
+        # NOTE: drop the ArcPointer reference *AFTER* calling the FFI funcs
+        #       because somehow, by default, mojo tries to deinit the ArcPointer first
+        deinit(self._inner)
 
     def sizes_real(self) -> Vec[Self.dim,.int]:
         return self._info_real.sizes.copy()
