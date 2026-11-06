@@ -29,52 +29,47 @@ def test_mat_roundtrip() raises:
         var obs = EulerAnglesZYZ(from_mat=mat)
         assert_equal_angles(obs, exp^.or_else(euler^), eps=eps)
 
-    check(EulerAnglesZYZ(psi=Deg32(0), theta=Deg32(0), phi=Deg32(0)))
+    check(EulerAnglesZYZ[dtype].from_deg(psi=0, theta=0, phi=0))
 
-    check(EulerAnglesZYZ[DType.float32](psi=Deg32(1), theta=Deg32(0), phi=Deg32(0)))
-    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(1), phi=Deg32(0)),
-        eps=1e-4)
+    check(EulerAnglesZYZ[dtype].from_deg(psi=1, theta=0, phi=0))
+    check(EulerAnglesZYZ[dtype].from_deg(psi=0, theta=1, phi=0), eps=1e-4)
         # NOTE: ZYZ Euler angle decomposition has low precision around theta=0
-    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(0), phi=Deg32(1)),
-        exp=EulerAnglesZYZ[DType.float32](psi=Deg32(1), theta=Deg32(0), phi=Deg32(0)))
+    check(EulerAnglesZYZ[dtype].from_deg(psi=0, theta=0, phi=1),
+        exp=EulerAnglesZYZ[dtype].from_deg(psi=1, theta=0, phi=0))
         # NOTE: when psi and theta are zero, a phi=n rotation is equivalent to a psi=n rotation
     
-    check(EulerAnglesZYZ[DType.float32](psi=Deg32(30), theta=Deg32(0), phi=Deg32(0)))
-    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(30), phi=Deg32(0)))
-    check(EulerAnglesZYZ[DType.float32](psi=Deg32(0), theta=Deg32(0), phi=Deg32(30)),
-        exp=EulerAnglesZYZ[DType.float32](psi=Deg32(30), theta=Deg32(0), phi=Deg32(0)))
+    check(EulerAnglesZYZ[dtype].from_deg(psi=30, theta=0, phi=0))
+    check(EulerAnglesZYZ[dtype].from_deg(psi=0, theta=30, phi=0))
+    check(EulerAnglesZYZ[dtype].from_deg(psi=0, theta=0, phi=30),
+        exp=EulerAnglesZYZ[dtype].from_deg(psi=30, theta=0, phi=0))
 
     # real-world example
-    check(EulerAnglesZYZ[DType.float32](psi=Deg32(71.149391), theta=Deg32(11.956297), phi=Deg32(59.530159)))
+    check(EulerAnglesZYZ[dtype].from_deg(psi=71.149391, theta=11.956297, phi=59.530159))
 
 
 def test_normalize() raises:
 
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(5), theta=Deg32(6), phi=Deg32(7))
-            .normalize(),
+        EulerAnglesZYZ[dtype].from_deg(psi=5, theta=6, phi=7).normalize(),
         5, 6, 7
     )
     
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(-5), theta=Deg32(-6), phi=Deg32(-7))
-            .normalize(),
+        EulerAnglesZYZ[dtype].from_deg(psi=-5, theta=-6, phi=-7).normalize(),
         -5, -6, -7
     )
     
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(-181), theta=Deg32(-182), phi=Deg32(-183))
-            .normalize(),
+        EulerAnglesZYZ[dtype].from_deg(psi=-181, theta=-182, phi=-183).normalize(),
         179, 178, 177
     )
 
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(181), theta=Deg32(182), phi=Deg32(183))
-            .normalize(),
+        EulerAnglesZYZ[dtype].from_deg(psi=181, theta=182, phi=183).normalize(),
         -179, -178, -177
     )
 
@@ -83,28 +78,24 @@ def test_normalize_positive() raises:
 
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(5), theta=Deg32(6), phi=Deg32(7))
-            .normalize_positive(),
+        EulerAnglesZYZ[dtype].from_deg(psi=5, theta=6, phi=7).normalize_positive(),
         5, 6, 7
     )
 
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(-5), theta=Deg32(-6), phi=Deg32(-7))
-            .normalize_positive(),
+        EulerAnglesZYZ[dtype].from_deg(psi=-5, theta=-6, phi=-7).normalize_positive(),
         355, 354, 353
     )
 
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(-181), theta=Deg32(-182), phi=Deg32(-183))
-            .normalize_positive(),
+        EulerAnglesZYZ[dtype].from_deg(psi=-181, theta=-182, phi=-183).normalize_positive(),
         179, 178, 177
     )
 
     assert_equal_euler(
         err_fn,
-        EulerAnglesZYZ(psi=Deg32(181), theta=Deg32(182), phi=Deg32(183))
-            .normalize_positive(),
+        EulerAnglesZYZ[dtype].from_deg(psi=181, theta=182, phi=183).normalize_positive(),
         181, 182, 183
     )

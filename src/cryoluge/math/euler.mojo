@@ -21,6 +21,19 @@ struct EulerAnglesZYZ[dtype: DType](
     def zero(out self: Self):
         self = Self(fill=Rad[Self.V](0))
 
+    @staticmethod
+    def from_deg[dtype_src: DType](
+        psi: Scalar[dtype_src],
+        theta: Scalar[dtype_src],
+        phi: Scalar[dtype_src],
+        out self: Self
+    ):
+        self = Self(
+            psi = Deg(psi).to_dtype[Self.dtype](),
+            theta = Deg(theta).to_dtype[Self.dtype](),
+            phi = Deg(phi).to_dtype[Self.dtype]()
+        )
+
     def __init__(out self, *, fill: Rad[Self.V]):
         self.psi = fill
         self.theta = fill
@@ -78,6 +91,15 @@ struct EulerAnglesZYZ[dtype: DType](
         var rot_theta = Matrix[3,3,Self.dtype](rotate_y=self.theta)
         var rot_phi = Matrix[3,3,Self.dtype](rotate_z=self.phi)
         mat = rot_phi*rot_theta*rot_psi
+
+    def to_dtype[dtype_dst: DType](self) -> EulerAnglesZYZ[dtype_dst]
+        where dtype_dst.is_floating_point():
+
+        return EulerAnglesZYZ(
+            psi = self.psi.to_dtype[dtype_dst](),
+            theta = self.theta.to_dtype[dtype_dst](),
+            phi = self.phi.to_dtype[dtype_dst]()
+        )
 
     def normalize(self, out normalized: Self):
         normalized = Self(
