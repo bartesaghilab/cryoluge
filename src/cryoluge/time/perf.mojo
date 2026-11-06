@@ -61,9 +61,7 @@ struct Benchmark(
 
     @inline(.always)
     @staticmethod
-    def run[
-        func: def () capturing
-    ](*, warmup_runs: Int, runs: Int, out self: Self):
+    def run(func: Some[def ()], *, warmup_runs: Int, runs: Int, out self: Self):
 
         # warmup
         for _ in range(warmup_runs):
