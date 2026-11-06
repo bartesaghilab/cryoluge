@@ -209,8 +209,6 @@ struct PrecomputedFFTInterpolationFull[
         v = ComplexSIMD[Self.dtype,slen](re=0, im=0)
 
         comptime for w in range(slen):
-            comptime assert w >= 0 and w < Self.dim  # not provided by `range` I guess?
-
             var neighborhood = self._neighborhood(i=i[slice=w].map_dtype[.int]())
             var vw = interpolate(dists[slice=w], neighborhood)
             v.re[w] = vw.re
@@ -291,7 +289,6 @@ struct PrecomputedFFTInterpolationNop[
         v = ComplexSIMD[Self.dtype,slen](re=0, im=0)
 
         comptime for w in range(slen):
-            comptime assert w >= 0 and w < Self.dim  # not provided by `range` I guess?
 
             # load the samples
             # NOTE: this part just loads all 2,4, or 8 pixels independently,

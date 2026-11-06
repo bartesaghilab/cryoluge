@@ -135,8 +135,7 @@ struct Vec[
         self,
         *,
         out v: Self.WithSlen[1]
-    ) where slice >= 0 and slice < Self.dim:
-
+    ):
         v = Self.WithSlen[1](uninitialized=True)
         comptime for d in range(Self.dim):
             v[d] = self[d][slice]
