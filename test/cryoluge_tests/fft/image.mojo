@@ -18,7 +18,7 @@ comptime Cx = ComplexScalar[dtype]
 
 def test_frequency_lookups_1d() raises:
 
-    var img = FFTImage[1,dtype](Vec[1](x=3), uninitialized=True)
+    var img = FFTImage[1,dtype](sizes_real=Vec[1](x=3), uninitialized=True)
 
     assert_equal(img.complex.sizes(), Vec[1](x=2))
 
@@ -37,7 +37,7 @@ def test_frequency_lookups_1d() raises:
 
 def test_frequency_lookups_2d() raises:
         
-    var img = FFTImage[2,dtype](Vec[2](x=3, y=3), uninitialized=True)
+    var img = FFTImage[2,dtype](sizes_real=Vec[2](x=3, y=3), uninitialized=True)
 
     assert_equal(img.complex.sizes(), Vec[2](x=2, y=3))
 

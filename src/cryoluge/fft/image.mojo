@@ -27,8 +27,8 @@ struct FFTImage[
 
     def __init__(
         out self,
-        sizes_real: Self.Vec[.int],
         *,
+        sizes_real: Self.Vec[.int],
         uninitialized: Bool,
         alignment: Optional[Int] = None
     ):
@@ -42,12 +42,12 @@ struct FFTImage[
 
     def __init__(
         out self,
-        sizes_real: Self.Vec[.int],
         *,
+        sizes_real: Self.Vec[.int],
         fill: Self.PixelType,
         alignment: Optional[Int] = None
     ):
-        self = Self(sizes_real, uninitialized=True, alignment=alignment)
+        self = Self(sizes_real=sizes_real, uninitialized=True, alignment=alignment)
         self.complex.fill(fill)
 
     def __init__(
@@ -56,7 +56,7 @@ struct FFTImage[
         *,
         uninitialized: Bool
     ):
-        self = Self(real.sizes(), uninitialized=uninitialized, alignment=real.alignment())
+        self = Self(sizes_real=real.sizes(), uninitialized=uninitialized, alignment=real.alignment())
 
     def __init__(
         out self,
@@ -64,7 +64,7 @@ struct FFTImage[
         *,
         fill: Self.PixelType
     ):
-        self = Self(real.sizes(), fill=fill, alignment=real.alignment())
+        self = Self(sizes_real=real.sizes(), fill=fill, alignment=real.alignment())
 
     def coords(self) -> FFTCoords[Self.dim]:
         return FFTCoords(self.sizes_real)

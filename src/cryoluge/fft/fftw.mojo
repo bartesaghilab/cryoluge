@@ -155,7 +155,7 @@ struct FFTW[dtype: DType](
         # allocate some temporary images to run the fftw planner
         var alignment = best_alignment[Self.dtype]
         var img_real = Image[dim,Self.dtype](sizes_real, alignment=alignment, uninitialized=True)
-        var img_fourier = FFTImage[dim,Self.dtype](sizes_real, alignment=alignment, uninitialized=True)
+        var img_fourier = FFTImage[dim,Self.dtype](sizes_real=sizes_real, alignment=alignment, uninitialized=True)
 
         return self.plans(real=img_real, fourier=img_fourier)
 
@@ -321,7 +321,7 @@ struct FFTPlans[
         out img: FFTImage[Self.dim,Self.dtype]
     ):
         img = FFTImage[Self.dim,Self.dtype](
-            self.sizes_fourier(),
+            sizes_real=self.sizes_real(),
             alignment=self._info_fourier.alignment,
             uninitialized=uninitialized
         )
@@ -333,7 +333,7 @@ struct FFTPlans[
         out img: FFTImage[Self.dim,Self.dtype]
     ):
         img = FFTImage[Self.dim,Self.dtype](
-            self.sizes_fourier(),
+            sizes_real=self.sizes_real(),
             alignment=self._info_fourier.alignment,
             fill=fill
         )

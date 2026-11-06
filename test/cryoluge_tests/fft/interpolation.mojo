@@ -20,7 +20,7 @@ comptime Cx = ComplexScalar[dtype]
 
 def test_lerp_1d() raises:
 
-    var img = FFTImage[1,dtype]([3], uninitialized=True)
+    var img = FFTImage[1,dtype](sizes_real=[3], uninitialized=True)
 
     img.complex[i=0] = Cx(1, 2)  # f=(0)
     img.complex[i=1] = Cx(3, 4)  # f=(1);(-1)*
@@ -45,7 +45,7 @@ def test_lerp_1d() raises:
 
 def test_lerp_2d() raises:
 
-    var img = FFTImage[2,dtype]([3, 3], uninitialized=True)
+    var img = FFTImage[2,dtype](sizes_real=[3, 3], uninitialized=True)
 
     img.complex[i=0] = Cx(1, 2)  # f=(0,0)
     img.complex[i=1] = Cx(3, 4)  # f=(1,0);(-1,0)*
@@ -137,7 +137,7 @@ comptime OOROverride = OutOfRangeBehavior.override(ComplexScalar[dtype](999, -98
 
 def test_plerp_i2f_1d_full() raises:
 
-    var img = FFTImage[1,dtype]([3], uninitialized=True)
+    var img = FFTImage[1,dtype](sizes_real=[3], uninitialized=True)
     var plerp = PrecomputedFFTInterpolationFull[1,dtype,OORInterp](img)
 
     assert_equal(plerp._i2f(Vec[1](x=0)), Vec[1](x=-2))
@@ -148,7 +148,7 @@ def test_plerp_i2f_1d_full() raises:
 
 def test_plerp_f2i_1d_full() raises:
 
-    var img = FFTImage[1,dtype]([3], uninitialized=True)
+    var img = FFTImage[1,dtype](sizes_real=[3], uninitialized=True)
     var plerp = PrecomputedFFTInterpolationFull[1,dtype,OORInterp](img)
 
     assert_equal(plerp._f2i([-3]), [-1])  # out of range
@@ -161,7 +161,7 @@ def test_plerp_f2i_1d_full() raises:
 
 def test_plerp_1d() raises:
 
-    var img = FFTImage[1,dtype]([3], uninitialized=True)
+    var img = FFTImage[1,dtype](sizes_real=[3], uninitialized=True)
 
     img.complex[i=0] = Cx(1, 2)  # f=(0)
     img.complex[i=1] = Cx(3, 4)  # f=(1);(-1)*
@@ -207,7 +207,7 @@ def test_plerp_1d() raises:
 
 def test_plerp_f2i_2d_full() raises:
 
-    var img = FFTImage[2,dtype]([3, 3], uninitialized=True)
+    var img = FFTImage[2,dtype](sizes_real=[3, 3], uninitialized=True)
     var plerp = PrecomputedFFTInterpolationFull[2,dtype,OORInterp](img)
 
     assert_equal(plerp._f2i([-2, -3]), [0, -1])  # out of range
@@ -241,7 +241,7 @@ def test_plerp_f2i_2d_full() raises:
 
 def test_plerp_2d() raises:
 
-    var img = FFTImage[2,dtype]([3, 3], uninitialized=True)
+    var img = FFTImage[2,dtype](sizes_real=[3, 3], uninitialized=True)
 
     img.complex[i=0] = Cx(1, 2)  # f=(0,0)
     img.complex[i=1] = Cx(3, 4)  # f=(1,0);(-1,0)*
@@ -340,7 +340,7 @@ def test_plerp_2d() raises:
 
 def test_plerp_2d_big_odd() raises:
 
-    var img = FFTImage[2,dtype]([7, 7], uninitialized=True)
+    var img = FFTImage[2,dtype](sizes_real=[7, 7], uninitialized=True)
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
@@ -372,7 +372,7 @@ def test_plerp_2d_big_odd() raises:
 
 def test_plerp_2d_big_even() raises:
 
-    var img = FFTImage[2,dtype]([6, 6], uninitialized=True)
+    var img = FFTImage[2,dtype](sizes_real=[6, 6], uninitialized=True)
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
@@ -404,7 +404,7 @@ def test_plerp_2d_big_even() raises:
 
 def test_plerp_3d_big_odd() raises:
 
-    var img = FFTImage[3,dtype]([7, 7, 7], uninitialized=True)
+    var img = FFTImage[3,dtype](sizes_real=[7, 7, 7], uninitialized=True)
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
@@ -438,7 +438,7 @@ def test_plerp_3d_big_odd() raises:
 
 def test_plerp_3d_big_even() raises:
 
-    var img = FFTImage[3,dtype]([6, 6, 6], uninitialized=True)
+    var img = FFTImage[3,dtype](sizes_real=[6, 6, 6], uninitialized=True)
 
     # fill the image with arbitrary (but deterministic) numbers
     for i in range(img.complex.num_pixels()):
