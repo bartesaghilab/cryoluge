@@ -1,5 +1,5 @@
 
-from std.complex import ComplexSIMD
+from std.complex import ComplexSIMD, ComplexScalar
 
 
 @inline(.always)
@@ -98,4 +98,62 @@ def splat[dtype: DType, //, slen: SIMDLength](v: ComplexSIMD[dtype,1]) -> Comple
     return ComplexSIMD[dtype,slen](
         re = SIMD[dtype,slen](v.re),
         im = SIMD[dtype,slen](v.im)
+    )
+
+
+@inline(.always)
+def reduce_add[dtype: DType, slen: SIMDLength, //, dtype_out: DType = dtype](
+    c: ComplexSIMD[dtype,slen],
+    out result: ComplexScalar[dtype_out]
+):
+    result = ComplexScalar[dtype_out](
+        re=SIMD[dtype_out,slen](c.re).reduce_add(),
+        im=SIMD[dtype_out,slen](c.im).reduce_add()
+    )
+
+
+@inline(.always)
+def elementwise_mul[dtype: DType, slen: SIMDLength](
+    a: ComplexSIMD[dtype,slen],
+    b: ComplexSIMD[dtype,slen],
+    out result: ComplexSIMD[dtype,slen]
+):
+    result = ComplexSIMD[dtype,slen](
+        re = a.re*b.re,
+        im = a.im*b.im
+    )
+
+
+@inline(.always)
+def mul[dtype: DType, slen: SIMDLength](
+    c: ComplexSIMD[dtype,slen],
+    s: SIMD[dtype,slen],
+    out result: ComplexSIMD[dtype,slen]
+):
+    result = ComplexSIMD[dtype,slen](
+        re = c.re*s,
+        im = c.im*s
+    )
+
+
+@inline(.always)
+def dot[dtype: DType, slen: SIMDLength, //, dtype_out: DType = dtype](
+    a: ComplexSIMD[dtype,slen],
+    b: ComplexSIMD[dtype,slen],
+    out result: Scalar[dtype_out]
+):
+    var c = reduce_add[dtype_out](elementwise_mul(a, b))
+    result = c.re + c.im
+
+
+@inline(.always)
+def select[dtype: DType, slen: SIMDLength](
+    mask: SIMD[.bool,slen],
+    true_val: ComplexSIMD[dtype,slen],
+    false_val: ComplexSIMD[dtype,slen],
+    out result: ComplexSIMD[dtype,slen]
+):
+    result = ComplexSIMD[dtype,slen](
+        re = mask.select(true_val.re, false_val.re),
+        im = mask.select(true_val.im, false_val.im)
     )
