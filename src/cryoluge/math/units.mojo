@@ -88,6 +88,10 @@ struct Unit[
         self.value = rebind[Self.T]( SIMD[dtype,slen](v) ).copy()
 
     @inline(.always)
+    def take(deinit self) -> Self.T:
+        return self.value^
+
+    @inline(.always)
     def write_to[W: Writer](self, mut writer: W)
         where conforms_to(Self.T, Writable):
 
