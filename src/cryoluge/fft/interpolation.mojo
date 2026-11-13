@@ -85,7 +85,7 @@ struct PrecomputedFFTInterpolationFull[
         self._samples = DimensionalBuffer[Self.dim,Self.Pixel](sizes)
 
         # precompute all the pixel samples
-        def func(i: Vec[Self.dim, .int]) {mut self, img}:
+        for i in self._samples.elements():
 
             var f = self._i2f(i)
             var pixel = Self.Pixel(0, 0)
@@ -113,8 +113,6 @@ struct PrecomputedFFTInterpolationFull[
                     pixel.im[s] = v.value().im
 
             self._samples[i=i] = pixel
-                
-        self._samples.elements().iterate(func)
 
     def _coords(self) -> FFTCoordsFull[Self.dim]:
         return FFTCoordsFull(self._sizes_real)

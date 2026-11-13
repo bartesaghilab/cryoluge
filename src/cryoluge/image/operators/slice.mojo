@@ -90,12 +90,10 @@ struct SliceOperator[dtype: DType](
         rot: Matrix[3,3,.float32],
         origin_value: ComplexScalar[Self.dtype] = ComplexScalar[Self.dtype](0, 0)
     ):
-        def func(i: to.Vec[.int]) {self, mut to, src, rot, origin_value}:
+        for i in to.complex.pixels().iterate():
             to.complex[i] = self.eval[out_of_range=out_of_range](
                 src=src,
                 rot=rot,
                 i=i,
                 origin_value=origin_value
             )
-
-        to.complex.pixels().iterate(func)

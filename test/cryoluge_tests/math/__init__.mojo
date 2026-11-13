@@ -3,6 +3,7 @@ from std.testing import assert_true, assert_false
 
 from cryoluge_testlib import TestSuite
 
+from . import dimension
 from . import euler
 from . import vec
 from . import matrix

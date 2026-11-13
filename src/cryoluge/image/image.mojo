@@ -95,8 +95,8 @@ struct Image[
     def get(self, i: Self.Vec[.int]) -> Optional[Self.PixelType]:
         return self._buf.get(i)
 
-    def pixels(self) -> ImageIterator[Self.dim, Self.dtype]:
-        return ImageIterator[Self.dim,Self.dtype](self._buf, self.num_pixels())
+    def pixels(self) -> ImageIteration[Self.dim, Self.dtype]:
+        return ImageIteration[Self.dim,Self.dtype](self._buf, self.num_pixels())
 
     @inline(.always)
     def offset(self, i: Self.Vec[.int]) -> Int:
@@ -144,11 +144,8 @@ struct Image[
 
         var to_center = to.sizes()//2
 
-        @inline(.always)
-        def func(i: Vec[Self.dim,.int]) {self, center, padding, mut to, to_center}:
+        for i in to.pixels().iterate():
             to[i] = self.get(i + center - to_center).or_else(padding)
-
-        to.pixels().iterate(func)
         # TODO: vectorize?
 
     def mean(self) -> Scalar[Self.dtype]:
@@ -166,13 +163,10 @@ struct Image[
         var num_pixels_matched: Int = 0
 
         # TODO: any chance we can vectorize this?
-
-        def func(i: Self.Vec[.int]) {self, mask, mut num_pixels_matched, mut sum}:
+        for i in self.pixels().iterate():
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 sum += Float64(self[i])
-
-        self.pixels().iterate(func)
 
         # since we can't divide by zero
         if num_pixels_matched <= 0:
@@ -197,15 +191,13 @@ struct Image[
 
         # TODO: any chance we can vectorize this?
 
-        def func(i: Self.Vec[.int]) {self, mask, mut num_pixels_matched, mut sum, mut sum_of_squares}:
+        for i in self.pixels().iterate():
             if mask.includes(i, self.sizes()):
                 num_pixels_matched += 1
                 var p = Float64(self[i])
                 sum += p
                 p *= p
                 sum_of_squares += p
-
-        self.pixels().iterate(func)
 
         # since we can't divide by zero
         if num_pixels_matched <= 0:
@@ -229,15 +221,13 @@ struct Image[
         var max = Scalar[Self.dtype].MIN
 
         # TODO: vectorize?
-        def func(i: Self.Vec[.int]) {self, mask, mut min, mut max}:
+        for i in self.pixels().iterate():
             if mask.includes(i, self.sizes()):
                 var p = self[i]
                 if p < min:
                     min = p
                 elif p > max:
                     max = p
-        
-        self.pixels().iterate(func)
 
         return (min, max)
 
@@ -255,32 +245,27 @@ struct Image[
         var max = mean + gt_sigmas*stddev
         var min = mean - gt_sigmas*stddev
 
-        def func(i: Self.Vec[.int]) {mut self, min, max, replace_with}:
+        for i in self.pixels().iterate():
             var p = self[i]
             if p > max or p < min:
                 self[i] = replace_with
 
-        self.pixels().iterate(func)
 
-
-struct ImageIterator[dim: Int, dtype: DType](
+struct ImageIteration[dim: Int, dtype: DType](
     Movable
 ) where dim > 0:
 
-    var _iter: DimensionalIterator[Self.dim]
+    var _sizes: Vec[Self.dim, .int]
     var _num_pixels: Int
 
     comptime max_slen = simd_width_of[Self.dtype]()
 
     def __init__(out self, buf: DimensionalBuffer[Self.dim,_], num_pixels: Int):
-        self._iter = buf.elements()
+        self._sizes = buf.sizes().copy()
         self._num_pixels = num_pixels
 
-    def iterate(
-        self,
-        func: Some[def (i: Vec[Self.dim,.int])]
-    ):
-        self._iter.iterate(func)
+    def iterate(self) -> DimensionalIterator[Self.dim]:
+        return DimensionalIterator[Self.dim](self._sizes)
     
     def vectorize[slen: SIMDLength = Self.max_slen](
         self,
@@ -292,25 +277,29 @@ struct ImageIterator[dim: Int, dtype: DType](
 
         vectorize[slen](self._num_pixels, func2)
 
-    def vectorize[slen: SIMDLength = Self.max_slen](
-        self,
-        func: Some[def[slen: SIMDLength](i: Vec[Self.dim,.int])]
-    ) where Self.dim > 0:
-        """
-        Iterates over the outer dimensions (eg, yz) and yields pixel vectors over the first (eg, x) dimension.
-        """
+    # TODO: switch vectorize implementations to be iterator-based instead of closure-based?
+    #       Mojo's reference aliasing rules are making closures impossible to use on anything mutable!
 
-        @inline(.always)
-        def outer_dims(outer_indices: Vec[Self.dim - 1, .int]) {self, func}:
+    # TODO: try to get this working as an iterator?
+    # def vectorize[slen: SIMDLength = Self.max_slen](
+    #     self,
+    #     func: Some[def[slen: SIMDLength](i: Vec[Self.dim,.int])]
+    # ) where Self.dim > 0:
+    #     """
+    #     Iterates over the outer dimensions (eg, yz) and yields pixel vectors over the first (eg, x) dimension.
+    #     """
 
-            @inline(.always)
-            def inner_dim[slen: Int](offset: Int) {func, outer_indices}:
-                var indices = outer_indices.lift_front[Self.dim](Vec[1](x=offset))
-                func[slen](indices)
+    #     @inline(.always)
+    #     def outer_dims(outer_indices: Vec[Self.dim - 1, .int]) {self, func}:
 
-            # then vectorize the first dimension, eg, x
-            vectorize[slen](self._iter._sizes[0], inner_dim)
+    #         @inline(.always)
+    #         def inner_dim[slen: Int](offset: Int) {func, outer_indices}:
+    #             var indices = outer_indices.lift_front[Self.dim](Vec[1](x=offset))
+    #             func[slen](indices)
 
-        # iterate over the outer dimensions first, eg, yz
-        DimensionalIterator(self._iter._sizes.project_last[Self.dim - 1]())
-            .iterate(outer_dims)
+    #         # then vectorize the first dimension, eg, x
+    #         vectorize[slen](self._sizes[0], inner_dim)
+
+    #     # iterate over the outer dimensions first, eg, yz
+    #     DimensionalIterator(self._sizes.project_last[Self.dim - 1]())
+    #         .iterate(outer_dims)

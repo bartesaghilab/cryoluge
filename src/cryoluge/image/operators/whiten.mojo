@@ -54,13 +54,11 @@ struct WhitenOperator[
 
         var coords = image.coords()
 
-        def func(i: Vec[Self.dim,.int]) {self, mut image, coords}:
+        for i in image.complex.pixels().iterate():
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var f_norm = coords.f_norm[Self.dtype](f=f)
             image.complex[i=i] = self.eval(freq_norm=f_norm.len(), v=v)
-
-        image.complex.pixels().iterate(func)
 
 
 struct WhitenStats[
@@ -99,10 +97,8 @@ struct WhitenStats[
 
         var coords = image.coords()
         
-        def func(i: Vec[Self.dim,.int]) {mut self, image, coords}:
+        for i in image.complex.pixels().iterate():
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var freq_norm2 = coords.f_norm[dtype](f=f).len2()
             self.eval(freq_norm2=freq_norm2, v=v)
-
-        image.complex.pixels().iterate(func)

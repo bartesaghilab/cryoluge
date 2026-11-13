@@ -5,7 +5,7 @@ from std.sys import simd_width_of
 
 from cryoluge.math import Vec, ComplexScalar, ladder
 from cryoluge.math.dimension import DimensionalIterator
-from cryoluge.image.image import ImageIterator
+from cryoluge.image.image import ImageIteration
 from cryoluge.image.dimension import DimensionalBuffer
 from cryoluge.math import complex
 
@@ -123,8 +123,8 @@ struct ComplexImage[
     def get[*, or_else: Self.PixelType](self, i: Self.Vec[.int], out v: Self.PixelType):
         v = self._buf.get[or_else=or_else](i)
 
-    def pixels(self) -> ImageIterator[Self.dim, Self.dtype]:
-        return ImageIterator[Self.dim,Self.dtype](self._buf, self.num_pixels())
+    def pixels(self) -> ImageIteration[Self.dim, Self.dtype]:
+        return ImageIteration[Self.dim,Self.dtype](self._buf, self.num_pixels())
 
     @inline(.always)
     def load[slen: SIMDLength](self, offset: Int, out v: Self.PixelVec[slen]):

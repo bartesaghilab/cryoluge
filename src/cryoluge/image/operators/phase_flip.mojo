@@ -33,7 +33,5 @@ struct PhaseFlipOperator:
         mut image: ComplexImage[dim,dtype]
     ) where dim > 0:
 
-        def func(i: Vec[dim,.int]) {self, mut image}:
+        for i in image.pixels().iterate():
             image[i=i] = self.eval(image[i=i])
-
-        image.pixels().iterate(func)

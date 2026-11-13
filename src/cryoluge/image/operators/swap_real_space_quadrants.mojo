@@ -40,8 +40,6 @@ struct SwapRealSpaceQuadrantsOperator[dim: Int, dtype: DType]
     ):
         var coords = img.coords()
 
-        def func(i: Vec[Self.dim,.int]) {self, coords, mut img}:
+        for i in img.complex.pixels().iterate():
             var f = coords.i2f(i)
             img.complex[i=i] = self.eval(f=f, v=img.complex[i=i])
-
-        img.complex.pixels().iterate(func)

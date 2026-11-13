@@ -68,11 +68,9 @@ struct WeightBySSNROperator[
 
         var coords = image.coords()
         
-        def func(i: Vec[2,.int]) {self, mut image, coords, ctf}:
+        for i in image.complex.pixels().iterate():
             var v = image.complex[i=i]
             var f = coords.i2f(i)
             var f_norm = coords.f_norm[Self.dtype](f=f)
             var ctfi2 = ctf.eval(f_norm=f_norm)**2
             image.complex[i=i] = self.eval(freq_norm=f_norm.len(), ctf2=ctfi2, v=v)
-
-        image.complex.pixels().iterate(func)

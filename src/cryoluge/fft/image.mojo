@@ -82,14 +82,12 @@ struct FFTImage[
         var coords_src = src.coords()
 
         # sample into the dst image
-        def func(i_dst: Self.Vec[.int]) {src, coords_src, mut dst, coords_dst, out_of_range}:
+        for i_dst in dst.complex.pixels().iterate():
             var i_src = coords_src.maybe_f2i(coords_dst.i2f(i_dst))
             if i_src is not None:
                 dst.complex[i_dst] = src.complex[i_src.value()]
             else:
                 dst.complex[i_dst] = out_of_range
-
-        dst.complex.pixels().iterate(func)
 
     def find(
         self,

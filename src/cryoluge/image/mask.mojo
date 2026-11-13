@@ -158,7 +158,7 @@ struct RadialMask[
         var weight_outside = sinc(scale.x()*self.radius)
         weight_outside *= weight_outside
 
-        def func(i: Vec[dim,.int]) {self, mut img, scale, weight_outside} :
+        for i in img.pixels().iterate():
             if self.includes(i, img.sizes()):
                 var dist = i - img.sizes()//2
                 var weight = (dist.map_dtype[Self.dtype]()*scale).sinc().product()
@@ -166,8 +166,6 @@ struct RadialMask[
                 img[i=i] /= weight
             else:
                 img[i=i] /= weight_outside
-
-        img.pixels().iterate(func)
 
 
 struct AnnularMask[
@@ -298,15 +296,13 @@ struct AnnularMask[
 
         expect_domain[CoordDomain.Real, Self.domain]()
 
-        def func(i: Vec[dim,.int]) {self, mut img, v, ease}:
+        for i in img.pixels().iterate():
             var r2 = center_dist2_real[dim,Self.dtype](i, img.sizes())
             if self.includes(r2):
                 var t = self._blend_interpolate[dir](r2,ease)
                 img[i=i] = img[i=i]*(1 - t) + t*v
             elif self._past_end[dir](r2):
                 img[i=i] = v
-
-        img.pixels().iterate(func)
 
     def blend[
         dim: Int,
@@ -328,15 +324,13 @@ struct AnnularMask[
 
         expect_domain[CoordDomain.Fourier, Self.domain]()
 
-        def func(i: Vec[dim,.int]) {self, mut img, v, ease}:
+        for i in img.complex.pixels().iterate():
             var r2 = center_dist2_fourier[dim,Self.dtype](i, img.coords())
             if self.includes(r2):
                 var t = self._blend_interpolate[dir](r2, ease)
                 img.complex[i=i] = img.complex[i=i]*(1 - t) + t*v
             elif self._past_end[dir](r2):
                 img.complex[i=i] = v
-
-        img.complex.pixels().iterate(func)
 
     def volume_retained[
         dim: Int,
@@ -359,15 +353,13 @@ struct AnnularMask[
 
         # TODO: there's probably an analytical solution for this?
 
-        def func(i: Vec[dim,.int]) {self, sizes, mut sum, ease}:
+        for i in DimensionalIterator(sizes):
             var r2 = center_dist2_real[dim,Self.dtype](i, sizes)
             if self.includes(r2):
                 var t = self._blend_interpolate[dir](r2, ease)
                 sum += Float64( (1 - t)**2 )
             elif self._past_end[dir.opposite()](r2):
                 sum += 1
-
-        DimensionalIterator(sizes).iterate(func)
 
         volume = Scalar[Self.dtype](sum)
 

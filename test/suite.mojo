@@ -15,6 +15,7 @@ def main() raises:
     var suite = TestSuite()
 
     suite.add_module[cryoluge_tests.math.tests]()
+    suite.add_module[cryoluge_tests.math.dimension.tests]()
     suite.add_module[cryoluge_tests.math.euler.tests]()
     suite.add_module[cryoluge_tests.math.vec.tests]()
     suite.add_module[cryoluge_tests.math.matrix.tests]()

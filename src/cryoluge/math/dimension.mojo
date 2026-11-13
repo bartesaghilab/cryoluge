@@ -19,35 +19,51 @@ def expect_at_least_dim[obs: Int, exp: Int]():
 
 
 struct DimensionalIterator[dim: Int](
-    Movable
+    Copyable,
+    IterableOwned,
+    Iterator
 ):
-    var _sizes: Vec[Self.dim,.int]
+    comptime Element = Vec[Self.dim,.int]
+    comptime IteratorOwnedType = Self
 
-    def __init__(out self, sizes: Vec[Self.dim,.int]):
+    var _sizes: Vec[Self.dim, .int]
+    var _i: Vec[Self.dim, .int]
+
+    @inline(.always)
+    def __init__(out self, sizes: Vec[Self.dim, .int]):
         self._sizes = sizes.copy()
+        self._i = Vec[Self.dim, .int](uninitialized=True)
+        self.reset()
 
-    def iterate(
-        self,
-        func: Some[def (i: Vec[Self.dim,.int])]
-    ):
-        
-        comptime if Self.dim == 1:
-            
-            for x in range(self._sizes.x()):
-                func([x])
+    def reset(mut self):
+        self._i = Vec[Self.dim](fill=0)
+        self._i[0] = -1
 
-        elif Self.dim == 2:
-            
-            for y in range(self._sizes.y()):
-                for x in range(self._sizes.x()):
-                    func([x, y])
+    def sizes(self) -> ref [self._sizes] Vec[Self.dim, .int]:
+        return self._sizes
+    
+    @inline(.always)
+    def __iter__(var self) -> Self.IteratorOwnedType:
+        return self^
 
-        elif Self.dim == 3:
+    def __next__(mut self) raises StopIteration -> Self.Element:
 
-            for z in range(self._sizes.z()):
-                for y in range(self._sizes.y()):
-                    for x in range(self._sizes.x()):
-                        func([x, y, z])
+        # no sizes? no iteration
+        if self._sizes.le_any(Vec[Self.dim](fill=0)):
+            raise StopIteration()
 
-        else:
-            unimplemented_dimension[Self.dim]()
+        comptime for d in range(Self.dim):
+
+            # try to take a step
+            self._i[d] += 1
+
+            if self._i[d] < self._sizes[d]:
+                # in-range: so valid step
+                return self._i.copy()
+            else:
+                # out-of-range: reset and try to step a higher dimension
+                self._i[d] = 0
+
+        # everything out-of-range, so we're done here
+        self.reset()
+        raise StopIteration()
